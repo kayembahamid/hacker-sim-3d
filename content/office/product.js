@@ -406,19 +406,4 @@ export const product = {
       event: 'intercom:checked'
     }
   },
-
-  builtIntro: 'The same pipeline as RansomLeak’s interactive training, rebuilt with plain JavaScript and free tools so it fits a site with no framework.',
-  builtLayers: [
-    { name: 'The office', what: 'Modelled in Blender from Python, with CC0 furniture from Poly Haven. The light is baked into the textures with Cycles, so the browser draws every surface with no lighting maths at all.', like: 'RansomLeak: Blender models with the lighting baked into KTX2 textures.' },
-    { name: 'The textures', what: 'Baked, denoised, then compressed to KTX2. They stay compressed on the graphics chip. The whole office is 2 MB.', like: 'RansomLeak: KTX2 textures and Draco meshes.' },
-    { name: 'The screens', what: 'Both monitors, the mobile and the desk phone are real HTML placed on the glass with CSS3DRenderer, then laid flat when you zoom in, so text is sharp and every control works.', like: 'RansomLeak: drei’s Html transform.' },
-    { name: 'The story', what: 'Each scenario is a JSON file: what arrives, when, and what a careful employee does. A seeded pick decides which six you get and which tricks they use.', like: 'RansomLeak: a store driving each exercise.' },
-    { name: 'Sound and voices', what: 'Every ring, buzz and shredder is made live with the Web Audio API. Calls speak with the browser’s own voices, and every word is captioned.', like: 'RansomLeak: MP3s and voice over.' }
-  ],
-  credits: [
-    { name: 'Furniture and props:', text: 'Poly Haven (CC0). Full list in CREDITS.md.' },
-    { name: 'Textures:', text: 'Poly Haven (CC0).' },
-    { name: 'Everything else:', text: 'modelled, drawn and written for Hacker’s Notes by Hamcodes.' },
-    { name: 'Built with:', text: 'three.js, Vite, Blender, glTF Transform, KTX-Software.' }
-  ]
 };

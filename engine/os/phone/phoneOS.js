@@ -38,7 +38,10 @@ export class PhoneOS {
     this.bannerEl = el('div', { class: 'ph-banners', 'aria-live': 'polite' });
     this.sheetEl = el('div', { class: 'ph-sheet-layer' });
     this.callEl = el('div', { class: 'ph-call-layer' });
-    this.homeBar = el('button', { class: 'ph-homebar', type: 'button', 'aria-label': 'Home screen', onclick: () => this.goHome() });
+    // A comfortable tap target across the bottom of the phone, with the home
+    // indicator drawn in the middle of it, so getting back to the home screen
+    // from any app is a reliable tap, not a hit on a hairline.
+    this.homeBar = el('button', { class: 'ph-homebar', type: 'button', 'aria-label': 'Home screen', title: 'Home', onclick: () => this.goHome() }, [el('span', { class: 'ph-homebar-pill' })]);
     root.append(this.statusEl, this.viewEl, this.sheetEl, this.callEl, this.bannerEl, this.homeBar, this.bar);
 
     bus.on('world:changed', () => this.render());
