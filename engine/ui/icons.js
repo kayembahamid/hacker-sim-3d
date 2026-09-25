@@ -103,7 +103,8 @@ export const ICONS = {
   scan: P('<path d="M4 8V5.5A1.5 1.5 0 0 1 5.5 4H8M16 4h2.5A1.5 1.5 0 0 1 20 5.5V8M20 16v2.5a1.5 1.5 0 0 1-1.5 1.5H16M8 20H5.5A1.5 1.5 0 0 1 4 18.5V16M4 12h16"/>'),
   hr: P('<circle cx="12" cy="8" r="3.5"/><path d="M5 20.5a7 7 0 0 1 14 0M17.5 4.5l2 2-2 2"/>'),
   bank: P('<path d="M3.5 9.5 12 4l8.5 5.5Z"/><path d="M5.5 10v7M9.5 10v7M14.5 10v7M18.5 10v7M3.5 19.5h17"/>'),
-  deskphone: P('<path d="M4 8.5h16v10.5a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 19Z"/><path d="M6.5 8.5V5.5a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v3"/><rect x="11" y="11" width="6" height="3" rx="0.5"/><path d="M7 11.5h1.5M7 14.5h1.5M7 17.5h1.5M11 17.5h1.5M15.5 17.5h1.5"/>')
+  deskphone: P('<path d="M4 8.5h16v10.5a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 19Z"/><path d="M6.5 8.5V5.5a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v3"/><rect x="11" y="11" width="6" height="3" rx="0.5"/><path d="M7 11.5h1.5M7 14.5h1.5M7 17.5h1.5M11 17.5h1.5M15.5 17.5h1.5"/>'),
+  compass: P('<circle cx="12" cy="12" r="8.5"/><path d="m15.5 8.5-2 5-5 2 2-5Z"/>')
 };
 
 export function icon(name, cls = '') {

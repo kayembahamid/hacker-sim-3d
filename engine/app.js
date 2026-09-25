@@ -331,6 +331,15 @@ export class Engine {
     this.root.addEventListener('pointerdown', wake, { once: true });
     window.addEventListener('keydown', wake, { once: true });
     bus.on('menu:open', () => this.menu.open());
+    // The walkthrough's "Take me there": fly the camera to the thing the current
+    // step is about, and put its marker up so it is easy to spot on the way.
+    bus.on('coach:goto', ({ target }) => {
+      if (!target) return;
+      this.hotspots.show(target);
+      this.interaction.activate(target);
+    });
+    // The coach only offers the ride for something the player can actually reach.
+    this.shell.canReach = (id) => { const d = this.interaction.get(id); return !!d && d.available !== false; };
   }
 
   actionCtx() {

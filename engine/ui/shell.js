@@ -30,10 +30,16 @@ export class Shell {
     this.applyTextSize();
     this.collapsed = load('sideCollapsed', false) && window.innerWidth > 760;
     this.applyCollapsed();
+    this.guide = load('guide', true);
+    this.renderGuideBtn();
 
     bus.on('clock:changed', ({ label }) => { this.clock.textContent = label; });
     bus.on('objective', ({ text }) => this.setObjective(text));
     bus.on('hint', ({ text }) => this.offerHint(text));
+    bus.on('coach:step', (d) => this.showCoach(d));
+    bus.on('scenario:complete', () => this.clearCoach());
+    bus.on('camera:flightEnd', ({ pose }) => { this.coachArrived = pose !== 'overview'; this.renderCoach(); });
+    bus.on('device:live', ({ id }) => this.setDeviceOpen(!!id));
     bus.on('scenario:start', (s) => this.setScenario(s));
     bus.on('insight', ({ text, title }) => this.setInsight(text, title));
     bus.on('beat', (b) => this.addBeat(b));
@@ -215,12 +221,14 @@ export class Shell {
       class: 'tool', type: 'button', onclick: () => { audio.start(); audio.toggle(); }
     });
     this.renderSound(audio.muted);
+    this.guideBtn = el('button', { class: 'tool', type: 'button', onclick: () => this.toggleGuide() }, [icon('compass'), el('span', { class: 'tool-label', text: 'Guide' })]);
     this.menuBtn = el('button', { class: 'tool', type: 'button', 'aria-label': 'Game menu', onclick: () => bus.emit('menu:open', {}) }, [icon('menu')]);
 
     this.backBtn = el('button', {
       class: 'back-btn', type: 'button', hidden: true,
       onclick: () => bus.emit('room:back', {})
     }, [icon('back'), el('span', { text: 'Back to the room' }), el('kbd', { text: 'Esc' })]);
+    this.buildCoach();
     this.captions = el('div', { class: 'captions', role: 'status', 'aria-live': 'polite' });
     this.banner = el('div', { class: 'room-banners', 'aria-live': 'polite' });
 
@@ -233,11 +241,11 @@ export class Shell {
       this.layers,
       el('div', { class: 'stage-top ui-layer' }, [
         el('div', { class: 'stage-top-left' }, [this.storyBtn, this.who]),
-        el('div', { class: 'tools' }, [this.placesBtn, this.textBtn, this.soundBtn, this.menuBtn]),
+        el('div', { class: 'tools' }, [this.placesBtn, this.guideBtn, this.textBtn, this.soundBtn, this.menuBtn]),
         this.placesMenu
       ]),
       this.banner,
-      el('div', { class: 'stage-bottom ui-layer' }, [this.captions, this.backBtn])
+      el('div', { class: 'stage-bottom ui-layer' }, [this.coach, this.coachPeek, this.captions, this.backBtn])
     ]);
 
     window.addEventListener('keydown', (ev) => {
@@ -254,6 +262,97 @@ export class Shell {
   renderSound(muted) {
     this.soundBtn.replaceChildren(icon(muted ? 'soundOff' : 'soundOn'), el('span', { class: 'tool-label', text: muted ? 'Sound off' : 'Sound on' }));
     this.soundBtn.setAttribute('aria-pressed', String(!muted));
+  }
+
+  // ---------------------------------------------------------------- coach
+  // The guided walkthrough: a small card over the room that says, in plain
+  // words, what to do now and offers to fly the camera to the right thing. It
+  // is on by default and can be turned off, and it can be tucked away step by
+  // step to a small tab without leaving the game.
+  buildCoach() {
+    this.coachObj = el('p', { class: 'coach-obj', hidden: true });
+    this.coachText = el('p', { class: 'coach-text' });
+    this.coachGo = el('button', { class: 'coach-go', type: 'button', onclick: () => this.coachGoto() }, [
+      icon('places'), el('span', { class: 'cg-label', text: 'Take me there' })
+    ]);
+    this.coachActions = el('div', { class: 'coach-actions' }, [this.coachGo]);
+    this.coach = el('div', { class: 'coach', role: 'status', 'aria-live': 'polite', hidden: true }, [
+      el('div', { class: 'coach-head' }, [
+        el('span', { class: 'coach-badge' }, [icon('compass')]),
+        el('span', { class: 'coach-kicker', text: 'Next step' }),
+        el('button', { class: 'coach-x', type: 'button', 'aria-label': 'Tuck this away', onclick: () => this.dismissCoach() }, [icon('close')])
+      ]),
+      this.coachObj, this.coachText, this.coachActions
+    ]);
+    this.coachPeek = el('button', {
+      class: 'coach-peek', type: 'button', hidden: true, 'aria-label': 'Show me what to do',
+      onclick: () => this.expandCoach()
+    }, [icon('compass'), el('span', { text: 'What now?' })]);
+  }
+
+  showCoach(d) {
+    this.coachData = d;
+    this.coachDismissed = false;
+    this.coachForceOpen = false;
+    this.coachArrived = false;
+    this.renderCoach();
+  }
+
+  // While a phone or computer is open on a small screen its controls sit where
+  // the coach card would, so the coach steps aside to its small tab; the player
+  // can still tap it open.
+  setDeviceOpen(open) {
+    this.deviceOpen = open;
+    if (!open) this.coachForceOpen = false;
+    this.renderCoach();
+  }
+
+  renderCoach() {
+    const d = this.coachData;
+    const active = !!(this.guide && d);
+    if (!active) { this.coach.hidden = true; this.coachPeek.hidden = true; return; }
+    const collapsed = this.coachDismissed || (this.deviceOpen && !this.coachForceOpen);
+    this.coachPeek.hidden = !collapsed;
+    this.coach.hidden = collapsed;
+    if (collapsed) return;
+
+    const obj = (d.objective || '').trim();
+    const hint = (d.hint || '').trim();
+    const main = hint || obj || 'Take a look around the room and follow what feels off.';
+    const showObj = obj && hint && obj !== hint;
+    this.coachObj.hidden = !showObj;
+    this.coachObj.textContent = showObj ? obj : '';
+    this.coachText.textContent = main;
+    // Offer the ride only while we are still standing back in the room, and only
+    // for something the player can actually reach; once the camera is in close
+    // there is nothing left to fly to.
+    const canGo = !!d.target && !this.coachArrived && (!this.canReach || this.canReach(d.target));
+    this.coachGo.hidden = !canGo;
+    this.coachActions.hidden = !canGo;
+    if (canGo) this.coachGo.querySelector('.cg-label').textContent = d.targetLabel ? `Go to ${d.targetLabel}` : 'Take me there';
+  }
+
+  coachGoto() {
+    if (this.coachData && this.coachData.target) bus.emit('coach:goto', { target: this.coachData.target });
+  }
+
+  dismissCoach() { this.coachDismissed = true; this.coachForceOpen = false; this.renderCoach(); }
+  expandCoach() { this.coachDismissed = false; this.coachForceOpen = true; this.renderCoach(); }
+  clearCoach() { this.coachData = null; this.renderCoach(); }
+
+  toggleGuide() {
+    this.guide = !this.guide;
+    save('guide', this.guide);
+    this.renderGuideBtn();
+    this.renderCoach();
+  }
+
+  renderGuideBtn() {
+    if (!this.guideBtn) return;
+    this.guideBtn.classList.toggle('is-off', !this.guide);
+    this.guideBtn.setAttribute('aria-pressed', String(this.guide));
+    const label = this.guideBtn.querySelector('.tool-label');
+    if (label) label.textContent = this.guide ? 'Guide' : 'Guide off';
   }
 
   // The keyboard and screen reader route to every object in the room.

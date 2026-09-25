@@ -2,6 +2,7 @@ import { bus } from '../core/bus.js';
 import { runActions, cancelTimers } from './actions.js';
 import { makeLookalike } from './lookalike.js';
 import { now, format, setClock, clockRange } from '../core/clock.js';
+import { load } from '../core/storage.js';
 
 // Reads a scenario JSON and plays it. The engine knows about stages, rules,
 // outcomes and rewinds. It knows nothing about Blockfall, Gems, Bille, Veltrix
@@ -187,12 +188,30 @@ export class ScenarioRunner {
     runActions(stage.auto, this.actionCtx);
     bus.emit('stage:entered', { scenario: a.scenario.id, stage: stageId, decision: !!stage.decision });
 
+    // The guided walkthrough (the coach) gets the full step guidance straight
+    // away: what to do now, and where to go to do it. The player can turn the
+    // coach off; then the hint below still appears, on a delay, as before.
+    if (!stage.end) {
+      bus.emit('coach:step', {
+        scenario: a.scenario.id, index: (a.index ?? 0) + 1, count: a.count ?? 1, stage: stageId,
+        objective: stage.objective || '',
+        hint: (stage.hint && (stage.hint.text || stage.hint)) || '',
+        target: stage.target || (stage.hint && stage.hint.glow) || null,
+        targetLabel: stage.targetLabel || null,
+        decision: !!stage.decision
+      });
+    }
+
     const hintDelay = HINT_DELAY[this.difficulty];
     if (stage.hint && hintDelay !== undefined) {
       a.hintTimer = setTimeout(() => bus.emit('hint', { text: stage.hint.text || stage.hint }), stage.hint.afterMs ?? hintDelay);
     }
     const target = stage.target || (stage.hint && stage.hint.glow);
-    const hsDelay = HOTSPOT_DELAY[this.difficulty];
+    // With the guided walkthrough on, the marker that says "look here" comes up
+    // almost at once, so "where to go" is never a guess. With it off, it keeps
+    // the by difficulty pace.
+    const guided = load('guide', true);
+    const hsDelay = guided ? 500 : HOTSPOT_DELAY[this.difficulty];
     if (target && hs && hsDelay !== undefined) {
       a.hotspotTimer = setTimeout(() => hs.show(target, { label: stage.targetLabel }), hsDelay);
     }

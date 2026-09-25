@@ -186,6 +186,39 @@ a { color: var(--accent); }
 .captions.is-on { opacity: 1; transform: none; }
 .cap-who { color: var(--accent); font-weight: 700; margin-right: 8px; }
 
+/* the guided walkthrough (coach): what to do now, and a ride to where to do it */
+.coach {
+  width: min(460px, 92%); text-align: left; padding: 12px 14px 13px; border-radius: 16px;
+  background: var(--glass-strong); border: 1px solid var(--line-2); backdrop-filter: blur(14px);
+  box-shadow: var(--lift-sm); animation: drop 0.32s ease; order: -1;
+}
+.coach-head { display: flex; align-items: center; gap: 9px; margin-bottom: 7px; }
+.coach-badge { width: 28px; height: 28px; border-radius: 9px; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent); flex: none; }
+.coach-badge .icon svg { width: 18px; height: 18px; }
+.coach-kicker { flex: 1; color: var(--accent); font-weight: 700; font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; }
+.coach-x { flex: none; width: 30px; height: 30px; border-radius: 9px; border: 0; background: transparent; color: var(--muted); display: grid; place-items: center; }
+.coach-x:hover { background: var(--line); color: var(--ink); }
+.coach-obj { margin: 0 0 3px; color: var(--muted); font-size: 0.84em; line-height: 1.35; }
+.coach-text { margin: 0; color: var(--ink); font-size: 1em; line-height: 1.45; }
+.coach-actions { display: flex; gap: 8px; margin-top: 11px; }
+.coach-actions[hidden] { display: none; }
+.coach-go {
+  display: inline-flex; align-items: center; gap: 8px; padding: 9px 14px; border: 0; border-radius: 12px;
+  background: var(--accent); color: var(--accent-ink); font-weight: 700; font-size: 0.95em;
+}
+.coach-go .icon svg { width: 18px; height: 18px; }
+.coach-go:hover { filter: brightness(1.06); }
+.coach-peek {
+  order: -1; display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 15px;
+  border-radius: 999px; border: 1px solid var(--line-2); background: var(--glass-strong); color: var(--ink);
+  backdrop-filter: blur(12px); box-shadow: var(--lift-sm); font-weight: 600; animation: drop 0.28s ease;
+}
+.coach-peek .icon { color: var(--accent); }
+/* out of the way of a phone or computer's own controls while one is open */
+.sim-app.device-open .coach-peek { align-self: flex-start; }
+.tool.is-off { opacity: 0.55; }
+.tool.is-off .icon { color: var(--muted); }
+
 .room-banners { position: absolute; z-index: 19; top: 70px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; gap: 8px; width: min(440px, calc(100% - 32px)); pointer-events: none; }
 .room-banner {
   pointer-events: auto; display: flex; align-items: center; gap: 11px; padding: 10px 12px;
