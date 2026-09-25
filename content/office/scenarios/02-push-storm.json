@@ -1,0 +1,355 @@
+{
+  "id": "push-storm",
+  "order": 2,
+  "title": "The push storm",
+  "kind": "MFA fatigue and vishing",
+  "maxPoints": 70,
+  "startsAt": 1010,
+  "brief": "16:50. Your phone starts buzzing with sign in requests you did not start. Then the desk phone rings: IT.",
+  "insight": "Someone has your password and is hammering the approve button, hoping you tap yes to make it stop.",
+  "vars": {
+    "num1": {
+      "int": [
+        10,
+        89
+      ]
+    },
+    "num2": {
+      "int": [
+        10,
+        89
+      ]
+    },
+    "num3": {
+      "int": [
+        10,
+        89
+      ]
+    },
+    "place": {
+      "pick": [
+        "Rotterdam, NL",
+        "Sofia, BG",
+        "Lagos, NG"
+      ]
+    }
+  },
+  "setup": [
+    {
+      "do": "push.prompt",
+      "id": "ps-1",
+      "service": "Veltrix sign in",
+      "account": "s.rivera",
+      "location": "{{place}}",
+      "device": "Unknown browser",
+      "number": "{{num1}}",
+      "choices": [
+        "{{num1}}",
+        "34",
+        "71"
+      ],
+      "genuine": false
+    },
+    {
+      "do": "after",
+      "ms": 6000,
+      "actions": [
+        {
+          "do": "push.prompt",
+          "id": "ps-2",
+          "service": "Veltrix sign in",
+          "account": "s.rivera",
+          "location": "{{place}}",
+          "device": "Unknown browser",
+          "number": "{{num2}}",
+          "choices": [
+            "58",
+            "{{num2}}",
+            "22"
+          ],
+          "genuine": false
+        }
+      ]
+    },
+    {
+      "do": "after",
+      "ms": 10000,
+      "actions": [
+        {
+          "do": "deskphone.line",
+          "number": "4040",
+          "line": {
+            "name": "IT Service Desk",
+            "genuine": false,
+            "voice": {
+              "gender": "male",
+              "tone": "pushy"
+            },
+            "script": [
+              {
+                "say": "Hi, this is Ryan from IT. We are seeing sync errors on your account and it is sending those prompts. To clear it, just approve the next one for me and it will stop."
+              },
+              {
+                "choices": [
+                  {
+                    "id": "approve",
+                    "label": "OK, approving it now",
+                    "goto": "thank"
+                  },
+                  {
+                    "id": "refuse",
+                    "label": "I will call the service desk back on 4040 myself",
+                    "goto": "rumbled"
+                  },
+                  {
+                    "id": "hang",
+                    "label": "Hang up",
+                    "hangUp": true
+                  }
+                ]
+              },
+              {
+                "id": "thank",
+                "say": "Great, thanks, that clears it our end.",
+                "end": true
+              },
+              {
+                "id": "rumbled",
+                "say": "There is really no need for that, I am the service desk. Just approve it.",
+                "end": true
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "do": "after",
+      "ms": 10500,
+      "actions": [
+        {
+          "do": "deskphone.ring",
+          "id": "call-it",
+          "number": "4040",
+          "label": "IT Service Desk",
+          "known": true,
+          "genuine": false,
+          "missAfterMs": 40000,
+          "voice": {
+            "gender": "male",
+            "tone": "pushy"
+          },
+          "script": [
+            {
+              "say": "Hi Sam, Ryan from IT. Those sign in prompts are a sync glitch on our side. Approve the next one and it stops, I will stay on the line."
+            },
+            {
+              "choices": [
+                {
+                  "id": "approve",
+                  "label": "OK, I will approve it",
+                  "goto": "pushit"
+                },
+                {
+                  "id": "check",
+                  "label": "IT never asks me to approve. I will call 4040 back myself.",
+                  "goto": "rumbled"
+                }
+              ]
+            },
+            {
+              "id": "pushit",
+              "say": "Perfect, tap approve now.",
+              "end": true
+            },
+            {
+              "id": "rumbled",
+              "say": "That is not necessary, I AM 4040.",
+              "end": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "do": "room.banner",
+      "title": "Authenticator",
+      "body": "Sign in request. Are you trying to sign in?",
+      "icon": "shield",
+      "object": "phone",
+      "action": "Check"
+    }
+  ],
+  "bonuses": [
+    {
+      "id": "b-deny1",
+      "when": {
+        "event": "push:denied",
+        "match": {
+          "id": "ps-1"
+        }
+      },
+      "outcome": {
+        "points": 12,
+        "verdict": "safe",
+        "label": "Denied the first request",
+        "what": "You did not start it, so you said no. That is the whole game: never approve a prompt you did not start.",
+        "ideal": "denies any sign in prompt it did not start."
+      }
+    },
+    {
+      "id": "b-deny2",
+      "when": {
+        "event": "push:denied",
+        "match": {
+          "id": "ps-2"
+        }
+      },
+      "outcome": {
+        "points": 8,
+        "verdict": "safe",
+        "label": "Denied the second request",
+        "what": "Still no. The attacker is hoping you cave.",
+        "ideal": "keeps denying, however many times they try."
+      }
+    },
+    {
+      "id": "b-hangup",
+      "when": {
+        "event": "deskphone:choice",
+        "match": {
+          "choice": "check"
+        }
+      },
+      "outcome": {
+        "points": 12,
+        "verdict": "careful",
+        "label": "Refused the caller and said you would call back",
+        "what": "The real IT service desk will never ask you to approve a prompt. Calling 4040 yourself reaches the real Priya.",
+        "ideal": "does not act on an inbound call, and calls back on a number they already hold."
+      }
+    },
+    {
+      "id": "b-realdesk",
+      "when": {
+        "event": "deskphone:connected",
+        "match": {
+          "number": "4040",
+          "genuine": true
+        }
+      },
+      "outcome": {
+        "points": 12,
+        "verdict": "safe",
+        "label": "Called the real IT service desk",
+        "what": "Priya confirms IT did not call you and starts locking the attacker out.",
+        "ideal": "verifies through the number in the notebook, not the one that called."
+      }
+    },
+    {
+      "id": "b-password",
+      "when": {
+        "event": "password:changed"
+      },
+      "outcome": {
+        "points": 18,
+        "verdict": "safe",
+        "label": "Changed your password",
+        "what": "The attacker had your password, so you changed it. That also signs out every other device.",
+        "ideal": "changes a password the moment it is clear someone else has it."
+      }
+    },
+    {
+      "id": "b-ticket",
+      "when": {
+        "event": "ticket:raised",
+        "match": {
+          "category": "account"
+        }
+      },
+      "outcome": {
+        "points": 8,
+        "verdict": "safe",
+        "label": "Reported the account compromise",
+        "what": "IT can force a reset and check what the attacker reached.",
+        "ideal": "reports a compromise so it can be contained."
+      }
+    }
+  ],
+  "guards": [
+    {
+      "id": "g-callapprove",
+      "when": {
+        "event": "deskphone:choice",
+        "match": {
+          "choice": "approve"
+        }
+      },
+      "outcome": {
+        "points": -10,
+        "verdict": "risky",
+        "label": "Told the caller you would approve it",
+        "what": "The caller is the attacker. Doing what they ask is how the fatigue attack finally works.",
+        "ideal": "never follows an inbound caller’s instructions to approve a prompt."
+      }
+    }
+  ],
+  "start": "storm",
+  "stages": {
+    "storm": {
+      "objective": "Deal with the sign in requests and the call.",
+      "target": "phone",
+      "decision": true,
+      "insight": "Number matching means an attacker cannot approve for you. They can only try to make you do it, by wearing you down or talking you into it.",
+      "hint": {
+        "text": "Deny every prompt. Do not do what the caller asks. Then use the notebook to find the real IT number, call it on the desk phone, and change your password in Account security."
+      },
+      "on": [
+        {
+          "when": {
+            "event": "push:approved",
+            "match": {
+              "genuine": false
+            }
+          },
+          "outcome": {
+            "points": -40,
+            "verdict": "unsafe",
+            "label": "Approved a sign in you did not start",
+            "what": "The attacker is now signed in as you. Everything you can reach, they can reach.",
+            "ideal": "never approves a prompt it did not start, no matter who is on the phone.",
+            "card": {
+              "title": "You let them in",
+              "kicker": "MFA fatigue",
+              "body": [
+                "One tap and the attacker was inside your account. They had your password already; the prompt was the last door, and you opened it.",
+                "The rule has no exceptions: if you did not just start a sign in, deny it. IT will never ask you to approve one."
+              ],
+              "ideal": "denies every prompt it did not start.",
+              "rewindLabel": "Rewind to before I approved"
+            }
+          },
+          "go": "done"
+        },
+        {
+          "when": {
+            "event": "password:changed"
+          },
+          "go": "done"
+        },
+        {
+          "when": {
+            "event": "ticket:raised",
+            "match": {
+              "category": "account"
+            }
+          },
+          "go": "done"
+        }
+      ]
+    },
+    "done": {
+      "end": true
+    }
+  }
+}

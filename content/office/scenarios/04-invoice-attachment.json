@@ -1,0 +1,297 @@
+{
+  "id": "invoice-attachment",
+  "order": 4,
+  "title": "The invoice attachment",
+  "kind": "Malicious attachment",
+  "maxPoints": 58,
+  "startsAt": 1055,
+  "brief": "17:35. An invoice lands from a supplier you do not recognise, with a file attached.",
+  "insight": "The file is not really an invoice. Its name is built to look like one.",
+  "vars": {
+    "attach": {
+      "pick": [
+        {
+          "name": "Invoice_4471.pdf.html",
+          "trueType": "Web page (.html) that opens in a browser and can run scripts",
+          "why": "Its real type is .html, not .pdf. The .pdf is part of the name to fool you."
+        },
+        {
+          "name": "Remittance_Sept.iso",
+          "trueType": "Disc image (.iso) that mounts a drive when opened",
+          "why": "An .iso is a disc image. Real invoices are never sent as one; it is used to smuggle a program past the mail filter."
+        },
+        {
+          "name": "Statement_0924.pdf.exe",
+          "trueType": "Application (.exe), a program that runs when opened",
+          "why": "Its real type is .exe, a program. The .pdf is bait."
+        }
+      ]
+    },
+    "vendor": {
+      "pick": [
+        "Meridian Supplies",
+        "Halcyon Trading",
+        "Brightgate Ltd"
+      ]
+    }
+  },
+  "setup": [
+    {
+      "do": "mail.deliver",
+      "mail": {
+        "genuine": false,
+        "external": true,
+        "from": {
+          "name": "{{vendor}} Accounts",
+          "address": "billing@invoices-secure.net"
+        },
+        "subject": "Outstanding invoice attached, payment overdue",
+        "body": [
+          "Dear Accounts Payable,",
+          "Please find your overdue invoice attached. Payment is now 30 days late and further delay will incur charges.",
+          "Open the attached file to view the amount owed.",
+          {
+            "sign": "{{vendor}} Accounts"
+          }
+        ],
+        "attachments": [
+          {
+            "name": "{{attach.name}}",
+            "size": "412 KB",
+            "props": {
+              "danger": true,
+              "motw": true,
+              "type": "{{attach.trueType}}",
+              "trueType": "{{attach.trueType}}",
+              "signed": null,
+              "scanResult": "Threat found: this file tries to run a program when opened.",
+              "why": "{{attach.why}}"
+            }
+          }
+        ],
+        "headers": {
+          "returnPath": "billing@invoices-secure.net",
+          "spf": {
+            "result": "pass",
+            "explain": "Sent by invoices-secure.net, a domain registered days ago. Passing SPF only proves that domain sent it."
+          },
+          "dkim": {
+            "result": "none",
+            "explain": "Not signed."
+          },
+          "dmarc": {
+            "result": "none",
+            "explain": "No policy, which a real supplier’s mail system would have."
+          },
+          "received": [
+            "from mail.invoices-secure.net (203.0.113.72) by mx.veltrix-logistics.com"
+          ],
+          "messageId": "overdue@invoices-secure.net",
+          "summary": "An unknown supplier, an urgent overdue tone, and an attachment whose real type is not a document. This is how malware arrives."
+        }
+      }
+    },
+    {
+      "do": "room.banner",
+      "title": "Mail",
+      "body": "{{vendor}} Accounts: overdue invoice attached",
+      "icon": "mail",
+      "object": "computer",
+      "action": "Open"
+    }
+  ],
+  "bonuses": [
+    {
+      "id": "b-sender",
+      "when": {
+        "event": "headers:viewed",
+        "match": {
+          "genuine": false
+        }
+      },
+      "outcome": {
+        "points": 8,
+        "verdict": "careful",
+        "label": "Checked the sender",
+        "what": "An unknown supplier on a brand new domain, chasing a debt you have no record of.",
+        "ideal": "checks whether the supplier and the debt are real before touching the file."
+      }
+    },
+    {
+      "id": "b-props",
+      "when": {
+        "event": "file:properties",
+        "match": {
+          "danger": true
+        }
+      },
+      "outcome": {
+        "points": 16,
+        "verdict": "careful",
+        "label": "Opened the file’s properties",
+        "what": "The real type is not a document. The name was built to hide that.",
+        "ideal": "checks a file’s real type before opening it."
+      }
+    },
+    {
+      "id": "b-scan",
+      "when": {
+        "event": "file:scanned",
+        "match": {
+          "danger": true
+        }
+      },
+      "outcome": {
+        "points": 8,
+        "verdict": "careful",
+        "label": "Scanned the file",
+        "what": "Endpoint security flags it as a threat.",
+        "ideal": "scans anything that arrives unexpectedly."
+      }
+    },
+    {
+      "id": "b-delete",
+      "when": {
+        "event": "file:deleted",
+        "match": {
+          "danger": true
+        }
+      },
+      "outcome": {
+        "points": 12,
+        "verdict": "safe",
+        "label": "Deleted it without opening it",
+        "what": "Gone, and it never ran.",
+        "ideal": "deletes a dangerous file rather than opening it to check."
+      }
+    },
+    {
+      "id": "b-report",
+      "when": {
+        "event": "mail:reported",
+        "match": {
+          "genuine": false
+        }
+      },
+      "outcome": {
+        "points": 12,
+        "verdict": "safe",
+        "label": "Reported the email",
+        "what": "The team can block the sender for everyone.",
+        "ideal": "reports malicious mail so the sender is blocked."
+      }
+    }
+  ],
+  "guards": [],
+  "start": "decide",
+  "stages": {
+    "decide": {
+      "objective": "Decide what to do with the attachment.",
+      "target": "computer",
+      "decision": true,
+      "insight": "A double extension like .pdf.exe or .pdf.html hides the real type. The last extension is the one that matters.",
+      "hint": {
+        "text": "Save the attachment, then in Files open its properties to see the real type. Do not open it. Delete it and report the email."
+      },
+      "on": [
+        {
+          "when": {
+            "event": "file:opened",
+            "match": {
+              "danger": true
+            }
+          },
+          "outcome": {
+            "points": -38,
+            "verdict": "unsafe",
+            "label": "Opened the attachment",
+            "what": "The file ran. On a real machine that is ransomware encrypting the finance share, or a foothold the attacker uses tonight.",
+            "ideal": "never opens an unexpected attachment, and checks its real type first.",
+            "card": {
+              "title": "It was not an invoice",
+              "kicker": "Malicious attachment",
+              "body": [
+                "The file ran the moment you opened it. Its name ended in the type of a document, but its real type was a program.",
+                "The properties showed the real type, endpoint security flagged it, and the sender was an unknown domain registered this week. The safe move was to delete it and report it, unopened."
+              ],
+              "ideal": "checks the real file type and never opens an unexpected attachment.",
+              "rewindLabel": "Rewind to before I opened it"
+            }
+          },
+          "go": "wrap"
+        },
+        {
+          "when": {
+            "event": "file:deleted",
+            "match": {
+              "danger": true
+            }
+          },
+          "go": "reported"
+        },
+        {
+          "when": {
+            "event": "mail:reported",
+            "match": {
+              "genuine": false
+            }
+          },
+          "go": "done"
+        }
+      ]
+    },
+    "reported": {
+      "auto": [
+        {
+          "do": "objective",
+          "text": "Report the email so the sender is blocked."
+        }
+      ],
+      "on": [
+        {
+          "when": {
+            "event": "mail:reported"
+          },
+          "go": "done"
+        },
+        {
+          "when": {
+            "event": "ticket:raised"
+          },
+          "go": "done"
+        }
+      ],
+      "hint": {
+        "text": "Report the email from Mail, or raise a Helpdesk ticket."
+      }
+    },
+    "wrap": {
+      "auto": [
+        {
+          "do": "objective",
+          "text": "Report it to IT straight away."
+        }
+      ],
+      "on": [
+        {
+          "when": {
+            "event": "ticket:raised"
+          },
+          "go": "done"
+        },
+        {
+          "when": {
+            "event": "mail:reported"
+          },
+          "go": "done"
+        }
+      ],
+      "hint": {
+        "text": "Raise a Helpdesk ticket so endpoint security can isolate the machine."
+      }
+    },
+    "done": {
+      "end": true
+    }
+  }
+}

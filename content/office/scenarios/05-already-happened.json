@@ -1,0 +1,255 @@
+{
+  "id": "already-happened",
+  "order": 5,
+  "title": "Something already happened",
+  "kind": "Post compromise",
+  "maxPoints": 70,
+  "startsAt": 1080,
+  "brief": "18:00. Endpoint security flags that a colleague clicked a bad link yesterday. You need to find out what it touched.",
+  "insight": "Tom clicked a phishing link yesterday afternoon. The question is what the attacker did with the hour they had.",
+  "vars": {
+    "fake": {
+      "fake": "vlx-sso",
+      "path": "/login"
+    },
+    "place": {
+      "pick": [
+        "Rotterdam, NL",
+        "Sofia, BG",
+        "Tallinn, EE"
+      ]
+    },
+    "ip": {
+      "pick": [
+        "203.0.113.66",
+        "203.0.113.140",
+        "203.0.113.201"
+      ]
+    },
+    "forward": {
+      "pick": [
+        "ap-copy@account-check.net",
+        "invoices@vendor-remit.net",
+        "finance@session-check.net"
+      ]
+    }
+  },
+  "setup": [
+    {
+      "do": "terminal.dataset",
+      "badHost": "{{fake.host}}",
+      "forwardTo": "{{forward}}",
+      "attackerIp": "{{ip}}",
+      "attackerPlace": "{{place}}",
+      "victims": [
+        "l.haddad"
+      ],
+      "suggest": [
+        "grep {{fake.host}} /var/log/proxy.log",
+        "grep {{fake.host}} /var/log/proxy.log | awk '{print $4}' | sort | uniq",
+        "grep forward /var/log/auth.log"
+      ]
+    },
+    {
+      "do": "world.push",
+      "path": "desktop.account.services.veltrix.mailRules",
+      "value": {
+        "id": "r-hidden",
+        "name": ".",
+        "when": "From contains “invoice” or “remittance”",
+        "then": "Forward to {{forward}}, then mark as read and delete",
+        "external": true,
+        "hidden": true,
+        "created": "Yesterday 16:53",
+        "by": "Unknown (session from {{place}})"
+      }
+    },
+    {
+      "do": "world.push",
+      "path": "office.endpoint.alerts",
+      "value": {
+        "id": "al-tom",
+        "level": "high",
+        "status": "New",
+        "at": "Yesterday 16:47",
+        "device": "VLX-PC-4475 (Tom Becker)",
+        "what": "User visited a newly registered domain and submitted a form",
+        "details": [
+          "The domain was {{fake.host}}, registered three days ago.",
+          "Sign in tokens from Tom’s session were used from {{place}} minutes later.",
+          "Check who else visited the domain, and whether any mailbox rules were added."
+        ]
+      }
+    },
+    {
+      "do": "mail.deliver",
+      "mail": {
+        "genuine": true,
+        "from": {
+          "name": "Endpoint Security",
+          "address": "security@veltrix-logistics.com"
+        },
+        "subject": "Action needed: possible account compromise (Tom Becker)",
+        "body": [
+          "Automated alert.",
+          "Yesterday a user on the finance floor submitted credentials to a newly registered domain. Please review the proxy log for who else visited it, and check your own mailbox rules and sign in activity for anything you did not create.",
+          {
+            "sign": "Endpoint Security"
+          }
+        ],
+        "headers": {
+          "returnPath": "security@veltrix-logistics.com",
+          "spf": {
+            "result": "pass",
+            "explain": "From Veltrix’s own security mailbox."
+          },
+          "dkim": {
+            "result": "pass",
+            "explain": "Signed by veltrix-logistics.com."
+          },
+          "dmarc": {
+            "result": "pass",
+            "explain": "From address matches."
+          },
+          "received": [
+            "from mail.veltrix-logistics.com by mx.veltrix-logistics.com"
+          ],
+          "messageId": "compromise-tom@veltrix-logistics.com"
+        }
+      }
+    },
+    {
+      "do": "room.banner",
+      "title": "Endpoint security",
+      "body": "Possible account compromise. Action needed.",
+      "icon": "scan",
+      "object": "computer",
+      "action": "Open"
+    }
+  ],
+  "bonuses": [
+    {
+      "id": "b-grep",
+      "when": {
+        "event": "terminal:command",
+        "match": {
+          "cmd": "grep",
+          "hits": {
+            "gte": 1
+          }
+        }
+      },
+      "outcome": {
+        "points": 14,
+        "verdict": "careful",
+        "label": "Searched the proxy log for the bad domain",
+        "what": "The log shows who visited the lookalike domain. Tom and one other person did.",
+        "ideal": "uses the logs to find the blast radius, not guesswork."
+      }
+    },
+    {
+      "id": "b-auth",
+      "when": {
+        "event": "signins:viewed"
+      },
+      "outcome": {
+        "points": 10,
+        "verdict": "careful",
+        "label": "Read your own sign in activity",
+        "what": "There is a sign in on your account from {{place}} yesterday, using a session token, not your authenticator.",
+        "ideal": "checks their own account after a colleague is compromised."
+      }
+    },
+    {
+      "id": "b-rulefound",
+      "when": {
+        "event": "mailrule:viewed",
+        "match": {
+          "malicious": true
+        }
+      },
+      "outcome": {
+        "points": 12,
+        "verdict": "careful",
+        "label": "Found the hidden mailbox rule",
+        "what": "A rule you did not create forwards every invoice to an outside address, then deletes it so you never see it.",
+        "ideal": "checks mailbox rules, where attackers hide to keep stealing invoices."
+      }
+    },
+    {
+      "id": "b-ticket",
+      "when": {
+        "event": "ticket:raised"
+      },
+      "outcome": {
+        "points": 10,
+        "verdict": "safe",
+        "label": "Raised a ticket for the incident",
+        "what": "IT can reset Tom’s account and hunt for anything else the attacker left.",
+        "ideal": "reports the incident so it is properly contained."
+      }
+    }
+  ],
+  "guards": [],
+  "start": "investigate",
+  "stages": {
+    "investigate": {
+      "objective": "Find what the attacker did, and undo it.",
+      "target": "computer",
+      "decision": true,
+      "insight": "After a compromise, attackers add an inbox rule that quietly forwards invoices out and deletes them, so the theft keeps working after the password is changed.",
+      "hint": {
+        "text": "Open the Terminal and grep /var/log/proxy.log for the domain in the alert. Then open Account security: read your sign in activity, and delete any mailbox rule you did not create."
+      },
+      "on": [
+        {
+          "when": {
+            "event": "mailrule:removed",
+            "match": {
+              "malicious": true
+            }
+          },
+          "outcome": {
+            "points": 22,
+            "verdict": "safe",
+            "label": "Removed the hidden forwarding rule",
+            "what": "The rule is gone. Invoices stop leaking to the outside address.",
+            "ideal": "finds and removes the persistence the attacker left behind.",
+            "card": {
+              "title": "The back door is shut",
+              "kicker": "Mailbox rule persistence",
+              "body": [
+                "You found the rule the attacker planted and deleted it. It had been quietly forwarding every invoice to an outside address, then deleting it so nobody noticed.",
+                "Changing a password does not remove a rule like this. You have to go and look for it. Now raise a ticket so IT can check Tom’s account and everything else."
+              ],
+              "ideal": "hunts for and removes attacker persistence, not just the obvious symptom."
+            }
+          },
+          "go": "wrap"
+        }
+      ]
+    },
+    "wrap": {
+      "auto": [
+        {
+          "do": "objective",
+          "text": "Report the incident to IT."
+        }
+      ],
+      "on": [
+        {
+          "when": {
+            "event": "ticket:raised"
+          },
+          "go": "done"
+        }
+      ],
+      "hint": {
+        "text": "Raise a Helpdesk ticket so IT can reset Tom’s account and check for anything else."
+      }
+    },
+    "done": {
+      "end": true
+    }
+  }
+}

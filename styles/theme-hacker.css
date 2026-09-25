@@ -1,0 +1,49 @@
+/* =========================================================================
+   hacker.hamcodes.com: near black, one green.
+   The same tokens as the Hacker's Notes site (styles.css there), so the sim
+   reads as part of it: ground #06090a, panels #0c1214 and #10181b, accent
+   #24ff9c, Chakra Petch for headlines, Inter for prose, JetBrains Mono for
+   labels.
+   ========================================================================= */
+:root {
+  --ground: #06090a;
+  --panel: #0c1214;
+  --panel-2: #10181b;
+  --line: rgba(215, 228, 224, 0.1);
+  --line-2: rgba(215, 228, 224, 0.18);
+  --ink: #eaf5f1;
+  --text: #d7e4e0;
+  --muted: #8fa39d;
+
+  --accent: #24ff9c;
+  --accent-2: #10d47f;
+  --accent-ink: #04140c;
+  --accent-soft: rgba(36, 255, 156, 0.12);
+  --accent-glow: rgba(36, 255, 156, 0.45);
+
+  --good: #24ff9c;
+  --good-soft: rgba(36, 255, 156, 0.1);
+  --good-line: rgba(36, 255, 156, 0.32);
+  --bad: #ff6b6b;
+  --bad-soft: rgba(255, 107, 107, 0.12);
+  --bad-line: rgba(255, 107, 107, 0.4);
+  --warn: #ffc56b;
+  --warn-soft: rgba(255, 197, 107, 0.08);
+  --warn-line: rgba(255, 197, 107, 0.3);
+
+  --glass: rgba(12, 18, 20, 0.74);
+  --glass-strong: rgba(12, 18, 20, 0.93);
+  --lift: 0 30px 64px -26px rgba(0, 0, 0, 0.9), 0 6px 18px -8px rgba(0, 0, 0, 0.6);
+  --lift-sm: 0 16px 36px -20px rgba(0, 0, 0, 0.8);
+
+  --stage-bg:
+    radial-gradient(60% 55% at 58% 42%, rgba(36, 255, 156, 0.08) 0%, transparent 70%),
+    radial-gradient(90% 80% at 50% 50%, #0d1517 0%, #06090a 72%);
+
+  --display: "Chakra Petch", system-ui, sans-serif;
+  --body: "Inter", system-ui, -apple-system, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --fs: 15px;
+
+  color-scheme: dark;
+}

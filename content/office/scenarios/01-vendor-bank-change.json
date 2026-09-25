@@ -1,0 +1,376 @@
+{
+  "id": "vendor-bank-change",
+  "order": 1,
+  "title": "The vendor bank change",
+  "kind": "Business email compromise",
+  "maxPoints": 105,
+  "startsAt": 990,
+  "brief": "16:34. An email from Ferrum Steel’s accounts team asks you to update their bank details before tonight’s payment run.",
+  "insight": "Ferrum Steel is due £48,250 tonight. The email is from ferrum-steel’s accounts team, or so it says.",
+  "vars": {
+    "fake": {
+      "fake": "ferrum",
+      "path": "/remittance"
+    },
+    "reason": {
+      "pick": [
+        "a change of banking provider",
+        "closing our old account for an audit",
+        "a merger with our parent company"
+      ]
+    },
+    "newSort": {
+      "pick": [
+        "04-00-72",
+        "23-14-70",
+        "60-83-11"
+      ]
+    },
+    "newAcct": {
+      "pick": [
+        "6120 4418",
+        "8837 2210",
+        "5140 9903"
+      ]
+    }
+  },
+  "setup": [
+    {
+      "do": "site.fake",
+      "brand": "ferrum",
+      "host": "{{fake.host}}",
+      "trick": "{{fake.trick}}"
+    },
+    {
+      "do": "deskphone.line",
+      "number": "01144960213",
+      "line": {
+        "name": "Ferrum Steel Supply",
+        "genuine": true,
+        "verifies": "ferrum",
+        "voice": {
+          "gender": "male",
+          "tone": "calm"
+        },
+        "script": [
+          {
+            "say": "Ferrum Steel accounts, Gary speaking."
+          },
+          {
+            "choices": [
+              {
+                "id": "ask",
+                "label": "Did you email us to change your bank details?",
+                "goto": "ask"
+              },
+              {
+                "id": "wrong",
+                "label": "Sorry, wrong number",
+                "hangUp": true
+              }
+            ]
+          },
+          {
+            "id": "ask",
+            "say": "Change our bank details? No, we have not sent anything like that. Our account has not changed. Please do not update it.",
+            "end": true
+          }
+        ]
+      }
+    },
+    {
+      "do": "world.push",
+      "path": "office.erp.changes",
+      "value": {
+        "id": "FS-4471",
+        "vendor": "ferrum",
+        "vendorName": "Ferrum Steel Supply Ltd",
+        "genuine": false,
+        "fromWarn": true,
+        "from": "Email from accounts@{{fake.host}}",
+        "received": "Today 16:34",
+        "newBank": "Northshore Bank",
+        "sort": "{{newSort}}",
+        "account": "{{newAcct}}",
+        "status": "awaiting approval",
+        "verification": {
+          "done": false
+        }
+      }
+    },
+    {
+      "do": "mail.deliver",
+      "mail": {
+        "genuine": false,
+        "external": true,
+        "danger": false,
+        "from": {
+          "name": "Ferrum Steel Accounts",
+          "address": "accounts@{{fake.host}}"
+        },
+        "replyTo": "remittance@{{fake.host}}",
+        "subject": "URGENT: bank details update before tonight’s payment",
+        "body": [
+          "Hi Sam,",
+          "Please update our bank details before tonight’s run. Due to {{reason}} our old account is now closed and payments to it will bounce.",
+          "New sort code {{newSort}}, account {{newAcct}}, Northshore Bank. Confirm once done, this is time sensitive.",
+          {
+            "link": "https://{{fake.host}}/remittance",
+            "text": "Update our details on our supplier portal"
+          },
+          {
+            "sign": "Gary Holt\nFerrum Steel Supply Ltd\nAccounts"
+          }
+        ],
+        "headers": {
+          "returnPath": "bounce@{{fake.host}}",
+          "spf": {
+            "result": "pass",
+            "explain": "The message really was sent by {{fake.host}}. That is the attacker’s own domain, not Ferrum Steel’s, so SPF passing tells you nothing good here."
+          },
+          "dkim": {
+            "result": "pass",
+            "explain": "Signed by {{fake.host}}, the sender’s domain. Again, that is the lookalike domain, not ferrumsteel.co.uk."
+          },
+          "dmarc": {
+            "result": "pass",
+            "explain": "The From address matches the domain that signed it. The catch is that the domain is {{fake.host}}, not the real ferrumsteel.co.uk."
+          },
+          "received": [
+            "from mail.{{fake.host}} (203.0.113.66) by mx.veltrix-logistics.com"
+          ],
+          "messageId": "urgent-bank@{{fake.host}}",
+          "summary": "Every check passes because the attacker owns {{fake.host}} and set it up properly. The checks prove the domain sent it, not that the domain is who you think. Read the address: it is not ferrumsteel.co.uk."
+        },
+        "replies": [
+          {
+            "id": "confirm",
+            "label": "Reply: done, updated",
+            "text": "Done, I have updated your details.",
+            "kind": "comply"
+          },
+          {
+            "id": "verify",
+            "label": "Reply: I will call to verify first",
+            "text": "Thanks, I will call your accounts line to verify before changing anything.",
+            "kind": "verify"
+          }
+        ]
+      }
+    },
+    {
+      "do": "room.banner",
+      "title": "Mail",
+      "body": "Ferrum Steel Accounts: URGENT bank details update",
+      "icon": "mail",
+      "object": "computer",
+      "action": "Open"
+    }
+  ],
+  "bonuses": [
+    {
+      "id": "b-headers",
+      "when": {
+        "event": "headers:viewed",
+        "match": {
+          "genuine": false
+        }
+      },
+      "outcome": {
+        "points": 12,
+        "verdict": "careful",
+        "label": "Read the full email headers",
+        "what": "The checks pass because the attacker owns the lookalike domain. The headers show the message came from the lookalike, not from Ferrum Steel.",
+        "ideal": "reads the headers and, more importantly, the sender domain, not just the display name."
+      }
+    },
+    {
+      "id": "b-drawer",
+      "when": {
+        "event": "drawer:opened"
+      },
+      "outcome": {
+        "points": 10,
+        "verdict": "careful",
+        "label": "Took out the vendor master file",
+        "what": "The verified number for Ferrum Steel is 0114 496 0213. That is the number to call, not the one in the email.",
+        "ideal": "checks the request against the independent record before acting."
+      }
+    },
+    {
+      "id": "b-vendor",
+      "when": {
+        "event": "erp:vendorViewed",
+        "match": {
+          "id": "ferrum"
+        }
+      },
+      "outcome": {
+        "points": 6,
+        "verdict": "careful",
+        "label": "Checked Ferrum Steel’s record in the ERP",
+        "what": "The record shows the account on file and the verified phone number.",
+        "ideal": "compares the request with the record on file."
+      }
+    },
+    {
+      "id": "b-callback",
+      "when": {
+        "event": "deskphone:connected",
+        "match": {
+          "verifies": "ferrum"
+        }
+      },
+      "outcome": {
+        "points": 22,
+        "verdict": "safe",
+        "label": "Called Ferrum Steel back on the number on file",
+        "what": "Gary confirms Ferrum Steel sent nothing and their account has not changed. That call is what breaks the fraud.",
+        "ideal": "verifies a payment change by calling the number they already hold, never the number in the request."
+      }
+    },
+    {
+      "id": "b-report",
+      "when": {
+        "event": "ticket:raised",
+        "match": {
+          "category": "payment"
+        }
+      },
+      "outcome": {
+        "points": 10,
+        "verdict": "safe",
+        "label": "Reported it to the service desk",
+        "what": "The team can warn everyone and block the lookalike domain.",
+        "ideal": "reports the attempt so others are warned."
+      }
+    }
+  ],
+  "guards": [
+    {
+      "id": "g-submit",
+      "when": {
+        "event": "form:submitted",
+        "match": {
+          "site": "ferrum-fake"
+        }
+      },
+      "outcome": {
+        "points": -20,
+        "verdict": "unsafe",
+        "label": "Signed in on the fake supplier portal",
+        "what": "The page at {{fake.host}} is not Ferrum Steel. Nothing you type there reaches them.",
+        "ideal": "never signs in on a page a suspicious email linked to."
+      }
+    },
+    {
+      "id": "g-reply",
+      "when": {
+        "event": "mail:replied",
+        "match": {
+          "kind": "comply"
+        }
+      },
+      "outcome": {
+        "points": -8,
+        "verdict": "risky",
+        "label": "Replied to say it was done",
+        "what": "The reply went to the attacker’s address, and nothing was actually verified.",
+        "ideal": "does not confirm changes over the same email thread."
+      }
+    }
+  ],
+  "start": "decide",
+  "stages": {
+    "decide": {
+      "objective": "Decide what to do with Ferrum Steel’s bank detail change (FS-4471 in Finance).",
+      "target": "computer",
+      "decision": true,
+      "insight": "A genuine supplier would not lose their old account overnight, and a genuine change is verified by call back before it is used.",
+      "hint": {
+        "text": "Read the sender’s real address in Mail. Pull the vendor file from the drawer, call Ferrum Steel back on that number using the desk phone, then decide in Finance."
+      },
+      "on": [
+        {
+          "when": {
+            "event": "erp:changeApproved",
+            "match": {
+              "id": "FS-4471"
+            }
+          },
+          "outcome": {
+            "points": -45,
+            "verdict": "unsafe",
+            "label": "Approved the fraudulent bank change",
+            "what": "Tonight’s £48,250 to Ferrum Steel now goes to the attacker’s account. By the time the real Ferrum Steel chases payment, the money is gone.",
+            "ideal": "never approves a bank detail change without a call back to the number on file.",
+            "card": {
+              "title": "The money is gone",
+              "kicker": "Business email compromise",
+              "body": [
+                "Finance sent tonight’s £48,250 to the new account. It was not Ferrum Steel’s. It was an account the attacker controls, emptied within the hour.",
+                "The one step that would have stopped it was a phone call to the number already on file, before changing anything."
+              ],
+              "ideal": "verifies every bank change by calling the number on file, and never trusts the number or link in the request.",
+              "rewindLabel": "Rewind to before I approved it"
+            }
+          },
+          "go": "lost"
+        },
+        {
+          "when": {
+            "event": "erp:changeRejected",
+            "match": {
+              "id": "FS-4471"
+            }
+          },
+          "outcome": {
+            "points": 45,
+            "verdict": "safe",
+            "label": "Rejected the change",
+            "what": "The change is refused. Tonight’s payment goes to Ferrum Steel’s real account, the one already on file.",
+            "ideal": "rejects an unverified change and keeps paying the account on file.",
+            "card": {
+              "title": "Caught before the run",
+              "kicker": "Business email compromise",
+              "body": [
+                "You refused the change. Tonight’s payment goes where it always has, to Ferrum Steel’s real account.",
+                "The email address was a lookalike of ferrumsteel.co.uk. Every SPF and DKIM check passed, because the attacker owned the lookalike domain. The address bar and a phone call were what gave it away."
+              ],
+              "ideal": "reads the real domain, verifies by call back, and rejects."
+            },
+            "effects": [
+              {
+                "do": "flag.set",
+                "key": "fs.rejected"
+              }
+            ]
+          },
+          "go": "done"
+        }
+      ]
+    },
+    "lost": {
+      "auto": [
+        {
+          "do": "objective",
+          "text": "Report it and learn from it."
+        }
+      ],
+      "on": [
+        {
+          "when": {
+            "event": "ticket:raised"
+          },
+          "go": "done"
+        }
+      ],
+      "hint": {
+        "text": "Raise a Helpdesk ticket so the team can try to recall the payment."
+      }
+    },
+    "done": {
+      "end": true
+    }
+  }
+}

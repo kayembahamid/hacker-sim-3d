@@ -1,0 +1,324 @@
+{
+  "id": "ceo-calls",
+  "order": 7,
+  "title": "The CEO calls",
+  "kind": "Deepfake voice",
+  "maxPoints": 95,
+  "startsAt": 1120,
+  "brief": "18:40. Your phone rings. The caller ID says Helen Marsh, the CEO, and it sounds like her.",
+  "insight": "Helen is travelling today. And a voice on the phone is not proof of anything any more.",
+  "vars": {
+    "amount": {
+      "pick": [
+        "48,000",
+        "72,500",
+        "39,900"
+      ]
+    },
+    "target": {
+      "pick": [
+        "a supplier we are about to sign",
+        "our new logistics partner",
+        "an acquisition escrow account"
+      ]
+    }
+  },
+  "setup": [
+    {
+      "do": "world.push",
+      "path": "office.erp.payments",
+      "value": {
+        "id": "P-URGENT",
+        "vendor": null,
+        "vendorName": "New beneficiary (CEO request)",
+        "amount": 48000,
+        "due": "Now",
+        "status": "urgent",
+        "genuine": false,
+        "urgent": true,
+        "note": "Added tonight at the caller’s request. No vendor record. Not approved by Dan."
+      }
+    },
+    {
+      "do": "call.incoming",
+      "id": "call-ceo",
+      "number": "+44 7700 900222",
+      "label": "Helen Marsh",
+      "known": true,
+      "note": "CEO",
+      "genuine": false,
+      "missAfterMs": 45000,
+      "voice": {
+        "gender": "female",
+        "tone": "pushy"
+      },
+      "script": [
+        {
+          "say": "Sam, it is Helen. I am in a meeting and I cannot talk long. I need you to make a payment tonight before the run closes, {{amount}} pounds, to a new account I will send you. It is for {{target}} and it is strictly confidential."
+        },
+        {
+          "choices": [
+            {
+              "id": "comply",
+              "label": "Of course, send me the details",
+              "goto": "push"
+            },
+            {
+              "id": "process",
+              "label": "That needs Dan’s approval and a verified account. I can’t bypass that.",
+              "goto": "pressure"
+            },
+            {
+              "id": "callback",
+              "label": "I’ll call your office straight back to confirm.",
+              "goto": "annoyed"
+            }
+          ]
+        },
+        {
+          "id": "push",
+          "say": "Good. Do not mention this to anyone until it is done.",
+          "end": true
+        },
+        {
+          "id": "pressure",
+          "say": "Sam, I do not have time for process tonight. I am authorising it personally. Just do it.",
+          "choices": [
+            {
+              "id": "comply2",
+              "label": "OK, I’ll do it",
+              "goto": "push"
+            },
+            {
+              "id": "hold",
+              "label": "I’m sorry, I still can’t. It goes through approval or not at all.",
+              "goto": "annoyed"
+            }
+          ]
+        },
+        {
+          "id": "annoyed",
+          "say": "Fine. Do what you have to.",
+          "end": true
+        }
+      ]
+    },
+    {
+      "do": "deskphone.line",
+      "number": "4001",
+      "line": {
+        "name": "Office of the CEO",
+        "genuine": true,
+        "verifies": "ceo",
+        "voice": {
+          "gender": "female",
+          "tone": "calm"
+        },
+        "script": [
+          {
+            "say": "Helen Marsh’s office, Chloe speaking."
+          },
+          {
+            "choices": [
+              {
+                "id": "ask",
+                "label": "Did Helen just call asking me to make an urgent payment?",
+                "goto": "ask"
+              }
+            ]
+          },
+          {
+            "id": "ask",
+            "say": "No, Helen is on a flight and has been for two hours. She would not have called. Please do not make any payment, and report it.",
+            "end": true
+          }
+        ]
+      }
+    },
+    {
+      "do": "room.banner",
+      "title": "Incoming call",
+      "body": "Helen Marsh (CEO)",
+      "icon": "phone",
+      "object": "phone",
+      "action": "Answer"
+    }
+  ],
+  "bonuses": [
+    {
+      "id": "b-refuse",
+      "when": {
+        "event": "call:choice",
+        "match": {
+          "choice": "process"
+        }
+      },
+      "outcome": {
+        "points": 14,
+        "verdict": "safe",
+        "label": "Refused to bypass the approval process",
+        "what": "Rank does not skip the process. A payment still needs Dan’s approval and a verified account.",
+        "ideal": "keeps to the payment process however senior the person on the phone."
+      }
+    },
+    {
+      "id": "b-hold2",
+      "when": {
+        "event": "call:choice",
+        "match": {
+          "choice": "hold"
+        }
+      },
+      "outcome": {
+        "points": 10,
+        "verdict": "safe",
+        "label": "Held firm under pressure",
+        "what": "The caller pushed harder, and you still said no. Pressure and secrecy are the tells.",
+        "ideal": "does not cave when a caller applies pressure and demands secrecy."
+      }
+    },
+    {
+      "id": "b-callback",
+      "when": {
+        "event": "deskphone:connected",
+        "match": {
+          "verifies": "ceo"
+        }
+      },
+      "outcome": {
+        "points": 20,
+        "verdict": "safe",
+        "label": "Called the CEO’s office to verify",
+        "what": "Helen is on a flight and did not call. The whole thing was fake.",
+        "ideal": "verifies an unusual request through a channel they already trust."
+      }
+    },
+    {
+      "id": "b-ticket",
+      "when": {
+        "event": "ticket:raised"
+      },
+      "outcome": {
+        "points": 10,
+        "verdict": "safe",
+        "label": "Reported the call",
+        "what": "Finance and security need to know a voice is being used to fake the CEO.",
+        "ideal": "reports a deepfake attempt so others are warned."
+      }
+    }
+  ],
+  "guards": [
+    {
+      "id": "g-secrecy",
+      "when": {
+        "event": "call:choice",
+        "match": {
+          "choice": "comply"
+        }
+      },
+      "outcome": {
+        "points": -12,
+        "verdict": "risky",
+        "label": "Agreed to the confidential payment",
+        "what": "Urgency plus secrecy plus skip the process is the exact shape of this fraud.",
+        "ideal": "treats “urgent, confidential, do not tell anyone” as a warning, not an instruction."
+      }
+    }
+  ],
+  "start": "decide",
+  "stages": {
+    "decide": {
+      "objective": "Decide what to do about the CEO’s payment request.",
+      "target": "phone",
+      "decision": true,
+      "insight": "A voice can be cloned from a few seconds of audio. Caller ID can be spoofed. Neither is proof.",
+      "hint": {
+        "text": "Do not make the payment. Refuse to bypass approval on the call, then call the CEO’s office on the desk phone to verify, hold the payment in Finance, and report it."
+      },
+      "on": [
+        {
+          "when": {
+            "event": "erp:paymentReleased",
+            "match": {
+              "id": "P-URGENT"
+            }
+          },
+          "outcome": {
+            "points": -40,
+            "verdict": "unsafe",
+            "label": "Made the urgent payment",
+            "what": "£48,000 left the company to an unverified account on the strength of a phone call. There is no getting it back.",
+            "ideal": "never releases a payment that skipped approval on a caller’s say so.",
+            "card": {
+              "title": "The voice was not the CEO",
+              "kicker": "Deepfake voice",
+              "body": [
+                "The payment is gone. The voice was a clone, the caller ID was spoofed, and the real Helen was on a flight the whole time.",
+                "The approval process exists precisely so that no single phone call can move money. Urgency, secrecy and “skip the process” were the tells."
+              ],
+              "ideal": "verifies by calling a number they already hold, and never bypasses approval.",
+              "rewindLabel": "Rewind to before I paid"
+            }
+          },
+          "go": "wrap"
+        },
+        {
+          "when": {
+            "event": "erp:paymentHeld",
+            "match": {
+              "id": "P-URGENT"
+            }
+          },
+          "outcome": {
+            "points": 41,
+            "verdict": "safe",
+            "label": "Held the payment",
+            "what": "The payment is held. Nothing moves without Dan’s approval and a verified account, and neither is coming.",
+            "ideal": "holds a payment that skipped the process until it is properly verified.",
+            "card": {
+              "title": "The process held",
+              "kicker": "Deepfake voice",
+              "body": [
+                "You held the payment and verified with the CEO’s office: Helen was on a flight and never called. The voice was faked.",
+                "Nothing about seniority changes the rule. Money moves through approval and a verified account, or it does not move."
+              ],
+              "ideal": "keeps to the process and verifies through a trusted channel."
+            }
+          },
+          "go": "wrap"
+        }
+      ]
+    },
+    "wrap": {
+      "auto": [
+        {
+          "do": "objective",
+          "text": "Report the fake call."
+        }
+      ],
+      "on": [
+        {
+          "when": {
+            "event": "ticket:raised"
+          },
+          "go": "done"
+        },
+        {
+          "when": {
+            "event": "deskphone:connected",
+            "match": {
+              "verifies": "ceo"
+            }
+          },
+          "go": "done"
+        }
+      ],
+      "hint": {
+        "text": "Raise a Helpdesk ticket, and if you have not, call the CEO’s office to confirm."
+      }
+    },
+    "done": {
+      "end": true
+    }
+  }
+}

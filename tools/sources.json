@@ -1,0 +1,148 @@
+{
+  "note": "Every source here is CC0 1.0. fetch-sources.mjs downloads them into tools/.cache, Blender builds and bakes the office from them, and credits.mjs writes CREDITS.md from this file. Nothing downloaded is committed.",
+  "product": "Hacker’s Notes 3D: Night Shift at Veltrix",
+  "models": [
+    {
+      "id": "metal_office_desk",
+      "res": "1k",
+      "name": "Metal Office Desk",
+      "role": "The desk and its return, and the empty desk across the aisle."
+    },
+    {
+      "id": "pachira_aquatica_01",
+      "res": "1k",
+      "name": "Pachira Aquatica 01",
+      "role": "The tall plant in the corner by the window."
+    },
+    {
+      "id": "potted_plant_02",
+      "res": "1k",
+      "name": "Potted Plant 02",
+      "role": "The plant on the desk across the aisle."
+    },
+    {
+      "id": "potted_plant_04",
+      "res": "1k",
+      "name": "Potted Plant 04",
+      "role": "The little plant on the desk."
+    },
+    {
+      "id": "stationery_supplies",
+      "res": "1k",
+      "name": "Stationery Supplies",
+      "role": "The pen pot on the desk."
+    },
+    {
+      "id": "desk_lamp_arm_01",
+      "res": "1k",
+      "name": "Desk Lamp Arm 01",
+      "role": "The desk lamp."
+    },
+    {
+      "id": "security_camera_01",
+      "res": "1k",
+      "name": "Security Camera 01",
+      "role": "The camera watching the door."
+    },
+    {
+      "id": "fire_alarm",
+      "res": "1k",
+      "name": "Fire Alarm",
+      "role": "The call point by the door."
+    },
+    {
+      "id": "WetFloorSign_01",
+      "res": "1k",
+      "name": "Wet Floor Sign 01",
+      "role": "The cleaners have been in."
+    },
+    {
+      "id": "clipboard",
+      "res": "1k",
+      "name": "Clipboard",
+      "role": "Delivery notes on the desk across the aisle."
+    }
+  ],
+  "textures": [
+    {
+      "id": "smooth_concrete_floor",
+      "res": "1k",
+      "name": "Smooth Concrete Floor",
+      "role": "The polished concrete floor."
+    },
+    {
+      "id": "hessian_380",
+      "res": "1k",
+      "name": "Hessian 380",
+      "role": "The carpet under the desks, under a flat colour."
+    },
+    {
+      "id": "painted_plaster_wall",
+      "res": "1k",
+      "name": "Painted Plaster Wall",
+      "role": "Wall paint texture, under a flat colour."
+    },
+    {
+      "id": "concrete_wall_006",
+      "res": "1k",
+      "name": "Concrete Wall 006",
+      "role": "The bare concrete wall round the window."
+    },
+    {
+      "id": "jersey_melange",
+      "res": "1k",
+      "name": "Jersey Melange",
+      "role": "The office chair fabric."
+    },
+    {
+      "id": "wool_boucle",
+      "res": "1k",
+      "name": "Wool Boucle",
+      "role": "The desk divider pinboard."
+    }
+  ],
+  "fonts": [
+    {
+      "name": "Chakra Petch (500, 600, 700)",
+      "licence": "SIL Open Font License 1.1"
+    },
+    {
+      "name": "Inter (400, 500, 600, 700)",
+      "licence": "SIL Open Font License 1.1"
+    },
+    {
+      "name": "JetBrains Mono (400, 500)",
+      "licence": "SIL Open Font License 1.1"
+    }
+  ],
+  "original": [
+    {
+      "what": "The office itself: walls, window wall, door, carpet, the desk pedestal, office chairs, divider, printer cabinet",
+      "how": "Modelled in code in tools/blender/scenes/office.py"
+    },
+    {
+      "what": "The interactive objects: the two monitors, keyboard and mouse, mobile phone and its stand, desk phone, sticky note, printer, shredder, USB stick, badge and lanyard, door intercom, desk drawer, whiteboard, mug and headphones",
+      "how": "Modelled in code in tools/blender/scenes/office.py"
+    },
+    {
+      "what": "Printed and drawn art: the whiteboard, the sticky note, the Veltrix sign and badge, the printed bank change form, the USB label, the security poster, the intercom camera still and the vendor master file",
+      "how": "Drawn as SVG in tools/art.mjs"
+    },
+    {
+      "what": "The baked lighting in every texture",
+      "how": "Rendered with Blender Cycles by tools/blender/bake.py"
+    },
+    {
+      "what": "All interface icons",
+      "how": "Drawn as inline SVG in engine/ui/icons.js"
+    },
+    {
+      "what": "All sounds: room tone, keyboard, printer, shredder, phone, desk phone, intercom",
+      "how": "Synthesised in the browser with the Web Audio API (engine/core/audio.js). There are no audio files."
+    },
+    {
+      "what": "Phone call voices",
+      "how": "The player’s own browser speech, using only voices that run on the device, and only when sound is on. Every line is captioned. Nothing is recorded or sent anywhere."
+    }
+  ]
+}

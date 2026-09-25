@@ -1,0 +1,10 @@
+node_modules/
+dist/
+test-results/
+playwright-report/
+# Everything downloaded or rendered by the asset pipeline (Poly Haven
+# sources, Blender bakes, KTX tools). Rebuild with npm run fetch, art, bake.
+tools/.cache/
+__pycache__/
+.DS_Store
+*.log

@@ -1,0 +1,243 @@
+{
+  "id": "after-hours",
+  "order": 8,
+  "title": "After hours",
+  "kind": "Tailgating and baiting",
+  "maxPoints": 44,
+  "startsAt": 1130,
+  "brief": "18:50. The door intercom buzzes. A courier wants to be let in. And there is that USB stick from the car park.",
+  "insight": "Reception closed at six. Anyone at the door after that is your decision, and your risk.",
+  "setup": [
+    {
+      "do": "object.card",
+      "id": "intercom",
+      "card": {
+        "title": "Someone at the lobby door",
+        "image": "assets/art/courier_cam.png",
+        "imageAlt": "A grainy camera still of a courier in a hi vis vest holding a parcel at the lobby door",
+        "body": [
+          "A courier in a hi vis vest, holding a parcel. “Delivery for the finance team, I just need someone to buzz me in, my hands are full.”",
+          "Reception is closed. There is no delivery expected. Buzzing them in puts a stranger on the finance floor, out of hours, with nobody around."
+        ],
+        "event": "intercom:answered",
+        "choices": [
+          {
+            "id": "refuse",
+            "label": "Do not let them in",
+            "primary": true,
+            "emit": "intercom:refused"
+          },
+          {
+            "id": "security",
+            "label": "Call security to deal with it",
+            "emit": "intercom:security"
+          },
+          {
+            "id": "buzz",
+            "label": "Buzz them in, they have their hands full",
+            "emit": "intercom:buzzed"
+          }
+        ]
+      }
+    },
+    {
+      "do": "deskphone.line",
+      "number": "4999",
+      "line": {
+        "name": "Security",
+        "genuine": true,
+        "voice": {
+          "gender": "male",
+          "tone": "calm"
+        },
+        "script": [
+          {
+            "say": "Security desk, Mo speaking."
+          },
+          {
+            "choices": [
+              {
+                "id": "door",
+                "label": "There’s a courier at the lobby door wanting in",
+                "goto": "door"
+              },
+              {
+                "id": "usb",
+                "label": "I found a USB stick in the car park",
+                "goto": "usb"
+              }
+            ]
+          },
+          {
+            "id": "door",
+            "say": "Do not buzz anyone in. There is no delivery booked tonight. I will come down and check the camera myself.",
+            "end": true
+          },
+          {
+            "id": "usb",
+            "say": "Good call not plugging it in. Leave it in an envelope at the IT desk, or log a ticket and I will collect it.",
+            "end": true
+          }
+        ]
+      }
+    },
+    {
+      "do": "room.banner",
+      "title": "Door intercom",
+      "body": "A courier is at the lobby door",
+      "icon": "intercom",
+      "object": "intercom",
+      "action": "Look"
+    }
+  ],
+  "bonuses": [
+    {
+      "id": "b-security",
+      "when": {
+        "event": "intercom:security"
+      },
+      "outcome": {
+        "points": 12,
+        "verdict": "safe",
+        "label": "Called security about the courier",
+        "what": "Security check the camera and handle the door. That is their job, not yours to guess at.",
+        "ideal": "lets security handle an unexpected visitor rather than deciding alone."
+      }
+    },
+    {
+      "id": "b-calledsec",
+      "when": {
+        "event": "deskphone:connected",
+        "match": {
+          "number": "4999"
+        }
+      },
+      "outcome": {
+        "points": 8,
+        "verdict": "careful",
+        "label": "Got security on the desk phone",
+        "what": "Mo will come down and check. Nobody gets buzzed in.",
+        "ideal": "uses the security line for anything physical after hours."
+      }
+    },
+    {
+      "id": "b-usbhand",
+      "when": {
+        "event": "usb:handedIn"
+      },
+      "outcome": {
+        "points": 16,
+        "verdict": "safe",
+        "label": "Handed the USB stick to IT unopened",
+        "what": "A labelled stick in a car park is bait. Handing it in unopened costs nothing.",
+        "ideal": "never plugs in a found device, and hands it to IT."
+      }
+    },
+    {
+      "id": "b-ticket",
+      "when": {
+        "event": "ticket:raised"
+      },
+      "outcome": {
+        "points": 8,
+        "verdict": "safe",
+        "label": "Logged it with the service desk",
+        "what": "There is a record of the after hours visit and the found device.",
+        "ideal": "logs physical security events."
+      }
+    }
+  ],
+  "guards": [],
+  "start": "door",
+  "stages": {
+    "door": {
+      "objective": "Deal with the courier at the door.",
+      "target": "intercom",
+      "decision": true,
+      "insight": "“My hands are full, just buzz me in” is a script. It works because refusing feels rude.",
+      "hint": {
+        "text": "Look at the intercom. Do not buzz them in. Call security on the desk phone (4999) to handle it."
+      },
+      "on": [
+        {
+          "when": {
+            "event": "intercom:buzzed"
+          },
+          "outcome": {
+            "points": -28,
+            "verdict": "unsafe",
+            "label": "Buzzed the stranger in",
+            "what": "There is now an unknown person on the finance floor, after hours, with nobody around. That is how a device gets planted or a desk gets photographed.",
+            "ideal": "never buzzes in an unexpected visitor after hours; calls security instead.",
+            "card": {
+              "title": "A stranger on the floor",
+              "kicker": "Tailgating",
+              "body": [
+                "You buzzed them in. The parcel was a prop. With the floor empty, a few minutes is enough to plug something into a spare port, photograph the whiteboard, or lift a document from a desk.",
+                "There was no delivery booked. Security exists for exactly this, and they were one call away."
+              ],
+              "ideal": "refuses the door and calls security.",
+              "rewindLabel": "Rewind to the door"
+            }
+          },
+          "go": "usb"
+        },
+        {
+          "when": {
+            "event": "intercom:refused"
+          },
+          "go": "usb"
+        },
+        {
+          "when": {
+            "event": "intercom:security"
+          },
+          "go": "usb"
+        }
+      ]
+    },
+    "usb": {
+      "objective": "Decide what to do with the USB stick.",
+      "target": "usb",
+      "decision": true,
+      "insight": "The label PAYROLL Q3 is chosen to make you curious enough to plug it in.",
+      "hint": {
+        "text": "Look at the USB stick and hand it to IT without plugging it in."
+      },
+      "on": [
+        {
+          "when": {
+            "event": "usb:plugged"
+          },
+          "outcome": {
+            "points": -26,
+            "verdict": "unsafe",
+            "label": "Plugged in the USB stick",
+            "what": "The stick was left to be found. Plugging it in is exactly what its label was designed to make you do.",
+            "ideal": "never plugs in a found device.",
+            "card": {
+              "title": "It was left to be found",
+              "kicker": "Baiting",
+              "body": [
+                "The moment it was plugged in, the stick did its work. A dropped device with a tempting label is not lost property, it is bait.",
+                "Handing it to IT unopened was the whole job."
+              ],
+              "ideal": "hands a found device to IT without plugging it in.",
+              "rewindLabel": "Rewind to the desk"
+            }
+          },
+          "go": "done"
+        },
+        {
+          "when": {
+            "event": "usb:handedIn"
+          },
+          "go": "done"
+        }
+      ]
+    },
+    "done": {
+      "end": true
+    }
+  }
+}

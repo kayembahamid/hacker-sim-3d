@@ -1,0 +1,258 @@
+{
+  "id": "shared-document",
+  "order": 3,
+  "title": "The shared document",
+  "kind": "Credential phishing",
+  "maxPoints": 60,
+  "startsAt": 1035,
+  "brief": "17:15. An email says a colleague shared a document with you. The link asks you to sign in again.",
+  "insight": "A real share opens the file. This one asks for your Veltrix password first, on a page that is not Veltrix.",
+  "vars": {
+    "fake": {
+      "fake": "vlx-sso",
+      "path": "/login"
+    },
+    "sharer": {
+      "pick": [
+        "Dan Whitlock",
+        "Marta Okafor",
+        "Leila Haddad"
+      ]
+    }
+  },
+  "setup": [
+    {
+      "do": "site.fake",
+      "brand": "vlx-sso",
+      "host": "{{fake.host}}",
+      "trick": "{{fake.trick}}"
+    },
+    {
+      "do": "mail.deliver",
+      "mail": {
+        "genuine": false,
+        "external": true,
+        "from": {
+          "name": "{{sharer}} (via Filebridge)",
+          "address": "no-reply@filebridge-share.com"
+        },
+        "replyTo": "no-reply@filebridge-share.com",
+        "subject": "{{sharer}} shared “Payment run reconciliation.xlsx” with you",
+        "body": [
+          "{{sharer}} has shared a document with you.",
+          "For security, please sign in with your Veltrix account to view it.",
+          {
+            "button": "Open shared document",
+            "href": "https://{{fake.host}}/login?doc=reconciliation"
+          },
+          {
+            "small": "If you did not expect this, you can ignore it."
+          }
+        ],
+        "headers": {
+          "returnPath": "bounce@filebridge-share.com",
+          "spf": {
+            "result": "pass",
+            "explain": "Sent by filebridge-share.com. Note the domain: the real service is filebridge.io. This is a different company."
+          },
+          "dkim": {
+            "result": "pass",
+            "explain": "Signed by filebridge-share.com, not by filebridge.io or veltrix-logistics.com."
+          },
+          "dmarc": {
+            "result": "none",
+            "explain": "No DMARC policy on this domain, which a real service would have."
+          },
+          "received": [
+            "from mail.filebridge-share.com (203.0.113.51) by mx.veltrix-logistics.com"
+          ],
+          "messageId": "share-recon@filebridge-share.com",
+          "summary": "The share is from filebridge-share.com, not filebridge.io. The link goes to a lookalike of the Veltrix sign in page. A real share never asks for your Veltrix password."
+        }
+      }
+    },
+    {
+      "do": "room.banner",
+      "title": "Mail",
+      "body": "{{sharer}} shared a document with you",
+      "icon": "mail",
+      "object": "computer",
+      "action": "Open"
+    }
+  ],
+  "bonuses": [
+    {
+      "id": "b-domain",
+      "when": {
+        "event": "domain:checked",
+        "match": {
+          "device": "desktop"
+        }
+      },
+      "outcome": {
+        "points": 12,
+        "verdict": "careful",
+        "label": "Checked who owns the sign in page",
+        "what": "The owner of the page is not veltrix-logistics.com. That is all you need to know: your password does not go there.",
+        "ideal": "reads who owns a page before typing a password into it."
+      }
+    },
+    {
+      "id": "b-cert",
+      "when": {
+        "event": "cert:viewed",
+        "match": {
+          "device": "desktop"
+        }
+      },
+      "outcome": {
+        "points": 8,
+        "verdict": "careful",
+        "label": "Opened the certificate",
+        "what": "The padlock is real, but the certificate was issued days ago to an address, not to Veltrix. The padlock never meant the site was honest.",
+        "ideal": "knows a padlock only means encryption, not identity."
+      }
+    },
+    {
+      "id": "b-vault",
+      "when": {
+        "event": "vault:refused",
+        "match": {
+          "device": "desktop"
+        }
+      },
+      "outcome": {
+        "points": 15,
+        "verdict": "safe",
+        "label": "Noticed Vault refused to fill in",
+        "what": "Vault only fills in on the exact real address. It refusing to autofill is the clearest sign you are on the wrong site.",
+        "ideal": "treats Vault refusing to fill as a stop sign."
+      }
+    },
+    {
+      "id": "b-inspector",
+      "when": {
+        "event": "inspector:viewed",
+        "match": {
+          "offsite": true
+        }
+      },
+      "outcome": {
+        "points": 12,
+        "verdict": "careful",
+        "label": "Saw the login form posts to another domain",
+        "what": "The HTTP inspector shows the form sends what you type to the attacker’s domain, not to Veltrix.",
+        "ideal": "checks where a form sends data when something feels off."
+      }
+    },
+    {
+      "id": "b-report",
+      "when": {
+        "event": "mail:reported",
+        "match": {
+          "genuine": false
+        }
+      },
+      "outcome": {
+        "points": 12,
+        "verdict": "safe",
+        "label": "Reported the phishing email",
+        "what": "The team can block the lookalike domain and warn everyone.",
+        "ideal": "reports phishing rather than only deleting it."
+      }
+    }
+  ],
+  "guards": [],
+  "start": "decide",
+  "stages": {
+    "decide": {
+      "objective": "Decide whether to sign in to see the shared document.",
+      "target": "computer",
+      "decision": true,
+      "insight": "The one thing an attacker cannot fake is the address in the bar. Everything on the page can be copied; the address cannot.",
+      "hint": {
+        "text": "Open the link, but read the address before you type. Try Vault, the certificate, and the HTTP inspector. Then report the email instead of signing in."
+      },
+      "on": [
+        {
+          "when": {
+            "event": "form:submitted",
+            "match": {
+              "site": "vlx-sso-fake"
+            }
+          },
+          "outcome": {
+            "points": -40,
+            "verdict": "unsafe",
+            "label": "Entered your Veltrix password on the fake page",
+            "what": "Your password just went to the attacker. With it and a fresh sign in prompt, they will try to get into your account next.",
+            "ideal": "never types the Veltrix password anywhere but sso.veltrix-logistics.com.",
+            "card": {
+              "title": "Straight to the attacker",
+              "kicker": "Credential phishing",
+              "body": [
+                "The page looked exactly like the Veltrix sign in, but the address was a lookalike and the form sent your password to the attacker’s server.",
+                "Vault refused to fill it in, the certificate was issued to an address not a company, and the inspector showed the form going off site. Any one of those was the tell."
+              ],
+              "ideal": "reads the address bar and lets Vault’s refusal stop them.",
+              "rewindLabel": "Rewind to before I signed in"
+            }
+          },
+          "go": "wrap"
+        },
+        {
+          "when": {
+            "event": "mail:reported",
+            "match": {
+              "genuine": false
+            }
+          },
+          "go": "done"
+        },
+        {
+          "when": {
+            "event": "ticket:raised",
+            "match": {
+              "category": "phishing"
+            }
+          },
+          "go": "done"
+        }
+      ]
+    },
+    "wrap": {
+      "auto": [
+        {
+          "do": "objective",
+          "text": "Report it, and change your password if you typed it."
+        }
+      ],
+      "on": [
+        {
+          "when": {
+            "event": "mail:reported"
+          },
+          "go": "done"
+        },
+        {
+          "when": {
+            "event": "ticket:raised"
+          },
+          "go": "done"
+        },
+        {
+          "when": {
+            "event": "password:changed"
+          },
+          "go": "done"
+        }
+      ],
+      "hint": {
+        "text": "Report the email, and change your Veltrix password in Account security."
+      }
+    },
+    "done": {
+      "end": true
+    }
+  }
+}
