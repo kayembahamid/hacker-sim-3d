@@ -318,5 +318,16 @@
 .sx-consent-actions .sx-btn { width: auto; flex: 1; }
 
 /* On a phone sized window the desktop grids stack. */
-.desktop-os.is-compact .ox-split, .desktop-os.is-compact .app-teamchat { grid-template-columns: 1fr; }
+/* On a phone the office desktop maximises to the screen, so the two column
+   layouts stack, the tables scroll sideways inside their pane rather than
+   clipping the window, and the team chat sidebar becomes a scrolling strip. */
+.desktop-os.is-compact .ox-split, .desktop-os.is-compact .in-split, .desktop-os.is-compact .gt-split { grid-template-columns: 1fr; }
+.desktop-os.is-compact .app-teamchat { grid-template-columns: 1fr; }
 .desktop-os.is-compact .vc-stage { grid-template-columns: 1fr; }
+.desktop-os.is-compact .ox-page, .desktop-os.is-compact .ox-app { overflow-x: hidden; }
+.desktop-os.is-compact .ox-table, .desktop-os.is-compact .sh-grid-wrap, .desktop-os.is-compact .in-table { display: block; max-width: 100%; overflow-x: auto; }
+.desktop-os.is-compact .ox-compare { grid-template-columns: 1fr; }
+.desktop-os.is-compact .tc-side { position: static; width: 100%; flex-direction: row; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--dk-line); }
+.desktop-os.is-compact .app-teamchat { display: flex; flex-direction: column; }
+.desktop-os.is-compact .tc-row { flex: none; white-space: nowrap; }
+.desktop-os.is-compact .tc-sec, .desktop-os.is-compact .tc-org { display: none; }

@@ -381,6 +381,42 @@
 .desktop-os.is-compact .dk-start-menu, .desktop-os.is-compact .dk-centre, .desktop-os.is-compact .dk-toasts { width: calc(100% - 16px); }
 .desktop-os.is-compact .dk-tray .icon:not(.dk-bell .icon) { display: none; }
 
+/* On a phone the desktop maximises to the screen, and these multi column apps
+   (mail, files, account) reflow to a single scrolling column so nothing is
+   clipped off the side. The index panes (folders, the file tree, the account
+   switcher) become a scrolling row of chips at the top; the main content fills
+   the rest. */
+.desktop-os.is-compact .dk-body { overflow-x: hidden; }
+.desktop-os.is-compact .app-account,
+.desktop-os.is-compact .app-mail,
+.desktop-os.is-compact .app-files { display: flex; flex-direction: column; overflow-y: auto; overflow-x: hidden; }
+.desktop-os.is-compact .app-account > *,
+.desktop-os.is-compact .app-mail > *,
+.desktop-os.is-compact .app-files > * { width: 100%; min-width: 0; max-width: 100%; }
+.desktop-os.is-compact .ac-side,
+.desktop-os.is-compact .ml-folders,
+.desktop-os.is-compact .fl-side {
+  display: flex; flex: none; flex-direction: row; align-items: center; gap: 8px;
+  overflow-x: auto; overflow-y: hidden; border-right: 0; border-bottom: 1px solid var(--dk-line);
+  padding: 8px 12px; scrollbar-width: none;
+}
+.desktop-os.is-compact .ac-side::-webkit-scrollbar,
+.desktop-os.is-compact .ml-folders::-webkit-scrollbar,
+.desktop-os.is-compact .fl-side::-webkit-scrollbar { display: none; }
+/* Verbose labels that do not belong in a compact strip. */
+.desktop-os.is-compact .ac-side h3,
+.desktop-os.is-compact .ml-account,
+.desktop-os.is-compact .ac-svc small { display: none; }
+.desktop-os.is-compact .ac-svc,
+.desktop-os.is-compact .ml-folder,
+.desktop-os.is-compact .fl-side > * { width: auto; flex: none; white-space: nowrap; }
+.desktop-os.is-compact .ac-svc { padding: 7px 12px; border: 1px solid var(--dk-line); }
+.desktop-os.is-compact .ml-list { flex: none; max-height: 42vh; border-right: 0; border-bottom: 1px solid var(--dk-line); }
+.desktop-os.is-compact .ml-reader,
+.desktop-os.is-compact .ac-main,
+.desktop-os.is-compact .fl-main { flex: 1 1 auto; min-height: 48vh; overflow-y: visible; }
+.desktop-os.is-compact .fl-details, .desktop-os.is-compact .fl-props { flex: none; border-top: 1px solid var(--dk-line); border-left: 0; }
+
 /* shared desktop app bits */
 .tb-btn { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 11px; border-radius: 8px; border: 1px solid var(--dk-line); background: var(--dk-panel); color: var(--dk-ink); font-size: 13px; font-weight: 600; white-space: nowrap; }
 .tb-btn:hover { border-color: #b5bdcc; background: #f7f8fb; }
