@@ -219,6 +219,26 @@ a { color: var(--accent); }
 .tool.is-off { opacity: 0.55; }
 .tool.is-off .icon { color: var(--muted); }
 
+/* the Next button: a finished step's clear "move on" moment */
+.next-step {
+  order: -2; display: inline-flex; align-items: center; gap: 12px; padding: 10px 16px 10px 12px;
+  border: 0; border-radius: 16px; background: var(--accent); color: var(--accent-ink);
+  box-shadow: var(--lift), 0 0 0 6px color-mix(in srgb, var(--accent) 22%, transparent);
+  animation: nextIn 0.3s ease; text-align: left;
+}
+.next-step:hover { filter: brightness(1.05); }
+.next-step:active { transform: translateY(1px); }
+.ns-check { width: 34px; height: 34px; border-radius: 11px; flex: none; display: grid; place-items: center;
+  background: color-mix(in srgb, var(--accent-ink) 18%, transparent); }
+.ns-check .icon svg { width: 20px; height: 20px; }
+.ns-text { display: flex; flex-direction: column; line-height: 1.15; }
+.ns-kicker { font-size: 0.64rem; letter-spacing: 0.1em; text-transform: uppercase; opacity: 0.82; }
+.ns-label { font-size: 1.02rem; }
+.ns-arrow { opacity: 0.9; }
+.ns-arrow svg { width: 20px; height: 20px; }
+@keyframes nextIn { from { opacity: 0; transform: translateY(10px) scale(0.98); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .next-step { animation: none; } }
+
 .room-banners { position: absolute; z-index: 19; top: 70px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; gap: 8px; width: min(440px, calc(100% - 32px)); pointer-events: none; }
 .room-banner {
   pointer-events: auto; display: flex; align-items: center; gap: 11px; padding: 10px 12px;

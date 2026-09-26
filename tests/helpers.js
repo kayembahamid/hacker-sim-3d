@@ -1,7 +1,11 @@
 import { expect } from '@playwright/test';
 
 // Start one scenario on its own (the ?scenario= switch) in a given mode.
-export async function startScenario(page, id, mode = 'training') {
+// By default the runner runs straight through the Next button so a test can
+// drive a whole scenario by its key events; pass { autoNext: false } to leave
+// the Next button in the player's hands (used to test the button itself).
+export async function startScenario(page, id, mode = 'training', { autoNext = true } = {}) {
+  if (autoNext) await page.addInitScript(() => { window.__simAutoNext = true; });
   await page.goto(`./?scenario=${id}`);
   await page.waitForSelector('.st-card');
   await page.click(`.st-mode[data-mode="${mode}"]`);

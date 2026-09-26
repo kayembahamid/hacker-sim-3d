@@ -37,7 +37,9 @@ export class Shell {
     bus.on('objective', ({ text }) => this.setObjective(text));
     bus.on('hint', ({ text }) => this.offerHint(text));
     bus.on('coach:step', (d) => this.showCoach(d));
-    bus.on('scenario:complete', () => this.clearCoach());
+    bus.on('scenario:complete', () => { this.clearCoach(); this.hideNext(); });
+    bus.on('stage:complete', (d) => this.showNext(d));
+    bus.on('stage:entered', () => this.hideNext());
     bus.on('camera:flightEnd', ({ pose }) => { this.coachArrived = pose !== 'overview'; this.renderCoach(); });
     bus.on('device:live', ({ id }) => this.setDeviceOpen(!!id));
     bus.on('scenario:start', (s) => this.setScenario(s));
@@ -228,6 +230,7 @@ export class Shell {
       class: 'back-btn', type: 'button', hidden: true,
       onclick: () => bus.emit('room:back', {})
     }, [icon('back'), el('span', { text: 'Back to the room' }), el('kbd', { text: 'Esc' })]);
+    this.buildNext();
     this.buildCoach();
     this.captions = el('div', { class: 'captions', role: 'status', 'aria-live': 'polite' });
     this.banner = el('div', { class: 'room-banners', 'aria-live': 'polite' });
@@ -245,7 +248,7 @@ export class Shell {
         this.placesMenu
       ]),
       this.banner,
-      el('div', { class: 'stage-bottom ui-layer' }, [this.coach, this.coachPeek, this.captions, this.backBtn])
+      el('div', { class: 'stage-bottom ui-layer' }, [this.nextBtn, this.coach, this.coachPeek, this.captions, this.backBtn])
     ]);
 
     window.addEventListener('keydown', (ev) => {
@@ -262,6 +265,41 @@ export class Shell {
   renderSound(muted) {
     this.soundBtn.replaceChildren(icon(muted ? 'soundOff' : 'soundOn'), el('span', { class: 'tool-label', text: muted ? 'Sound off' : 'Sound on' }));
     this.soundBtn.setAttribute('aria-pressed', String(!muted));
+  }
+
+  // ----------------------------------------------------------------- next
+  // When a step is finished but nothing else marks it (no card of its own), a
+  // clear Next button drops in at the bottom of the room: it is the plain
+  // "you did it, move on" moment, and it is how you reach the next step.
+  buildNext() {
+    this.nextLabel = el('b', { class: 'ns-label', text: 'Next step' });
+    this.nextKicker = el('small', { class: 'ns-kicker', text: 'Step complete' });
+    this.nextBtn = el('button', {
+      class: 'next-step', type: 'button', hidden: true, onclick: () => this.goNext()
+    }, [
+      el('span', { class: 'ns-check' }, [icon('check')]),
+      el('span', { class: 'ns-text' }, [this.nextKicker, this.nextLabel]),
+      icon('forward', 'ns-arrow')
+    ]);
+  }
+
+  showNext({ last } = {}) {
+    this.pendingNext = true;
+    this.nextKicker.textContent = last ? 'All done' : 'Step complete';
+    this.nextLabel.textContent = last ? 'See how it went' : 'Next step';
+    this.nextBtn.hidden = false;
+    this.renderCoach();   // the finished step's card steps aside for the button
+    this.nextBtn.focus({ preventScroll: true });
+  }
+
+  hideNext() {
+    this.pendingNext = false;
+    this.nextBtn.hidden = true;
+  }
+
+  goNext() {
+    this.nextBtn.hidden = true;
+    bus.emit('coach:next', {});
   }
 
   // ---------------------------------------------------------------- coach
@@ -309,7 +347,7 @@ export class Shell {
 
   renderCoach() {
     const d = this.coachData;
-    const active = !!(this.guide && d);
+    const active = !!(this.guide && d && !this.pendingNext);
     if (!active) { this.coach.hidden = true; this.coachPeek.hidden = true; return; }
     const collapsed = this.coachDismissed || (this.deviceOpen && !this.coachForceOpen);
     this.coachPeek.hidden = !collapsed;

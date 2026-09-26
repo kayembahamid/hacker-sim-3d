@@ -31,3 +31,20 @@ test('the guide toggle hides the coach and is remembered', async ({ page }) => {
   });
   expect(saved).toBe('false');
 });
+
+// A silent step (no card of its own) finishes with a Next button, so it is
+// always clear a step is done and how to reach the next one.
+test('a finished step shows a Next button that moves to the next stage', async ({ page }) => {
+  await startScenario(page, 'invoice-attachment', 'training', { autoNext: false });
+  expect(await page.evaluate(() => sim.runner.active.stageId)).toBe('decide');
+
+  // Deleting the dangerous attachment finishes the step; it does not jump on.
+  await page.evaluate(() => sim.bus.emit('file:deleted', { danger: true }));
+  const next = page.locator('.next-step');
+  await expect(next).toBeVisible();
+  expect(await page.evaluate(() => sim.runner.active.stageId)).toBe('decide');
+
+  await next.click();
+  await expect(next).toBeHidden();
+  expect(await page.evaluate(() => sim.runner.active.stageId)).toBe('reported');
+});

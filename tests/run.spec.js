@@ -17,6 +17,7 @@ const SAFE = {
 };
 
 async function startSeeded(page, seed) {
+  await page.addInitScript(() => { window.__simAutoNext = true; });
   await page.goto('./');
   await page.waitForSelector('.st-card');
   await page.click('.st-more summary');

@@ -86,12 +86,15 @@ export class ScenarioRunner {
     this.disposed = false;
     this.unsub = bus.on('*', (payload, type) => this.onEvent(type, payload));
     this.traceUnsub = bus.on('*', (payload, type) => this.trace(type, payload));
+    // The Next button at the bottom of the room advances a completed step.
+    this.nextUnsub = bus.on('coach:next', () => this.next());
   }
 
   dispose() {
     this.disposed = true;
     if (this.unsub) this.unsub();
     if (this.traceUnsub) this.traceUnsub();
+    if (this.nextUnsub) this.nextUnsub();
     if (this.active) clearTimeout(this.active.hintTimer);
     if (this.active) clearTimeout(this.active.hotspotTimer);
     cancelTimers();
@@ -143,7 +146,7 @@ export class ScenarioRunner {
 
     this.active = {
       scenario, vars, index, count,
-      stageId: null, snapshot: null,
+      stageId: null, snapshot: null, pendingNext: null,
       awarded: new Set(), finished: false,
       resolve: null, hintTimer: null, hotspotTimer: null,
       startedAt: performance.now()
@@ -176,6 +179,7 @@ export class ScenarioRunner {
     const stage = a.scenario.stages[stageId];
     if (!stage) { console.warn('[scenario] missing stage', stageId); return; }
     a.stageId = stageId;
+    a.pendingNext = null;
     a.fired = new Set();
     a.snapshot = this.store.snapshot();
     clearTimeout(a.hintTimer);
@@ -224,6 +228,9 @@ export class ScenarioRunner {
   onEvent(type, payload) {
     const a = this.active;
     if (!a || a.finished || this.disposed || String(type).startsWith('scenario:')) return;
+    // A step is done and waiting on the Next button: hold everything until the
+    // player moves on, so one completed step cannot trip the next one early.
+    if (a.pendingNext) return;
     const s = a.scenario;
     const flags = this.store.get().flags;
 
@@ -300,7 +307,43 @@ export class ScenarioRunner {
         return;
       }
     }
-    if (rule.go) this.enter(rule.go);
+    if (rule.go) {
+      // A card gave the player an explicit "Continue" already; a silent step
+      // gets a Next button instead, so finishing a step is always a clear,
+      // deliberate moment and it is obvious how to move on.
+      const hadCard = !!(outcome && outcome.card);
+      if (hadCard || rule.instant) this.enter(rule.go);
+      else this.queueNext(rule.go);
+    }
+  }
+
+  // The step is complete but silent. Put the Next button up and wait, unless
+  // automation asked to run straight through (shouldAutoAdvance).
+  queueNext(go) {
+    const a = this.active;
+    if (!a) return;
+    a.pendingNext = go;
+    clearTimeout(a.hintTimer);
+    clearTimeout(a.hotspotTimer);
+    if (this.actionCtx.hotspots) this.actionCtx.hotspots.clear();
+    const next = a.scenario.stages[go] || {};
+    bus.emit('stage:complete', { scenario: a.scenario.id, stage: a.stageId, next: go, last: !!next.end });
+    if (this.shouldAutoAdvance()) this.next();
+  }
+
+  next() {
+    const a = this.active;
+    if (!a || this.disposed) return;
+    const go = a.pendingNext;
+    if (!go) return;
+    a.pendingNext = null;
+    this.enter(go);
+  }
+
+  // Tests drive many scenarios end to end; the flag lets them run straight
+  // through the Next button. It is never set for a real player.
+  shouldAutoAdvance() {
+    return globalThis.__simAutoNext === true;
   }
 
   finish(reason) {
