@@ -27,8 +27,10 @@ export const product = {
   title: 'Night Shift at Veltrix',
   lede: 'It is 16:30 on a Thursday and you are covering the late shift in accounts payable. The payment run closes at 19:00. Several people want something from you before then, and some of them are lying.',
   logo: 'logo.png',
-  home: 'https://hacker.hamcodes.com/',
-  homeLabel: 'Back to hacker.hamcodes.com',
+  // The sim ships on two sites (hacker.hamcodes.com and labs.hamcodes.com),
+  // so "back" goes to whichever one is hosting it.
+  home: '/',
+  homeLabel: 'Back to ' + ((typeof location !== 'undefined' && /hamcodes\.com$/.test(location.hostname)) ? location.hostname : 'hacker.hamcodes.com'),
   loadingText: 'Switching on the third floor',
   feedTitle: 'Your shift so far',
   debriefKicker: 'Night Shift at Veltrix',
