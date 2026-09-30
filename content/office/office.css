@@ -113,6 +113,7 @@
 
 /* ------------------------------------------------------------------ video */
 .app-video { display: flex; flex-direction: column; height: 100%; background: #0e1512; color: #eaf5f1; }
+.app-video .ox-head h2 { color: var(--dk-ink); }
 .vc-stage { flex: 1; display: grid; grid-template-columns: 2fr 1fr; gap: 10px; padding: 14px; min-height: 0; }
 .vc-tile { position: relative; border-radius: 12px; background: #16211d; display: grid; place-items: center; overflow: hidden; }
 .vc-tile.is-synthetic.is-live { outline: 2px solid rgba(255,120,120,0.4); }
@@ -126,6 +127,19 @@
 .vc-name { position: absolute; left: 10px; bottom: 8px; font-size: 13px; background: rgba(0,0,0,0.4); padding: 2px 8px; border-radius: 6px; }
 .vc-glitch { position: absolute; top: 8px; right: 8px; font-size: 11px; color: #ff9c9c; background: rgba(0,0,0,0.4); padding: 2px 8px; border-radius: 6px; }
 .vc-me { background: #101a16; }
+.vc-side { display: flex; flex-direction: column; gap: 10px; min-height: 0; }
+.vc-side .vc-tile { flex: 1; min-height: 90px; }
+.vc-small .vc-face { width: 64px; height: 64px; }
+.vc-small .vc-eyes { top: 22px; width: 36px; }
+.vc-small .vc-eyes::before, .vc-small .vc-eyes::after { width: 7px; height: 7px; }
+.vc-small .vc-mouth { bottom: 16px; width: 22px; height: 5px; }
+.vc-tile.is-bot { background: #1d1a2e; }
+.vc-botmark { display: grid; place-items: center; width: 54px; height: 54px; border-radius: 14px; background: #3a2f6b; color: #cbbcff; }
+.vc-botmark .icon { width: 30px; height: 30px; }
+.vc-rec { position: absolute; top: 8px; right: 8px; font-size: 11px; font-weight: 700; color: #fff; background: #d9423a; padding: 2px 8px; border-radius: 6px; }
+.as-flag { align-self: flex-start; display: inline-flex; align-items: center; gap: 5px; margin-top: 6px; padding: 3px 8px; border: 1px solid var(--dk-line); border-radius: 7px; background: transparent; color: var(--dk-muted); font-size: 12px; cursor: pointer; }
+.as-flag .icon { width: 13px; height: 13px; color: inherit; }
+.as-flag.is-on { color: #9a5b12; border-color: var(--warn-line); }
 .vc-avatar { width: 60px; height: 60px; border-radius: 50%; background: #24c28a; color: #04140c; display: grid; place-items: center; font-weight: 800; font-size: 24px; }
 .vc-captions { padding: 10px 16px; min-height: 60px; background: #0a1210; border-top: 1px solid rgba(255,255,255,0.08); font-size: 14px; }
 .vc-captions p { margin: 2px 0; }

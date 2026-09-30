@@ -12,7 +12,7 @@ import { changed, btn, tabs, empty, badge, head, office } from './kit.js';
 // (world.office.ai.prompts); asking one raises assistant:asked and the
 // scenario decides what the agent then tries to do.
 //
-// Events: assistant:asked { id }, agent:approved { id, dangerous },
+// Events: assistant:asked { id }, assistant:flagged { id }, agent:approved { id, dangerous },
 // agent:blocked { id, dangerous }, agent:permission { tool, on },
 // agent:viewed { pending }.
 const DEFAULT_PROMPTS = [
@@ -38,7 +38,14 @@ export function makeAssistantApp() {
             el('div', {}, [
               ...c.reply.map((l) => el('p', { text: l })),
               c.sources ? el('small', { class: 'as-src', text: `Sources: ${c.sources.join(', ')}` }) : null,
-              c.queued ? el('p', { class: 'as-queued' }, [icon('robot'), ` ${c.queued}`]) : null
+              c.queued ? el('p', { class: 'as-queued' }, [icon('robot'), ` ${c.queued}`]) : null,
+              el('button', {
+                class: `as-flag ${c.flagged ? 'is-on' : ''}`, type: 'button', dataset: { flag: c.id }, disabled: c.flagged ? '' : null,
+                onclick: () => {
+                  office(ctx, (o) => { const t = (o.ai.chats || []).find((q) => q.id === c.id); if (t) t.flagged = true; }, 'assistant-flag');
+                  bus.emit('assistant:flagged', { id: c.id });
+                }
+              }, [icon('flag'), c.flagged ? 'Reported as wrong' : 'Report a wrong answer'])
             ].filter(Boolean))
           ])
         ])) : [el('p', { class: 'app-empty', text: 'Ask Veltrix Assist about your mail, files or the payment run.' })]),

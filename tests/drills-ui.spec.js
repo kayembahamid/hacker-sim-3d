@@ -104,3 +104,39 @@ test('the object card and the choice card at the side door', async ({ page }) =>
   expect(await stage(page)).toBe('report');
   expect(await labels(page)).toEqual(expect.arrayContaining(['Said no, politely', 'Held firm under pressure']));
 });
+
+test('a scenario prompt appears in Veltrix Assist, and a wrong answer can be reported', async ({ page }) => {
+  await startScenario(page, 'hallucination-trust');
+  await fly(page, 'computer');
+  await desktopApp(page, 'assistant');
+  await page.click('.desktop-os [data-prompt="early"]');
+  await expect(page.locator('.desktop-os .as-a').first()).toContainText('FIN-7.3');
+  await page.click('.desktop-os [data-flag="early"]');
+  await wait(page, 300);
+  expect(await labels(page)).toContain('Reported the wrong answer');
+});
+
+test('the flagship assistant scenario offers its contract prompt', async ({ page }) => {
+  await startScenario(page, 'helpful-assistant');
+  await fly(page, 'computer');
+  await desktopApp(page, 'assistant');
+  await expect(page.locator('.desktop-os [data-prompt="sum-contract"]')).toBeVisible();
+});
+
+test('a Meet call shows its bot and other people, and nothing stray', async ({ page }) => {
+  await startScenario(page, 'ai-notetaker-consent');
+  await fly(page, 'computer');
+  await desktopApp(page, 'video');
+  await page.click('.desktop-os .app-video .vc-controls button');
+  await expect(page.locator('.desktop-os .vc-tile.is-bot .vc-rec')).toHaveText('REC');
+  await expect(page.locator('.desktop-os .app-video')).not.toContainText('null');
+});
+
+test('the Work queue will not send until every required question is answered', async ({ page }) => {
+  await startScenario(page, 'subject-access-request');
+  await fly(page, 'computer');
+  await desktopApp(page, 'cases');
+  await expect(page.locator('.desktop-os .cs-act-send')).toBeDisabled();
+  for (const o of ['match', 'orders', 'calls', 'segments', 'thread-redacted', 'month']) await page.click(`.desktop-os [data-opt="${o}"]`);
+  await expect(page.locator('.desktop-os .cs-act-send')).toBeEnabled();
+});

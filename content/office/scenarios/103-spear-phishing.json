@@ -37,7 +37,7 @@
           { "kv": [["Current role", "Accounts Payable, Veltrix Logistics (3 years)"], ["Studying", "AAT Level 4, passed this month"], ["Team news", "Our team moves to Ledgerbay this autumn"]] },
           { "h2": "Recent posts" },
           { "list": [
-            "Ran the Kirkstall 10k on Sunday in 52:10. Legs are gone.",
+            "Ran the Moorside 10k on Sunday in 52:10. Legs are gone.",
             "Covering the late payment run this week while my manager Marta is on leave. Wish me luck!",
             "Passed AAT Level 4! Thanks to everyone at Veltrix for the support."
           ] },
@@ -46,7 +46,7 @@
         ]
       }
     },
-    { "do": "world.push", "path": "office.search", "value": { "q": "rivera", "title": "Sam Rivera, Accounts Payable at Veltrix Logistics | Workfolk", "url": "https://workfolk.social/in/sam-rivera", "text": "Leeds · Accounts Payable at Veltrix Logistics · Passed AAT Level 4 · Kirkstall 10k" } },
+    { "do": "world.push", "path": "office.search", "value": { "q": "rivera", "title": "Sam Rivera, Accounts Payable at Veltrix Logistics | Workfolk", "url": "https://workfolk.social/in/sam-rivera", "text": "Leeds · Accounts Payable at Veltrix Logistics · Passed AAT Level 4 · Moorside 10k" } },
     {
       "do": "site.page",
       "id": "lb-activate",
@@ -73,7 +73,7 @@
         "subject": "Congrats Sam, and one thing before Monday",
         "body": [
           "Hi Sam,",
-          "Congratulations on passing AAT Level 4, and 52 minutes at Kirkstall is a great time!",
+          "Congratulations on passing AAT Level 4, and 52 minutes at Moorside is a great time!",
           "I am on the Ledgerbay onboarding team for Veltrix's move this autumn. Marta mentioned you are covering while she is on leave, so you are the one to activate the AP accounts before Monday's cutover. It takes two minutes.",
           { "button": "Activate Veltrix AP on Ledgerbay", "href": "https://{{lbHost}}/activate?team=ap" },
           "Thanks so much, and enjoy the recovery run.",

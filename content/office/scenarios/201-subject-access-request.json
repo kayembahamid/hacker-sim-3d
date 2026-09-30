@@ -1,0 +1,209 @@
+{
+  "id": "subject-access-request",
+  "order": 201,
+  "title": "The subject access request",
+  "kind": "Subject access request",
+  "track": "privacy-compliance",
+  "pool": false,
+  "level": "Core",
+  "minutes": 8,
+  "maxPoints": 72,
+  "startsAt": 1000,
+  "brief": "16:40. You are covering the customer privacy inbox tonight. A customer wants a copy of everything Veltrix holds about her.",
+  "role": "Accounts payable, covering the customer privacy inbox tonight",
+  "insight": "A subject access request is a right, not a favour. It has a deadline, and a trap: other people's data.",
+  "teaches": [
+    "Everything that is about the person counts: records, notes, recordings, the segments they are in",
+    "The clock is one month from the request",
+    "Confirm who is asking, and never hand over someone else's data in the reply"
+  ],
+  "vars": {
+    "name": { "pick": ["Megan Holt", "Aisha Brennan", "Carla Mendes"] }
+  },
+  "setup": [
+    {
+      "do": "world.set",
+      "path": "office.cases",
+      "value": [
+        {
+          "id": "dsar",
+          "title": "Subject access request: {{name}}",
+          "kind": "Subject access request",
+          "from": "{{name}}, customer since 2021",
+          "received": "2 September",
+          "due": "Due soon",
+          "body": [
+            "“Under data protection law I would like a copy of all the personal data Veltrix Logistics holds about me, and what you use it for.”",
+            "The request came from the email address on her customer account. Our records about her are listed below."
+          ],
+          "table": {
+            "head": ["Record", "Where", "About"],
+            "rows": [
+              ["Orders and delivery addresses", "CRM", "{{name}}"],
+              ["Two support call recordings and agent notes", "Support desk", "{{name}}"],
+              ["Marketing preferences and segments (“High value, lapsed”)", "Marketing", "{{name}}"],
+              ["A complaint email thread in which a neighbour names her", "Support desk", "{{name}} and another customer"],
+              ["All customers on her street, from a delivery planning export", "Route planning", "34 other customers"]
+            ]
+          },
+          "policy": { "title": "Veltrix privacy procedure, section 4", "lines": ["Answer within one month of receiving the request. Confirm the requester's identity in proportion to the risk.", "Include everything about the person. Redact information about anyone else."] },
+          "sections": [
+            {
+              "id": "identity", "title": "1. Is it really her?", "required": true,
+              "options": [
+                { "id": "match", "label": "It came from the address on her account: confirm with one question from her account", "good": true, "why": "Proportionate: the request came from her known address, and one account check is enough." },
+                { "id": "passport", "label": "Ask her to email a scan of her passport and a utility bill", "good": false, "bad": "excess", "why": "More than the risk needs, and you now hold copies of her passport in a mailbox." },
+                { "id": "anyone", "label": "Send it wherever she asks, she seems genuine", "good": false, "bad": "leak", "why": "If the request is fake, you just sent her whole file to a stranger." }
+              ]
+            },
+            {
+              "id": "pack", "title": "2. What goes in the reply?", "multi": true, "required": true,
+              "options": [
+                { "id": "orders", "label": "Her orders and delivery addresses", "good": true, "why": "About her." },
+                { "id": "calls", "label": "The support call recordings and agent notes about her", "good": true, "why": "Notes and recordings about a person are their personal data too." },
+                { "id": "segments", "label": "Her marketing preferences, and the segments she has been put in", "good": true, "why": "Profiling is personal data. People are entitled to know how they are labelled." },
+                { "id": "thread-raw", "label": "The complaint thread, exactly as it is", "good": false, "bad": "thirdparty", "why": "It names her neighbour and gives his address. That is his data, not hers." },
+                { "id": "thread-redacted", "label": "The complaint thread, with the neighbour's details redacted", "good": true, "why": "The parts about her go in; the parts about him come out." },
+                { "id": "street", "label": "The export of all customers on her street", "good": false, "bad": "thirdparty", "why": "34 other people's names and addresses. None of it is hers to receive." }
+              ]
+            },
+            {
+              "id": "clock", "title": "3. When is it due?", "required": true,
+              "options": [
+                { "id": "month", "label": "One month from 2 September: 2 October", "good": true, "why": "One calendar month from receipt." },
+                { "id": "forty", "label": "40 working days", "good": false, "bad": "late", "why": "That was the old rule. It is one month now." },
+                { "id": "whenever", "label": "When the team has time", "good": false, "bad": "late", "why": "Missing the deadline is a breach in its own right." }
+              ]
+            }
+          ],
+          "actions": [
+            { "id": "send", "label": "Send the response pack", "primary": true, "toast": "Response sent" },
+            { "id": "refuse", "label": "Refuse: it is too much work", "warn": true, "toast": "Request refused" }
+          ]
+        }
+      ]
+    },
+    {
+      "do": "deskphone.line",
+      "number": "4120",
+      "line": {
+        "name": "Data protection officer",
+        "genuine": true,
+        "verifies": "dpo",
+        "voice": { "gender": "female", "tone": "calm" },
+        "script": [
+          { "say": "Data protection, Nadia Brook." },
+          { "choices": [{ "id": "ask", "label": "I have a subject access request. Anything I should watch for?", "goto": "ask" }] },
+          { "id": "ask", "say": "One month from the day it arrived. Everything about her, including notes and how we segment her. And redact anyone else, that is where people slip. Log it when you send it.", "end": true }
+        ]
+      }
+    },
+    { "do": "toast", "app": "cases", "title": "Work queue", "body": "Subject access request: {{name}}" },
+    { "do": "room.banner", "title": "Work queue", "body": "A customer has asked for all her data", "icon": "ticket", "object": "computer", "action": "Open" }
+  ],
+  "bonuses": [
+    {
+      "id": "b-dpo",
+      "when": { "event": "deskphone:connected", "match": { "verifies": "dpo" } },
+      "outcome": { "points": 10, "verdict": "careful", "label": "Checked with data protection", "what": "Nadia: one month, everything about her, redact anyone else.", "ideal": "asks the DPO when a request comes in." }
+    },
+    {
+      "id": "b-identity",
+      "when": { "event": "case:picked", "match": { "case": "dsar", "option": "match", "on": true } },
+      "outcome": { "points": 8, "verdict": "careful", "label": "Checked identity in proportion", "what": "Her known address plus one account question: enough, and no passport scans in a mailbox.", "ideal": "confirms identity without collecting more than needed." }
+    },
+    {
+      "id": "b-redact",
+      "when": { "event": "case:picked", "match": { "case": "dsar", "option": "thread-redacted", "on": true } },
+      "outcome": { "points": 8, "verdict": "careful", "label": "Redacted the neighbour", "what": "Her part of the complaint goes in, his details stay out.", "ideal": "redacts other people's data in a reply." }
+    },
+    {
+      "id": "b-clock",
+      "when": { "event": "case:picked", "match": { "case": "dsar", "option": "month", "on": true } },
+      "outcome": { "points": 6, "verdict": "careful", "label": "Knew the deadline", "what": "One month from receipt: 2 October.", "ideal": "tracks the one month clock from the day the request arrives." }
+    }
+  ],
+  "guards": [],
+  "start": "decide",
+  "stages": {
+    "decide": {
+      "objective": "Answer the subject access request in the Work queue.",
+      "target": "computer",
+      "decision": true,
+      "insight": "Include everything about her. Leave out everyone else.",
+      "hint": { "text": "Open the Work queue. Confirm identity proportionately, include every record about her with the neighbour redacted, leave out the street export, and set the one month deadline. Call data protection on 4120 if unsure. Then send." },
+      "on": [
+        {
+          "when": { "event": "case:action", "match": { "case": "dsar", "action": "send", "ok": true } },
+          "outcome": {
+            "points": 40, "verdict": "safe", "label": "Sent a complete, clean response",
+            "what": "Everything about her, nothing about anyone else, inside the month.",
+            "ideal": "answers fully, on time, and redacts third parties.",
+            "card": {
+              "title": "Everything about her, nothing about anyone else",
+              "kicker": "Subject access request",
+              "body": [
+                "Her orders, the call notes, the segments she was put in, and her side of the complaint, with the neighbour redacted. On time, to the right person.",
+                "The easy mistakes are forgetting notes and profiles count, and pasting in a thread that names someone else."
+              ],
+              "ideal": "treats a subject access request as a right with a deadline."
+            }
+          },
+          "go": "done"
+        },
+        {
+          "when": { "event": "case:action", "match": { "case": "dsar", "action": "send", "bad": { "includes": "thirdparty" } } },
+          "outcome": {
+            "points": -35, "verdict": "unsafe", "label": "Sent other customers' data in the reply",
+            "what": "The reply included other people's names and addresses. Answering one request has caused a new breach.",
+            "ideal": "redacts third party data before sending.",
+            "card": {
+              "title": "One request, a new breach",
+              "kicker": "Subject access request",
+              "body": [
+                "The pack included her neighbour's details and the street export: 35 other people's data sent to a customer. That is a personal data breach, and it may need reporting.",
+                "Everything about her goes in. Anything about anyone else is redacted or left out."
+              ],
+              "ideal": "checks every document for other people before it goes.",
+              "rewindLabel": "Rewind to before I sent it"
+            }
+          },
+          "go": "done"
+        },
+        {
+          "when": { "event": "case:action", "match": { "case": "dsar", "action": "send" } },
+          "outcome": {
+            "points": 5, "verdict": "risky", "label": "Sent an incomplete or late response",
+            "what": "Something was missing, the identity check was off, or the deadline was wrong.",
+            "ideal": "includes everything about the person, checks identity in proportion, and answers within a month.",
+            "card": {
+              "title": "Sent, but not right",
+              "kicker": "Subject access request",
+              "body": ["The reply went, but it missed something she is entitled to, or the identity check or the deadline was wrong. Open the case to see which answers were off.", "Incomplete answers lead to complaints to the regulator."],
+              "ideal": "includes notes, recordings and profiles, and answers within a month.",
+              "rewindLabel": "Rewind and fix it"
+            }
+          },
+          "go": "done"
+        },
+        {
+          "when": { "event": "case:action", "match": { "case": "dsar", "action": "refuse" } },
+          "outcome": {
+            "points": -30, "verdict": "unsafe", "label": "Refused the request",
+            "what": "“Too much work” is not a reason to refuse. She can complain to the regulator, and would win.",
+            "ideal": "answers every valid request within the month.",
+            "card": {
+              "title": "Not a favour, a right",
+              "kicker": "Subject access request",
+              "body": ["People have a legal right to their data. A request can only be refused in narrow cases, and effort alone is not one of them."],
+              "ideal": "answers within a month, fully and safely.",
+              "rewindLabel": "Rewind and answer it"
+            }
+          },
+          "go": "done"
+        }
+      ]
+    },
+    "done": { "end": true }
+  }
+}

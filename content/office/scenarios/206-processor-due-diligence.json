@@ -1,0 +1,163 @@
+{
+  "id": "processor-due-diligence",
+  "order": 206,
+  "title": "The vendor with your data",
+  "kind": "Processor due diligence",
+  "track": "privacy-compliance",
+  "pool": false,
+  "level": "Core",
+  "minutes": 8,
+  "maxPoints": 58,
+  "startsAt": 1020,
+  "brief": "17:00. Tom has found a route planning tool he loves. He wants the company card approved tonight so he can upload 38,000 customer addresses.",
+  "role": "Accounts payable, approving new software spend",
+  "insight": "Once customer data is in a supplier's system, the supplier's promises are the only thing protecting it. Check them first.",
+  "teaches": [
+    "A supplier holding your customers' data is your processor: you stay responsible",
+    "Before any data goes in: a signed data processing agreement, where the data lives, who else touches it",
+    "A “GDPR compliant” badge on a pricing page is not due diligence"
+  ],
+  "setup": [
+    {
+      "do": "site.page",
+      "id": "rn-home",
+      "host": "routenimbus.io",
+      "title": "RouteNimbus",
+      "owner": "RouteNimbus Inc",
+      "colour": "#16324a",
+      "accent": "#4fc1e9",
+      "nav": ["Product", "Pricing", "Trust"],
+      "pages": {
+        "/": [
+          { "h": "Plan every route in seconds" },
+          { "p": "Upload your customer addresses and RouteNimbus plans the fastest delivery runs. Pro plan £49 a month. GDPR compliant!" },
+          { "button": "Read our Trust centre", "go": "/trust", "style": "ghost" }
+        ],
+        "/trust": [
+          { "h": "Trust centre" },
+          { "kv": [["Where your data is stored", "United States and Singapore"], ["Sub-processors", "12, list available on request"], ["Data processing agreement", "Enterprise plan only"], ["Security certification", "SOC 2 audit planned for next year"], ["Retention", "Uploaded data may be kept to improve our models"]] },
+          { "note": "Customers on the Pro plan accept our standard terms of service." }
+        ]
+      }
+    },
+    {
+      "do": "world.set",
+      "path": "office.cases",
+      "value": [
+        {
+          "id": "vendor",
+          "title": "New software: RouteNimbus Pro, £49 a month",
+          "kind": "New supplier with customer data",
+          "from": "Tom Becker",
+          "received": "Today 16:58",
+          "body": ["“Can you approve the card? I want to upload our customer delivery addresses tonight and try it on tomorrow's runs. It is only £49!”", "It would hold 38,412 customers' names and home addresses."],
+          "policy": { "title": "Veltrix supplier procedure", "lines": ["A supplier that will hold personal data needs a signed data processing agreement, a security review, and a record of where the data is stored and who else processes it, before any data is shared.", "Transfers outside the UK need extra safeguards. Ask the DPO."] },
+          "sections": [
+            { "id": "checks", "title": "1. What must be in place before customer data goes in?", "multi": true, "required": true, "options": [
+              { "id": "dpa", "label": "A signed data processing agreement", "good": true, "why": "The contract that makes them act only on your instructions. Here it is Enterprise only." },
+              { "id": "where", "label": "Where the data will be stored, and which sub-processors touch it", "good": true, "why": "Storage in the US and Singapore, with 12 unnamed sub-processors, is a transfer question." },
+              { "id": "security", "label": "A security review of the supplier", "good": true, "why": "No certification yet: that needs a proper look." },
+              { "id": "badge", "label": "Nothing more: their page says they are GDPR compliant", "good": false, "bad": "trust", "why": "A badge on a pricing page is marketing, not assurance." },
+              { "id": "later", "label": "Start the trial now and sort the paperwork later", "good": false, "bad": "later", "why": "Once the data is uploaded, the paperwork can only describe what already went wrong." }
+            ] },
+            { "id": "decision", "title": "2. Your decision tonight", "required": true, "options": [
+              { "id": "hold", "label": "Hold: no customer data until the checks are done and the DPO agrees", "good": true, "why": "The tool may be fine. Tonight nothing proves it." },
+              { "id": "test", "label": "Approve the card, but for made up test addresses only until the checks pass", "good": true, "why": "Tom can try it with no real customer data at risk." },
+              { "id": "approve", "label": "Approve it, Tom can upload tonight", "good": false, "bad": "approve", "why": "38,412 home addresses in two countries, kept to train models, with no contract." }
+            ] }
+          ],
+          "actions": [{ "id": "send", "label": "Send the decision to Tom", "primary": true, "toast": "Decision sent to Tom" }]
+        }
+      ]
+    },
+    {
+      "do": "deskphone.line",
+      "number": "4120",
+      "line": {
+        "name": "Data protection officer",
+        "genuine": true,
+        "verifies": "dpo",
+        "voice": { "gender": "female", "tone": "calm" },
+        "script": [
+          { "say": "Data protection, Nadia Brook." },
+          { "choices": [{ "id": "ask", "label": "Tom wants to put our customer addresses into a new route planning tool", "goto": "ask" }] },
+          { "id": "ask", "say": "Not tonight. I need a signed processing agreement, their sub-processor list, and where the data sits. If it leaves the UK that is a transfer too. Test data only until then.", "end": true }
+        ]
+      }
+    },
+    { "do": "room.banner", "title": "Work queue", "body": "Tom wants a new tool approved tonight", "icon": "ticket", "object": "computer", "action": "Open" }
+  ],
+  "bonuses": [
+    {
+      "id": "b-trust",
+      "when": { "event": "page:shown", "match": { "page": "rn-home", "path": "/trust" } },
+      "outcome": { "points": 10, "verdict": "careful", "label": "Read the supplier's trust centre", "what": "US and Singapore storage, no processing agreement on this plan, no certification, and your data used to train their models.", "ideal": "reads where the data would live and on what terms." }
+    },
+    {
+      "id": "b-dpo",
+      "when": { "event": "deskphone:connected", "match": { "verifies": "dpo" } },
+      "outcome": { "points": 8, "verdict": "careful", "label": "Asked data protection", "what": "Agreement first, sub-processors and location second, test data until then.", "ideal": "involves the DPO before customer data goes to a new supplier." }
+    }
+  ],
+  "guards": [],
+  "start": "decide",
+  "stages": {
+    "decide": {
+      "objective": "Decide whether RouteNimbus can have the customer addresses.",
+      "target": "computer",
+      "decision": true,
+      "insight": "Ask three questions: is there a contract, where does the data go, and who else touches it?",
+      "hint": { "text": "Open the browser to routenimbus.io and read the Trust centre. Call data protection on 4120. Then in the Work queue require the agreement, the location and a security review, and hold (or allow test data only)." },
+      "on": [
+        {
+          "when": { "event": "case:action", "match": { "case": "vendor", "ok": true } },
+          "outcome": {
+            "points": 40, "verdict": "safe", "label": "No customer data until the checks are done",
+            "what": "Tom can try the tool on made up data. Real addresses wait for a contract, a location and a security review.",
+            "ideal": "does due diligence before a processor gets personal data.",
+            "card": {
+              "title": "Checked before it went in",
+              "kicker": "Processor due diligence",
+              "body": ["The trust centre said it all: data in the US and Singapore, no processing agreement on the Pro plan, no certification, and your customers' addresses used to train their models.", "The tool might be fine one day. Due diligence is how you find out before the data goes, not after."],
+              "ideal": "requires the agreement, the location and a security review first."
+            }
+          },
+          "go": "done"
+        },
+        {
+          "when": { "event": "case:action", "match": { "case": "vendor", "bad": { "includes": "approve" } } },
+          "outcome": {
+            "points": -30, "verdict": "unsafe", "label": "Approved the upload with no checks",
+            "what": "38,412 customers' home addresses are now in two countries, with no contract, used to train someone else's models.",
+            "ideal": "never lets personal data go to a supplier before the checks.",
+            "card": {
+              "title": "Your customers, their terms",
+              "kicker": "Processor due diligence",
+              "body": ["Without a processing agreement, RouteNimbus is not bound to use the data only for you, and its terms say it can keep it. The data also left the UK with no safeguards.", "Veltrix is still responsible for all of it."],
+              "ideal": "holds until the agreement and checks are in place.",
+              "rewindLabel": "Rewind and decide again"
+            }
+          },
+          "go": "done"
+        },
+        {
+          "when": { "event": "case:action", "match": { "case": "vendor" } },
+          "outcome": {
+            "points": 5, "verdict": "risky", "label": "Missed part of the due diligence",
+            "what": "The decision relied on the supplier's badge, or left checks for later.",
+            "ideal": "requires the agreement, location and security review before any data.",
+            "card": {
+              "title": "Not checked enough",
+              "kicker": "Processor due diligence",
+              "body": ["A “GDPR compliant” badge, or “we will sort it later”, is not due diligence. Open the case to see what was missing."],
+              "ideal": "checks the contract, location and security first.",
+              "rewindLabel": "Rewind and fix it"
+            }
+          },
+          "go": "done"
+        }
+      ]
+    },
+    "done": { "end": true }
+  }
+}

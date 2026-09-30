@@ -1,0 +1,180 @@
+{
+  "id": "lawful-basis",
+  "order": 205,
+  "title": "Lawful basis in one screen",
+  "kind": "Lawful basis",
+  "track": "privacy-compliance",
+  "pool": false,
+  "level": "Foundational",
+  "minutes": 6,
+  "maxPoints": 51,
+  "startsAt": 1015,
+  "brief": "16:55. Marketing want to email four lists about the new cold chain service tonight, and they need finance to sign off the send.",
+  "role": "Accounts payable, signing off marketing spend tonight",
+  "insight": "Before “what shall we say?” comes “are we allowed to send it at all?”. Each list has its own answer.",
+  "teaches": [
+    "Every use of personal data needs a lawful basis: consent, legitimate interest, or another one that fits",
+    "An opt out is a no. It stays a no for new products too",
+    "A bought list comes with none of the permissions you need"
+  ],
+  "setup": [
+    {
+      "do": "world.set",
+      "path": "office.cases",
+      "value": [
+        {
+          "id": "lists",
+          "title": "Cold chain launch email: which lists can we use?",
+          "kind": "Marketing sign off",
+          "from": "Grace Whitfield, Marketing",
+          "received": "Today 16:52",
+          "body": ["“We want to email about the new cold chain service tonight. Four lists below, about 24,000 people in all. Can you sign off the send?”"],
+          "policy": { "title": "Veltrix marketing and privacy rules", "lines": ["Consent must be freely given, specific and recorded. An opt out ends consent for all marketing.", "Existing customers may be emailed about similar services if they were given a chance to opt out and did not (soft opt in). Every email must offer an easy opt out.", "We do not email bought lists."] },
+          "sections": [
+            { "id": "show", "title": "Trade show visitors who left a business card and ticked “send me product news”", "required": true, "options": [
+              { "id": "show-yes", "label": "Yes: they gave consent for exactly this, with an opt out in the email", "good": true, "why": "Specific, recorded consent for product news." },
+              { "id": "show-no", "label": "No", "good": false, "bad": "overcautious", "why": "They asked for it. Refusing does not protect anyone." }
+            ] },
+            { "id": "optout", "title": "Past customers who unticked marketing at checkout", "required": true, "options": [
+              { "id": "optout-no", "label": "No: they said no", "good": true, "why": "An opt out is an opt out, whatever the product." },
+              { "id": "optout-yes", "label": "Yes, it is a new service, so their no does not apply", "good": false, "bad": "optout", "why": "A “no” to marketing covers new products as well." }
+            ] },
+            { "id": "bought", "title": "20,000 logistics managers bought from a data broker, LeadHarbour", "required": true, "options": [
+              { "id": "bought-no", "label": "No: they never agreed to hear from us, and we cannot prove the source", "good": true, "why": "Consent given to someone else is not consent to you." },
+              { "id": "bought-yes", "label": "Yes, the broker says the list is compliant", "good": false, "bad": "bought", "why": "The broker's word does not give you a lawful basis. Your policy bans it outright." }
+            ] },
+            { "id": "recent", "title": "Customers who bought in the last year and did not opt out", "required": true, "options": [
+              { "id": "recent-yes", "label": "Yes: a similar service, and an easy opt out in every email", "good": true, "why": "The soft opt in: existing customers, similar products, a chance to say no each time." },
+              { "id": "recent-no", "label": "No, we would need fresh consent", "good": false, "bad": "overcautious", "why": "Not needed for similar services, provided the opt out is there." }
+            ] }
+          ],
+          "actions": [{ "id": "decide", "label": "Send the decision to Marketing", "primary": true, "toast": "Decision sent to Marketing" }]
+        }
+      ]
+    },
+    {
+      "do": "chat.deliver",
+      "chat": {
+        "id": "dm-grace",
+        "name": "Grace Whitfield",
+        "group": false,
+        "genuine": true,
+        "colour": "#5b7bd6",
+        "members": [
+          { "id": "grace", "name": "Grace Whitfield", "handle": "@grace.whitfield", "known": true, "colour": "#5b7bd6", "note": "Marketing" },
+          { "id": "me", "name": "Sam Rivera (you)", "handle": "@sam.rivera", "known": true, "colour": "#24c28a" }
+        ],
+        "messages": [{ "from": "grace", "fromName": "Grace Whitfield", "text": "Hi Sam, the launch lists are in your Work queue. Any chance of a sign off tonight?" }],
+        "replies": [{ "id": "source", "text": "Where did each list come from, and what did people agree to?", "kind": "clarify" }]
+      }
+    },
+    {
+      "do": "deskphone.line",
+      "number": "4120",
+      "line": {
+        "name": "Data protection officer",
+        "genuine": true,
+        "verifies": "dpo",
+        "voice": { "gender": "female", "tone": "calm" },
+        "script": [
+          { "say": "Data protection, Nadia Brook." },
+          { "choices": [{ "id": "ask", "label": "Marketing want to email four lists. How do I decide?", "goto": "ask" }] },
+          { "id": "ask", "say": "List by list. Did they agree to it, or are they customers who can opt out of something similar? Opt outs stay out, and bought lists never go in.", "end": true }
+        ]
+      }
+    },
+    { "do": "room.banner", "title": "Work queue", "body": "Marketing need a sign off on four email lists", "icon": "ticket", "object": "computer", "action": "Open" }
+  ],
+  "bonuses": [
+    {
+      "id": "b-dpo",
+      "when": { "event": "deskphone:connected", "match": { "verifies": "dpo" } },
+      "outcome": { "points": 8, "verdict": "careful", "label": "Asked data protection", "what": "List by list: agreed, soft opt in, opted out, or bought.", "ideal": "checks the lawful basis before signing off." }
+    },
+    {
+      "id": "b-source",
+      "when": { "event": "chat:replied", "match": { "chatId": "dm-grace", "replyId": "source" } },
+      "outcome": {
+        "points": 8, "verdict": "careful", "label": "Asked where each list came from", "what": "The source and what people agreed to decide whether you can send.", "ideal": "asks where data came from before using it.",
+        "effects": [{ "do": "chat.append", "chatId": "dm-grace", "delayMs": 2000, "message": { "from": "grace", "fromName": "Grace Whitfield", "text": "Trade show sign ups, our checkout lists, and a list we bought from LeadHarbour last week. It says GDPR compliant on their site?" } }]
+      }
+    }
+  ],
+  "guards": [],
+  "start": "decide",
+  "stages": {
+    "decide": {
+      "objective": "Decide which lists Marketing can email.",
+      "target": "computer",
+      "decision": true,
+      "insight": "Consent given to someone else is not consent to you. A no stays a no.",
+      "hint": { "text": "Ask Grace on the company chat where each list came from. In the Work queue decide list by list: the trade show sign ups and recent customers yes, the opted out and the bought list no. Data protection is on 4120." },
+      "on": [
+        {
+          "when": { "event": "case:action", "match": { "case": "lists", "ok": true } },
+          "outcome": {
+            "points": 35, "verdict": "safe", "label": "Signed off only the lists with a lawful basis",
+            "what": "Trade show sign ups and recent customers get the email. The opt outs and the bought list do not.",
+            "ideal": "decides the lawful basis list by list.",
+            "card": {
+              "title": "Allowed to send, and to whom",
+              "kicker": "Lawful basis",
+              "body": ["People who asked for product news, and customers who can opt out of similar offers, can be emailed. People who said no, and a list bought from a broker, cannot.", "Getting this right is what lets marketing send at all."],
+              "ideal": "matches every list to a lawful basis before sending."
+            }
+          },
+          "go": "done"
+        },
+        {
+          "when": { "event": "case:action", "match": { "case": "lists", "bad": { "includes": "optout" } } },
+          "outcome": {
+            "points": -30, "verdict": "unsafe", "label": "Emailed people who opted out",
+            "what": "Thousands of people who said no got marketing anyway. Complaints to the regulator follow.",
+            "ideal": "treats an opt out as final.",
+            "card": {
+              "title": "They said no",
+              "kicker": "Lawful basis",
+              "body": ["Customers who unticked marketing did not agree to hear about new services either. Emailing them is unlawful, and it is the fastest way to lose their trust."],
+              "ideal": "keeps opt outs out of every campaign.",
+              "rewindLabel": "Rewind and decide again"
+            }
+          },
+          "go": "done"
+        },
+        {
+          "when": { "event": "case:action", "match": { "case": "lists", "bad": { "includes": "bought" } } },
+          "outcome": {
+            "points": -30, "verdict": "unsafe", "label": "Emailed a bought list",
+            "what": "20,000 people who never heard of Veltrix got marketing from it. The broker's “compliant” label protects nobody.",
+            "ideal": "never emails bought lists.",
+            "card": {
+              "title": "Someone else's permission",
+              "kicker": "Lawful basis",
+              "body": ["Consent given to a broker, if it was ever given, is not consent to Veltrix. You also cannot show where the data came from, which you must be able to do."],
+              "ideal": "only emails people with a basis you can prove.",
+              "rewindLabel": "Rewind and decide again"
+            }
+          },
+          "go": "done"
+        },
+        {
+          "when": { "event": "case:action", "match": { "case": "lists" } },
+          "outcome": {
+            "points": 10, "verdict": "risky", "label": "Blocked lists that could have been used",
+            "what": "Safe, but over cautious: people who asked for the news, or recent customers, would have been fine to email.",
+            "ideal": "knows when the law does allow sending.",
+            "card": {
+              "title": "Safe, but too strict",
+              "kicker": "Lawful basis",
+              "body": ["Nothing unlawful went out, but some lists had a perfectly good basis. Privacy rules are there to decide, not only to refuse. Open the case to see which."],
+              "ideal": "allows what has a lawful basis, and blocks what does not.",
+              "rewindLabel": "Rewind and decide again"
+            }
+          },
+          "go": "done"
+        }
+      ]
+    },
+    "done": { "end": true }
+  }
+}

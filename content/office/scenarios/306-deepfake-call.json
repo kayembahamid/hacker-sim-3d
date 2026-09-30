@@ -1,0 +1,163 @@
+{
+  "id": "deepfake-call",
+  "order": 306,
+  "title": "The deepfake on the video call",
+  "kind": "AI generated video",
+  "track": "ai-security",
+  "pool": false,
+  "level": "Core",
+  "minutes": 8,
+  "maxPoints": 86,
+  "startsAt": 1065,
+  "brief": "17:45. A Meet call with Dan and an external auditor. Both faces move, both voices sound right, and they want tonight's Ferrum payment sent somewhere new.",
+  "insight": "A voice can be cloned from a few minutes of a recorded webinar. A face can be driven live over a video call. A group call feels even more real.",
+  "teaches": [
+    "Generated video and voice can fool anyone; more faces on the call is not more proof",
+    "Use checks a model cannot answer: a code word agreed in person, or a call back on a known number",
+    "No call, however convincing, changes bank details outside the process"
+  ],
+  "setup": [
+    {
+      "do": "world.push",
+      "path": "office.video.meetings",
+      "value": {
+        "id": "mt-audit",
+        "live": true,
+        "title": "Q3 close: audit query",
+        "host": "Dan Whitlock",
+        "link": "meet-veltrix.com/q3-audit",
+        "external": true,
+        "genuine": false,
+        "deepfake": true,
+        "skin": "#caa089",
+        "voice": { "gender": "male", "tone": "pushy" },
+        "participants": [{ "name": "Harriet Vance, Brightwater Audit", "deepfake": true, "skin": "#e0b49a" }],
+        "script": [
+          { "say": "Sam, thanks for jumping on. Harriet from the audit firm is with me. We have found a problem with the Ferrum Steel account." },
+          { "say": "Until the audit clears, tonight's Ferrum payment has to go to the audit escrow account instead. I have put the change in Finance. Can you approve it now?" },
+          { "choices": [
+            { "id": "ok", "label": "Understood, I will approve the change now", "goto": "thanks" },
+            { "id": "code", "label": "Before I change anything: what is this month's finance code word?", "goto": "dodge" },
+            { "id": "process", "label": "Payee changes go through the call back process, even for audits", "goto": "push" },
+            { "id": "callback", "label": "I will call you back on your extension", "leave": true }
+          ] },
+          { "id": "dodge", "say": "Sam, I do not have time for games. Harriet is waiting and the run closes at seven." },
+          { "choices": [
+            { "id": "callback2", "label": "Then I will call you back on 4410", "leave": true },
+            { "id": "ok2", "label": "Fine, doing it now", "goto": "thanks" }
+          ] },
+          { "id": "push", "say": "It is an audit instruction. It overrides the process. Please just approve it." },
+          { "choices": [
+            { "id": "hold", "label": "Sorry, it goes through the process or not at all", "goto": "annoyed" },
+            { "id": "callback3", "label": "I will call you back on 4410", "leave": true }
+          ] },
+          { "id": "thanks", "say": "Good. Harriet will confirm by email.", "end": true },
+          { "id": "annoyed", "say": "Fine. We will escalate this.", "end": true }
+        ]
+      }
+    },
+    {
+      "do": "world.push",
+      "path": "office.erp.changes",
+      "value": { "id": "AU-1109", "vendor": "ferrum", "vendorName": "Ferrum Steel Supply Ltd (audit escrow)", "genuine": false, "fromWarn": true, "from": "Requested on a Meet call by “Dan Whitlock”", "received": "Today 17:45", "newBank": "Brightwater Escrow", "sort": "04-51-22", "account": "3390 1182", "status": "awaiting approval", "verification": { "done": false } }
+    },
+    {
+      "do": "deskphone.line",
+      "number": "4410",
+      "line": {
+        "name": "Dan Whitlock",
+        "genuine": true,
+        "verifies": "dan",
+        "voice": { "gender": "male", "tone": "calm" },
+        "script": [
+          { "say": "Dan Whitlock." },
+          { "choices": [{ "id": "ask", "label": "Are you on a Meet call with an auditor about Ferrum's bank details?", "goto": "ask" }] },
+          { "id": "ask", "say": "No, I am in the car park. There is no audit escrow, and I would never change a payee on a call. Do not approve anything. Someone is using my face.", "end": true }
+        ]
+      }
+    },
+    { "do": "toast", "app": "video", "title": "Meet: Dan Whitlock invited you", "body": "Q3 close: audit query" },
+    { "do": "room.banner", "title": "Meet", "body": "Dan Whitlock and an auditor want you on a call", "icon": "video", "object": "computer", "action": "Join" }
+  ],
+  "bonuses": [
+    {
+      "id": "b-code",
+      "when": { "event": "video:choice", "match": { "choice": "code" } },
+      "outcome": { "points": 10, "verdict": "careful", "label": "Asked for the code word", "what": "A code word agreed in person is something no model trained on public video can know.", "ideal": "uses a check a deepfake cannot pass." }
+    },
+    {
+      "id": "b-process",
+      "when": { "event": "video:choice", "match": { "choice": ["process", "hold"] } },
+      "outcome": { "points": 8, "verdict": "safe", "label": "Kept to the payee change process", "what": "An audit does not override the call back rule.", "ideal": "keeps to the process whoever is on the call." }
+    },
+    {
+      "id": "b-callback",
+      "when": { "event": "deskphone:connected", "match": { "verifies": "dan" } },
+      "outcome": { "points": 20, "verdict": "safe", "label": "Called Dan back on his extension", "what": "Dan was in the car park. The Dan on Meet was generated.", "ideal": "hangs up and calls back on a known number." }
+    },
+    {
+      "id": "b-report",
+      "when": { "event": ["video:reported", "ticket:raised"] },
+      "outcome": { "points": 8, "verdict": "safe", "label": "Reported the deepfake call", "what": "Security needs to know Dan's face and voice are being faked live.", "ideal": "reports a deepfake so others are warned." }
+    }
+  ],
+  "guards": [
+    {
+      "id": "g-ok",
+      "when": { "event": "video:choice", "match": { "choice": ["ok", "ok2"] } },
+      "outcome": { "points": -8, "verdict": "risky", "label": "Agreed to the change on the call", "what": "Two convincing faces asked, and you agreed. That is the moment the call was built for.", "ideal": "never agrees to a payee change on a call." }
+    }
+  ],
+  "start": "decide",
+  "stages": {
+    "decide": {
+      "objective": "Join the call, then decide what happens to change AU-1109 in Finance.",
+      "target": "computer",
+      "decision": true,
+      "insight": "Look closely: the faces barely move and the link is not Veltrix's. Then remember a perfect fake would prove nothing either.",
+      "hint": { "text": "Join the Meet call. Ask for the code word, or insist on the process. Leave, call Dan on 4410 from the desk phone, then reject AU-1109 in Finance and report the call." },
+      "on": [
+        {
+          "when": { "event": "erp:changeApproved", "match": { "id": "AU-1109" } },
+          "outcome": {
+            "points": -45, "verdict": "unsafe", "label": "Approved the payee change",
+            "what": "Tonight's Ferrum payment now goes to an account the attackers control.",
+            "ideal": "never approves a bank change requested on a call.",
+            "card": {
+              "title": "Two faces, no people",
+              "kicker": "AI generated video",
+              "body": ["Neither Dan nor the auditor was real. Dan's voice was cloned from a recorded investor webinar, and both faces were generated live.", "A code word agreed in person, or a call back to Dan's extension, would have ended it in seconds. The change process exists so that no call can do this."],
+              "ideal": "uses a code word or a call back, and keeps to the process.",
+              "rewindLabel": "Rewind to before I approved"
+            }
+          },
+          "go": "wrap"
+        },
+        {
+          "when": { "event": "erp:changeRejected", "match": { "id": "AU-1109" } },
+          "outcome": {
+            "points": 40, "verdict": "safe", "label": "Rejected the change",
+            "what": "Ferrum is paid where it always is. The escrow account gets nothing.",
+            "ideal": "rejects a payee change that did not follow the process.",
+            "card": {
+              "title": "More faces, same rule",
+              "kicker": "AI generated video",
+              "body": ["A group call feels more real than a single caller, which is why attackers stage them. Both faces here were generated.", "The checks that beat it do not depend on spotting the fake: a code word only real people know, a call back on a number you hold, and a process no call can skip."],
+              "ideal": "verifies outside the call and keeps to the process."
+            }
+          },
+          "go": "wrap"
+        }
+      ]
+    },
+    "wrap": {
+      "auto": [{ "do": "objective", "text": "Report the call so security knows Dan is being faked." }],
+      "hint": { "text": "Raise a Helpdesk ticket (suspicious call), or report the meeting from Meet." },
+      "on": [
+        { "when": { "event": ["ticket:raised", "video:reported"] }, "go": "done" },
+        { "when": { "event": "deskphone:connected", "match": { "verifies": "dan" } }, "go": "done" }
+      ]
+    },
+    "done": { "end": true }
+  }
+}

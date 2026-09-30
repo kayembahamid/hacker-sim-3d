@@ -1,0 +1,160 @@
+{
+  "id": "right-to-erasure",
+  "order": 202,
+  "title": "Right to be forgotten",
+  "kind": "Erasure request",
+  "track": "privacy-compliance",
+  "pool": false,
+  "level": "Core",
+  "minutes": 7,
+  "maxPoints": 64,
+  "startsAt": 1005,
+  "brief": "16:45. A former customer has closed his account and wants every trace of him deleted. Some of it can go. Some of it must stay.",
+  "role": "Accounts payable, covering the customer privacy inbox tonight",
+  "insight": "Erasure is a real right, but not an absolute one. The law that makes you keep invoices still applies, and backups are not a hiding place.",
+  "teaches": [
+    "Delete what you no longer need; keep what the law requires, and say so",
+    "Backups count: stop the data being restored, and let it age out",
+    "Tell the suppliers you shared it with to erase it too"
+  ],
+  "vars": {
+    "name": { "pick": ["Daniel Okoro", "Liam Farrant", "Tomasz Wilk"] }
+  },
+  "setup": [
+    {
+      "do": "world.set",
+      "path": "office.cases",
+      "value": [
+        {
+          "id": "erase",
+          "title": "Erasure request: {{name}}",
+          "kind": "Right to erasure",
+          "from": "{{name}}, account closed on 1 September",
+          "received": "Today 16:31",
+          "due": "Answer within a month",
+          "body": ["“I have closed my account. Please delete all the personal data you hold about me, and confirm when it is done.”", "Identity is confirmed: the request came from his verified account email. Here is what we hold."],
+          "policy": { "title": "Veltrix retention schedule (extract)", "lines": ["Sales invoices and payment records: keep 6 years from the end of the financial year, for tax law.", "Marketing data: delete when consent is withdrawn.", "Support records: 2 years, then delete.", "Backups: 35 day rolling cycle. Erased records must not be restored from backup."] },
+          "sections": [
+            { "id": "mkt", "title": "Marketing list and preferences", "required": true, "options": [
+              { "id": "mkt-del", "label": "Delete", "good": true, "why": "He has withdrawn. Nothing requires keeping it." },
+              { "id": "mkt-keep", "label": "Keep, in case he comes back", "good": false, "bad": "keep", "why": "“In case” is not a reason. It has to go." }
+            ] },
+            { "id": "inv", "title": "His invoices and payment records from 2025", "required": true, "options": [
+              { "id": "inv-keep", "label": "Keep until 2032, as tax law requires, and tell him why", "good": true, "why": "A legal obligation overrides erasure for these records. Explaining it is part of the answer." },
+              { "id": "inv-del", "label": "Delete them, he asked for everything", "good": false, "bad": "law", "why": "Deleting records the law requires you to keep swaps one breach for another." }
+            ] },
+            { "id": "sup", "title": "Support chats from 2023", "required": true, "options": [
+              { "id": "sup-del", "label": "Delete", "good": true, "why": "Past the 2 year retention, and no reason to keep them." },
+              { "id": "sup-keep", "label": "Keep, they might be useful for training", "good": false, "bad": "keep", "why": "Not a lawful reason to keep someone's chats after they asked for erasure." }
+            ] },
+            { "id": "bak", "title": "Last month's backups, which include his records", "required": true, "options": [
+              { "id": "bak-flag", "label": "Record that his data must never be restored, and let the backups age out in 35 days", "good": true, "why": "Backups are not exempt, but you do not have to rebuild them: stop restores, let them expire." },
+              { "id": "bak-ignore", "label": "Leave them, backups do not count", "good": false, "bad": "backup", "why": "Backups do count. Restore one, and he is back in the live system." },
+              { "id": "bak-restore", "label": "Restore every backup, edit him out, and back them up again", "good": false, "bad": "overkill", "why": "Risky and unnecessary. Putting them beyond use is enough." }
+            ] },
+            { "id": "proc", "title": "Delivery data shared with Dropwell Couriers", "required": true, "options": [
+              { "id": "proc-tell", "label": "Ask Dropwell to erase his data too", "good": true, "why": "Suppliers processing it for you must be told." },
+              { "id": "proc-skip", "label": "Nothing, it is their data now", "good": false, "bad": "processor", "why": "They hold it on your behalf. His request reaches them through you." }
+            ] }
+          ],
+          "actions": [{ "id": "confirm", "label": "Carry it out and confirm to the customer", "primary": true, "toast": "Erasure confirmed" }]
+        }
+      ]
+    },
+    {
+      "do": "deskphone.line",
+      "number": "4120",
+      "line": {
+        "name": "Data protection officer",
+        "genuine": true,
+        "verifies": "dpo",
+        "voice": { "gender": "female", "tone": "calm" },
+        "script": [
+          { "say": "Data protection, Nadia Brook." },
+          { "choices": [{ "id": "ask", "label": "An erasure request. Do the invoices and backups have to go too?", "goto": "ask" }] },
+          { "id": "ask", "say": "Invoices stay, tax law wins, but tell him that. Backups: flag him so he is never restored, and let them roll off. And tell Dropwell.", "end": true }
+        ]
+      }
+    },
+    { "do": "toast", "app": "cases", "title": "Work queue", "body": "Erasure request: {{name}}" },
+    { "do": "room.banner", "title": "Work queue", "body": "A former customer wants his data deleted", "icon": "ticket", "object": "computer", "action": "Open" }
+  ],
+  "bonuses": [
+    {
+      "id": "b-dpo",
+      "when": { "event": "deskphone:connected", "match": { "verifies": "dpo" } },
+      "outcome": { "points": 10, "verdict": "careful", "label": "Checked with data protection", "what": "Invoices stay, backups are flagged, suppliers are told.", "ideal": "asks the DPO about exceptions before acting." }
+    },
+    {
+      "id": "b-backup",
+      "when": { "event": "case:picked", "match": { "case": "erase", "option": "bak-flag", "on": true } },
+      "outcome": { "points": 8, "verdict": "careful", "label": "Did not let the backups off the hook", "what": "Flagged so he is never restored, and left to expire.", "ideal": "treats backups as part of erasure." }
+    },
+    {
+      "id": "b-proc",
+      "when": { "event": "case:picked", "match": { "case": "erase", "option": "proc-tell", "on": true } },
+      "outcome": { "points": 6, "verdict": "careful", "label": "Passed the request on to the courier", "what": "Dropwell holds his addresses for you, so they erase them too.", "ideal": "tells processors about erasure." }
+    }
+  ],
+  "guards": [],
+  "start": "decide",
+  "stages": {
+    "decide": {
+      "objective": "Work out what to erase and what to keep, then confirm to the customer.",
+      "target": "computer",
+      "decision": true,
+      "insight": "Delete what you no longer need. Keep only what the law requires, and tell him what and why.",
+      "hint": { "text": "Open the Work queue and read the retention schedule. Delete marketing and old support chats, keep the invoices for tax, flag the backups, tell Dropwell. Data protection is on 4120." },
+      "on": [
+        {
+          "when": { "event": "case:action", "match": { "case": "erase", "ok": true } },
+          "outcome": {
+            "points": 40, "verdict": "safe", "label": "Erased what could go, kept what must stay",
+            "what": "Marketing and support data gone, invoices kept for tax with an explanation, backups flagged, Dropwell told.",
+            "ideal": "applies erasure with its legal exceptions, including backups and suppliers.",
+            "card": {
+              "title": "Gone, except what the law keeps",
+              "kicker": "Right to erasure",
+              "body": ["Everything you no longer needed is gone. The invoices stay until 2032 because tax law requires them, and he has been told why. His data will not come back from a backup, and Dropwell has been asked to erase its copy.", "Erasure is not “delete everything” and not “delete nothing”. It is a record by record decision."],
+              "ideal": "deletes what can go, keeps what must stay, and explains."
+            }
+          },
+          "go": "done"
+        },
+        {
+          "when": { "event": "case:action", "match": { "case": "erase", "bad": { "includes": "law" } } },
+          "outcome": {
+            "points": -30, "verdict": "unsafe", "label": "Deleted records the law requires",
+            "what": "The invoices had to be kept for tax. Deleting them trades one compliance problem for another.",
+            "ideal": "keeps records a legal obligation requires, and explains that to the requester.",
+            "card": {
+              "title": "Too much, gone",
+              "kicker": "Right to erasure",
+              "body": ["His 2025 invoices had to be kept for six years under tax law. The right to erasure does not override a legal obligation to keep a record.", "The answer was to keep them, and tell him so."],
+              "ideal": "checks the retention schedule before erasing.",
+              "rewindLabel": "Rewind and decide again"
+            }
+          },
+          "go": "done"
+        },
+        {
+          "when": { "event": "case:action", "match": { "case": "erase" } },
+          "outcome": {
+            "points": 0, "verdict": "risky", "label": "Confirmed an erasure that was not complete",
+            "what": "Something he asked to be erased is still there: in marketing, support, a backup, or with the courier.",
+            "ideal": "erases everything not covered by an exception, including backups and suppliers.",
+            "card": {
+              "title": "Confirmed, but not true",
+              "kicker": "Right to erasure",
+              "body": ["You told him it was done, but some of his data is still there, or could come back from a backup. Open the case to see which records were missed.", "Backups are not a free pass, and suppliers holding data for you have to be told."],
+              "ideal": "follows the data everywhere it went.",
+              "rewindLabel": "Rewind and fix it"
+            }
+          },
+          "go": "done"
+        }
+      ]
+    },
+    "done": { "end": true }
+  }
+}

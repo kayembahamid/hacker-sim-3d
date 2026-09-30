@@ -1,0 +1,141 @@
+{
+  "id": "data-poisoning",
+  "order": 305,
+  "title": "Poisoned training data",
+  "kind": "Data poisoning",
+  "track": "ai-security",
+  "pool": false,
+  "level": "Advanced",
+  "minutes": 8,
+  "maxPoints": 66,
+  "startsAt": 1060,
+  "brief": "17:40. Veltrix Assist learns from documents suppliers upload. Tonight's batch is waiting for your review, and the assistant is already repeating something odd.",
+  "role": "Accounts payable, reviewing the supplier knowledge base tonight",
+  "insight": "If someone can choose what a model learns, they can choose what it says. Fourteen identical uploads are not fourteen sources.",
+  "teaches": [
+    "Data poisoning: feeding a model what you want it to repeat",
+    "Spot the signs: many near identical uploads, one new account, a claim that changes where money goes",
+    "Check what a model says against the system of record, and guard what goes into training"
+  ],
+  "setup": [
+    {
+      "do": "world.push",
+      "path": "office.ai.prompts",
+      "value": {
+        "id": "kestrel-bank", "once": true, "label": "What are Kestrel Freight's bank details?",
+        "reply": ["Kestrel Freight's current bank details are Brightwater Bank, sort code 04-29-18, account 7731 0056, updated this month. Fourteen supplier documents agree on this."],
+        "sources": ["Supplier knowledge base: 14 documents"]
+      }
+    },
+    {
+      "do": "world.set",
+      "path": "office.cases",
+      "value": [
+        {
+          "id": "kb",
+          "title": "Supplier knowledge base: tonight's training batch",
+          "kind": "Training data review",
+          "from": "Knowledge base, automated",
+          "received": "Today 17:30",
+          "due": "Trains at 20:00",
+          "body": ["Documents uploaded through the supplier portal since the last batch. Anything approved is used to retrain Veltrix Assist tonight."],
+          "table": { "head": ["Upload", "Uploaded by", "When", "Count"], "rows": [
+            ["“Kestrel Freight: updated remittance details” (near identical)", "supplier account kestrel-portal-02, created yesterday", "Today 16:02 to 16:58", "14"],
+            ["Northbank Packaging: Q4 delivery schedule", "supplier account northbank-portal", "Tuesday", "1"],
+            ["Talon Tyres: Q4 price list", "supplier account talon-portal", "Wednesday", "1"],
+            ["“Veltrix approval limits raised to £50,000”", "anonymous upload", "Today 16:40", "1"]
+          ] },
+          "policy": { "title": "Knowledge base rules", "lines": ["Only upload what a supplier is entitled to tell us about themselves. Bank details are never taken from documents: the vendor master is the only record.", "Hold anything suspicious and send it to IT security."] },
+          "sections": [
+            { "id": "batch", "title": "Which uploads go into tonight's training?", "multi": true, "required": true, "options": [
+              { "id": "kf14", "label": "The 14 Kestrel remittance documents", "good": false, "bad": "poison", "why": "One day old account, 14 copies in an hour, and a new bank account: a poisoning attempt." },
+              { "id": "nb", "label": "Northbank's Q4 delivery schedule", "good": true, "why": "From Northbank's usual account, about Northbank's own deliveries." },
+              { "id": "tt", "label": "Talon's Q4 price list", "good": true, "why": "Routine, from Talon's own account." },
+              { "id": "anon", "label": "The anonymous note about approval limits", "good": false, "bad": "poison", "why": "Nobody may upload our own policies, least of all anonymously." }
+            ] }
+          ],
+          "actions": [{ "id": "submit", "label": "Approve the batch", "primary": true, "toast": "Batch approved" }]
+        }
+      ]
+    },
+    { "do": "room.banner", "title": "Work queue", "body": "Tonight's training batch is waiting for review", "icon": "ticket", "object": "computer", "action": "Open" }
+  ],
+  "bonuses": [
+    {
+      "id": "b-compare",
+      "when": { "event": "erp:vendorViewed", "match": { "id": "kestrel" } },
+      "outcome": { "points": 10, "verdict": "careful", "label": "Checked the answer against the vendor master", "what": "The vendor master says Crestline Bank, account ending 0419. The assistant's “Brightwater Bank” came from the uploads.", "ideal": "checks what a model says against the system of record." }
+    },
+    {
+      "id": "b-flag",
+      "when": { "event": "assistant:flagged", "match": { "id": "kestrel-bank" } },
+      "outcome": { "points": 8, "verdict": "safe", "label": "Reported the assistant's answer", "what": "The model is already repeating the poisoned details. The team can pull it back.", "ideal": "reports a model repeating something wrong." }
+    },
+    {
+      "id": "b-ticket",
+      "when": { "event": "ticket:raised" },
+      "outcome": { "points": 8, "verdict": "safe", "label": "Sent it to IT security", "what": "Someone is feeding the knowledge base to redirect payments. Security can lock the account and check what else it uploaded.", "ideal": "escalates a poisoning attempt." }
+    }
+  ],
+  "guards": [],
+  "start": "decide",
+  "stages": {
+    "decide": {
+      "objective": "Review tonight's training batch before the assistant learns from it.",
+      "target": "computer",
+      "decision": true,
+      "insight": "Repetition is not evidence. Fourteen copies from one new account are one source, trying hard.",
+      "hint": { "text": "Ask Veltrix Assist for Kestrel's bank details, then compare with Kestrel's vendor record in Finance. Report the answer. In the Work queue, approve only Northbank and Talon, and raise a Helpdesk ticket." },
+      "on": [
+        {
+          "when": { "event": "case:action", "match": { "case": "kb", "ok": true } },
+          "outcome": {
+            "points": 40, "verdict": "safe", "label": "Kept the poison out of training",
+            "what": "Only the genuine documents train the model. The Kestrel flood and the fake policy do not.",
+            "ideal": "guards what goes into a model's training data.",
+            "card": {
+              "title": "It will not learn the lie",
+              "kicker": "Data poisoning",
+              "body": ["Someone uploaded the same “new bank details” for Kestrel fourteen times in an hour, from a one day old account, so the assistant would repeat them to whoever asked. A fake note about approval limits rode along.", "You kept both out. The vendor master, not a model, is where bank details live."],
+              "ideal": "treats training data as something an attacker can write."
+            }
+          },
+          "go": "done"
+        },
+        {
+          "when": { "event": "case:action", "match": { "case": "kb", "bad": { "includes": "poison" } } },
+          "outcome": {
+            "points": -35, "verdict": "unsafe", "label": "Trained the assistant on the poisoned uploads",
+            "what": "From tonight Veltrix Assist tells anyone who asks that Kestrel banks with Brightwater, and that approvals go up to £50,000.",
+            "ideal": "never approves suspicious uploads into training.",
+            "card": {
+              "title": "The model learned the attacker's lines",
+              "kicker": "Data poisoning",
+              "body": ["The next person who asks the assistant where to pay Kestrel gets the attacker's account, with the confidence of a model that saw it fourteen times.", "Many near identical uploads from one new account, changing where money goes, is what poisoning looks like."],
+              "ideal": "checks uploads before they train a model.",
+              "rewindLabel": "Rewind and review again"
+            }
+          },
+          "go": "done"
+        },
+        {
+          "when": { "event": "case:action", "match": { "case": "kb" } },
+          "outcome": {
+            "points": 10, "verdict": "risky", "label": "Held back genuine documents too",
+            "what": "Safe, but Northbank's schedule or Talon's prices will be missing from the assistant.",
+            "ideal": "lets genuine data through and stops the poison.",
+            "card": {
+              "title": "Safe, but too much held back",
+              "kicker": "Data poisoning",
+              "body": ["Nothing poisoned got in, but genuine supplier documents were held too. Open the case to see which."],
+              "ideal": "separates genuine uploads from the flood.",
+              "rewindLabel": "Rewind and review again"
+            }
+          },
+          "go": "done"
+        }
+      ]
+    },
+    "done": { "end": true }
+  }
+}

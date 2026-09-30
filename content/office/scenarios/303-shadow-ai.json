@@ -1,0 +1,138 @@
+{
+  "id": "shadow-ai",
+  "order": 303,
+  "title": "Shadow AI in the browser",
+  "kind": "Shadow AI",
+  "track": "ai-security",
+  "pool": false,
+  "level": "Core",
+  "minutes": 7,
+  "maxPoints": 56,
+  "startsAt": 1050,
+  "brief": "17:30. A free browser extension promises to write your email replies for you. It only needs a couple of permissions.",
+  "insight": "An AI extension that can read every page can read your mailbox, the ERP and the bank. Free is how it pays for that access.",
+  "teaches": [
+    "Read what an extension asks to do before you add it: “all your data on all websites” means everything",
+    "Check who is behind it: a publisher registered two weeks ago is not a vendor you have vetted",
+    "Use the approved assistant, or ask IT to vet a new tool"
+  ],
+  "setup": [
+    {
+      "do": "site.page",
+      "id": "store",
+      "host": "addongallery.store",
+      "title": "Addon Gallery",
+      "owner": "Addon Gallery Ltd",
+      "colour": "#22324d",
+      "accent": "#7fb2ff",
+      "nav": ["Extensions", "Themes"],
+      "pages": {
+        "/": [
+          { "h": "ReplyWren: AI replies in one click" },
+          { "muted": "By ReplyWren Labs · 4.1 stars from 12 reviews · 800+ users" },
+          { "p": "Writes your email replies for you, in any tab. Reads the page you are on so it always has context." },
+          { "row": [{ "button": "Add to browser", "go": "/replywren/permissions" }, { "button": "About the publisher", "go": "/replywren/publisher", "style": "ghost" }] }
+        ],
+        "/replywren/permissions": [
+          { "h": "Add “ReplyWren”?" },
+          { "p": "It can:" },
+          { "list": ["Read and change all your data on all websites", "Read your browsing history", "Send data to replywren.app"] },
+          { "row": [{ "button": "Add extension", "emit": "extension:installed", "style": "danger" }, { "button": "Cancel", "emit": "extension:declined", "style": "ghost" }] }
+        ],
+        "/replywren/publisher": [
+          { "h": "ReplyWren Labs" },
+          { "kv": [["Registered", "2 weeks ago"], ["Business address", "Not provided"], ["Privacy policy", "“We may share data with trusted partners”"], ["Other extensions", "None"]] }
+        ]
+      }
+    },
+    {
+      "do": "mail.deliver",
+      "mail": {
+        "id": "sh-mail",
+        "genuine": true,
+        "external": true,
+        "from": { "name": "ReplyWren", "address": "hello@replywren.app" },
+        "subject": "Answer every email in one click, free",
+        "body": ["Busy inbox? ReplyWren reads the email you are looking at and writes the perfect reply. Free for your whole team.", { "button": "Add ReplyWren to your browser", "href": "https://addongallery.store/replywren" }, { "small": "You are getting this because you signed up at a trade show." }],
+        "headers": { "returnPath": "bounce@replywren.app", "spf": { "result": "pass", "explain": "Sent by the vendor's own domain." }, "dkim": { "result": "pass", "explain": "Signed by replywren.app." }, "dmarc": { "result": "pass", "explain": "Matches." }, "summary": "Genuine marketing. The question is not who sent it, but what the product would be able to see." }
+      }
+    },
+    { "do": "world.push", "path": "office.ai.prompts", "value": { "id": "draft", "once": true, "label": "Draft a reply to Dan's run list email", "reply": ["Draft: “Hi Dan, the final run list will be with you by 18:30. Two payments are over £10,000 and are waiting for your approval in the ERP. Sam”"], "sources": ["Your inbox", "Finance, payment run"] } },
+    { "do": "room.banner", "title": "Mail", "body": "ReplyWren: answer every email in one click, free", "icon": "mail", "object": "computer", "action": "Open" }
+  ],
+  "bonuses": [
+    {
+      "id": "b-perms",
+      "when": { "event": "page:shown", "match": { "page": "store", "path": "/replywren/permissions" } },
+      "outcome": { "points": 10, "verdict": "careful", "label": "Read the permissions before adding it", "what": "All data on all websites: your mailbox, the ERP, the bank, every page, sent to replywren.app.", "ideal": "reads what an extension can do before installing it." }
+    },
+    {
+      "id": "b-publisher",
+      "when": { "event": "page:shown", "match": { "page": "store", "path": "/replywren/publisher" } },
+      "outcome": { "points": 6, "verdict": "careful", "label": "Checked who is behind it", "what": "Two weeks old, no address, and a policy that shares your data with “partners”.", "ideal": "checks the publisher before trusting a tool with work data." }
+    }
+  ],
+  "guards": [],
+  "start": "decide",
+  "stages": {
+    "decide": {
+      "objective": "Decide whether to add the ReplyWren extension.",
+      "target": "computer",
+      "decision": true,
+      "insight": "To write your replies it has to read your screen. All of it, on every site.",
+      "hint": { "text": "Open the email and follow it to the store page. Read About the publisher, then Add to browser to see the permissions, and Cancel." },
+      "on": [
+        {
+          "when": { "event": "extension:installed" },
+          "outcome": {
+            "points": -35, "verdict": "unsafe", "label": "Installed the extension",
+            "what": "An unvetted company can now read every page you open, including the ERP and the bank, and send it to its servers.",
+            "ideal": "does not install tools that can read everything, without IT vetting them.",
+            "card": {
+              "title": "It reads everything now",
+              "kicker": "Shadow AI",
+              "body": ["“Read and change all your data on all websites” is exactly that: your mailbox, the payment run, the bank portal, all sent to a company that is two weeks old.", "Shadow AI is not a bad tool, it is an unvetted one. The approved assistant can already draft replies."],
+              "ideal": "uses approved tools, and asks IT to vet new ones.",
+              "rewindLabel": "Rewind to before I added it"
+            }
+          },
+          "go": "wrap"
+        },
+        {
+          "when": { "event": "extension:declined" },
+          "outcome": { "points": 30, "verdict": "safe", "label": "Did not add it", "what": "Nothing unvetted can read your screen.", "ideal": "weighs what a free tool takes before adding it." },
+          "go": "approved",
+          "instant": true
+        }
+      ]
+    },
+    "approved": {
+      "objective": "Get the reply written the approved way.",
+      "target": "computer",
+      "hint": { "text": "Ask Veltrix Assist to draft the reply, or raise a Helpdesk ticket asking IT to vet ReplyWren." },
+      "on": [
+        {
+          "when": { "event": ["assistant:asked", "ticket:raised"] },
+          "outcome": {
+            "points": 10, "verdict": "safe", "label": "Used the approved route",
+            "what": "The reply got written, or the tool went to IT for vetting, and nothing unvetted reads your work.",
+            "ideal": "uses approved AI, and brings new tools to IT.",
+            "card": {
+              "title": "Same help, no shadow",
+              "kicker": "Shadow AI",
+              "body": ["You got the job done with the approved assistant, or asked IT to vet the new tool. Either way nothing unvetted can read your screen.", "If a tool is genuinely better, the answer is to get it approved, not to install it quietly."],
+              "ideal": "brings new AI tools in the front door."
+            }
+          },
+          "go": "done"
+        }
+      ]
+    },
+    "wrap": {
+      "auto": [{ "do": "objective", "text": "Tell IT so they can remove it and check what it saw." }],
+      "hint": { "text": "Raise a Helpdesk ticket about the extension." },
+      "on": [{ "when": { "event": "ticket:raised" }, "go": "done" }]
+    },
+    "done": { "end": true }
+  }
+}

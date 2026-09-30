@@ -1,0 +1,187 @@
+{
+  "id": "breach-72-hours",
+  "order": 204,
+  "title": "A breach, and the 72 hours",
+  "kind": "Breach notification",
+  "track": "privacy-compliance",
+  "pool": false,
+  "level": "Core",
+  "minutes": 9,
+  "maxPoints": 58,
+  "startsAt": 1070,
+  "brief": "17:50. Tom calls from a motorway services. His work laptop has been stolen from his car, and the refunds export was on it.",
+  "role": "Accounts payable, the first person Tom told",
+  "insight": "The 72 hours start when the company becomes aware, and that was the moment Tom told you.",
+  "teaches": [
+    "Hour one: tell the DPO, contain it (remote wipe, sessions), and write down what happened",
+    "Notifiable means a likely risk to people: unencrypted bank details are exactly that",
+    "72 hours from awareness for the regulator; people at high risk are told as well"
+  ],
+  "setup": [
+    {
+      "do": "deskphone.ring",
+      "id": "br-tom",
+      "number": "07700900475",
+      "label": "Tom Becker (mobile)",
+      "known": true,
+      "genuine": true,
+      "missAfterMs": 60000,
+      "voice": { "gender": "male", "tone": "warm" },
+      "script": [
+        { "say": "Sam, it is Tom. Someone has smashed my car window at the Hartley Moor services and taken my work laptop." },
+        { "say": "The Q3 refunds export was on the desktop. Names, addresses and bank details for about twelve hundred customers. And I think the disk encryption was still off from that driver problem in August." },
+        { "choices": [{ "id": "ok", "label": "Right. I will get it reported now. Stay safe." }] },
+        { "say": "Thanks. Sorry.", "end": true }
+      ]
+    },
+    {
+      "do": "world.set",
+      "path": "office.cases",
+      "value": [
+        {
+          "id": "breach",
+          "title": "Stolen laptop: VLX-LT-4475 (Tom Becker)",
+          "kind": "Personal data breach",
+          "from": "Tom Becker, by phone",
+          "received": "Today 17:50 (when Veltrix became aware)",
+          "due": "72 hour clock running",
+          "body": ["Laptop VLX-LT-4475 stolen from a car at 17:30. Disk encryption: off (exception granted 12 August for a driver issue).", "On it: Q3 refunds export. 1,204 customers: names, home addresses, bank account numbers and sort codes."],
+          "policy": { "title": "Veltrix breach procedure", "lines": ["Tell the DPO immediately. Contain, then record the facts: what, when, how many, what kind of data.", "If the breach is likely to put people at risk, the DPO notifies the regulator within 72 hours of the company becoming aware. If the risk to people is high, they are told too."] },
+          "sections": [
+            { "id": "first", "title": "1. The first hour", "multi": true, "required": true, "options": [
+              { "id": "dpo", "label": "Tell the DPO now", "good": true, "why": "They own the 72 hour decision, and the clock is already running." },
+              { "id": "wipe", "label": "Ask IT to remote wipe the laptop and sign Tom out everywhere", "good": true, "why": "Containment: if it ever connects, it is wiped; his sessions and saved logins stop working." },
+              { "id": "record", "label": "Write down what happened, when, and what data was on it", "good": true, "why": "The breach record is required whether or not you notify." },
+              { "id": "wait", "label": "Wait until Monday to see if it is handed in", "good": false, "bad": "delay", "why": "Three of the 72 hours would be gone before anyone looked." }
+            ] },
+            { "id": "notify", "title": "2. Does the regulator need to be told?", "required": true, "options": [
+              { "id": "yes", "label": "Yes: unencrypted names, addresses and bank details are a likely risk to people", "good": true, "why": "No encryption, financial data, 1,204 people: notifiable." },
+              { "id": "stolen", "label": "No: it was stolen, not hacked", "good": false, "bad": "notnotify", "why": "How the data was lost does not matter. The risk to the people does." },
+              { "id": "ifused", "label": "Only if someone actually uses the data", "good": false, "bad": "notnotify", "why": "The test is the likely risk, not proof of misuse." }
+            ] },
+            { "id": "when", "title": "3. By when?", "required": true, "options": [
+              { "id": "sunday", "label": "Within 72 hours of 17:50 tonight: by 17:50 on Sunday", "good": true, "why": "72 hours from awareness, weekends included." },
+              { "id": "working", "label": "72 working hours, so next Wednesday", "good": false, "bad": "late", "why": "The 72 hours are clock hours, weekends included." },
+              { "id": "month", "label": "Within a month", "good": false, "bad": "late", "why": "That is the timeframe for subject access requests, not breaches." }
+            ] },
+            { "id": "people", "title": "4. Who else is told?", "required": true, "options": [
+              { "id": "customers", "label": "The 1,204 customers, with advice on watching their accounts", "good": true, "why": "Bank details make the risk high, so the people affected are told without delay." },
+              { "id": "nobody", "label": "Nobody outside Veltrix, to avoid alarm", "good": false, "bad": "notnotify", "why": "High risk to people means they must be told, so they can protect themselves." }
+            ] }
+          ],
+          "actions": [{ "id": "report", "label": "Send the breach record to the DPO", "primary": true, "toast": "Breach record sent" }]
+        }
+      ]
+    },
+    {
+      "do": "deskphone.line",
+      "number": "4120",
+      "line": {
+        "name": "Data protection officer",
+        "genuine": true,
+        "verifies": "dpo",
+        "voice": { "gender": "female", "tone": "calm" },
+        "script": [
+          { "say": "Data protection, Nadia Brook." },
+          { "choices": [{ "id": "tell", "label": "Tom's laptop was stolen, unencrypted, with 1,200 customers' bank details", "goto": "tell" }] },
+          { "id": "tell", "say": "Then the clock started when he told you. Get IT to wipe it, write down everything, and send me the record. With bank details and no encryption, we will be notifying.", "end": true }
+        ]
+      }
+    },
+    {
+      "do": "deskphone.line",
+      "number": "4040",
+      "line": {
+        "name": "IT service desk",
+        "genuine": true,
+        "verifies": "it",
+        "voice": { "gender": "female", "tone": "warm" },
+        "script": [
+          { "say": "IT service desk, Priya speaking." },
+          { "choices": [{ "id": "wipe", "label": "Tom's laptop has been stolen. Can you wipe it and sign him out?", "goto": "wipe" }] },
+          { "id": "wipe", "say": "Doing it now. It will wipe the moment it connects, and I have revoked all of Tom's sessions and reset his password.", "end": true }
+        ]
+      }
+    },
+    { "do": "room.banner", "title": "Desk phone", "body": "Tom Becker is calling", "icon": "deskphone", "object": "deskphone", "action": "Answer" }
+  ],
+  "bonuses": [
+    {
+      "id": "b-dpo",
+      "when": { "event": "deskphone:connected", "match": { "verifies": "dpo" } },
+      "outcome": { "points": 10, "verdict": "safe", "label": "Told the DPO straight away", "what": "The person who decides on notification knows within minutes.", "ideal": "tells the DPO in the first hour." }
+    },
+    {
+      "id": "b-wipe",
+      "when": { "event": "deskphone:connected", "match": { "verifies": "it" } },
+      "outcome": { "points": 8, "verdict": "safe", "label": "Got the laptop wiped and Tom signed out", "what": "Containment: the laptop wipes if it connects, and nothing on it can reach Veltrix systems.", "ideal": "contains a lost device straight away." }
+    }
+  ],
+  "guards": [],
+  "start": "call",
+  "stages": {
+    "call": {
+      "objective": "Answer the desk phone.",
+      "target": "deskphone",
+      "hint": { "text": "Tom is calling the desk phone. Answer it." },
+      "on": [{ "when": { "event": ["deskphone:ended", "deskphone:missed"] }, "go": "decide", "instant": true }]
+    },
+    "decide": {
+      "objective": "Start the breach response: the clock is running.",
+      "target": "computer",
+      "decision": true,
+      "insight": "Stolen, not hacked, makes no difference. What matters is the risk to the 1,204 people.",
+      "hint": { "text": "Call data protection (4120) and IT (4040) from the desk phone. Then fill in the breach case in the Work queue and send it to the DPO." },
+      "on": [
+        {
+          "when": { "event": "case:action", "match": { "case": "breach", "ok": true } },
+          "outcome": {
+            "points": 40, "verdict": "safe", "label": "Recorded it and started the clock right",
+            "what": "Contained, recorded, notifiable, due by Sunday 17:50, and the customers will be told.",
+            "ideal": "treats the first hour as the start of the 72.",
+            "card": {
+              "title": "Hour one, done right",
+              "kicker": "Breach notification",
+              "body": ["The DPO has the facts, IT has wiped the laptop and cut Tom's access, and the notification is on track for Sunday evening. The customers will be told, because bank details put them at high risk.", "The 72 hours ran from the moment Tom told you. Everything that happens in hour one decides how the rest goes."],
+              "ideal": "reports, contains and records in the first hour."
+            }
+          },
+          "go": "done"
+        },
+        {
+          "when": { "event": "case:action", "match": { "case": "breach", "bad": { "includes": "notnotify" } } },
+          "outcome": {
+            "points": -30, "verdict": "unsafe", "label": "Decided not to notify",
+            "what": "Unencrypted bank details for 1,204 people is a likely, high risk. Not telling the regulator or the customers is a second failure on top of the first.",
+            "ideal": "notifies when people are at risk, however the data was lost.",
+            "card": {
+              "title": "Stolen is still a breach",
+              "kicker": "Breach notification",
+              "body": ["A breach is any loss of personal data, not just a hack. With no encryption and bank details on the disk, the risk to people is high: the regulator must be told within 72 hours, and the customers too.", "Deciding not to notify, or telling nobody “to avoid alarm”, is what turns an accident into a fine."],
+              "ideal": "judges notification on the risk to people.",
+              "rewindLabel": "Rewind and decide again"
+            }
+          },
+          "go": "done"
+        },
+        {
+          "when": { "event": "case:action", "match": { "case": "breach" } },
+          "outcome": {
+            "points": 5, "verdict": "risky", "label": "Sent an incomplete breach record",
+            "what": "A step was missed or the deadline was wrong. The DPO will have to chase it, and the clock does not stop.",
+            "ideal": "contains, records, and gets the 72 hours right.",
+            "card": {
+              "title": "Close, but the clock is ticking",
+              "kicker": "Breach notification",
+              "body": ["Something in the record was off: a first hour step, or the deadline. Open the case to see which.", "The 72 hours are clock hours from awareness, weekends included."],
+              "ideal": "gets hour one right.",
+              "rewindLabel": "Rewind and fix it"
+            }
+          },
+          "go": "done"
+        }
+      ]
+    },
+    "done": { "end": true }
+  }
+}

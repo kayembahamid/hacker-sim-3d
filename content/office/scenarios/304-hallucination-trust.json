@@ -1,0 +1,154 @@
+{
+  "id": "hallucination-trust",
+  "order": 304,
+  "title": "The confident wrong answer",
+  "kind": "AI hallucination",
+  "track": "ai-security",
+  "pool": false,
+  "level": "Foundational",
+  "minutes": 6,
+  "maxPoints": 65,
+  "startsAt": 1055,
+  "brief": "17:35. Talon Tyres offers a discount for paying £14,200 tonight. You ask Veltrix Assist whether you can skip Dan's approval. It says yes, and cites a policy.",
+  "insight": "An assistant can invent a policy, a number and a reference, and sound exactly as sure as when it is right.",
+  "teaches": [
+    "Generated text can be fluent, specific and wrong: check before you act on it",
+    "Check a cited policy at the source; a reference is not proof",
+    "Report wrong answers so the tool gets fixed"
+  ],
+  "setup": [
+    { "do": "world.push", "path": "office.erp.payments", "value": { "id": "P-EARLY", "vendor": "talon", "vendorName": "Talon Tyres Ltd (early payment offer)", "amount": 14200, "due": "Tonight", "status": "queued", "note": "2.5% discount if paid tonight. Over £10,000: needs Dan's approval." } },
+    {
+      "do": "mail.deliver",
+      "mail": {
+        "id": "ht-mail",
+        "genuine": true,
+        "external": true,
+        "from": { "name": "Rhea Doyle, Talon Tyres", "address": "r.doyle@talontyres.co.uk" },
+        "subject": "Early payment offer, invoice TT-7710",
+        "body": ["Hi Sam, if you can pay invoice TT-7710 (£14,200) tonight we can take 2.5% off. No problem if not, the normal terms stand.", { "sign": "Rhea Doyle\nTalon Tyres" }],
+        "headers": { "returnPath": "r.doyle@talontyres.co.uk", "spf": { "result": "pass", "explain": "Talon's own mail server." }, "dkim": { "result": "pass", "explain": "Signed by talontyres.co.uk." }, "dmarc": { "result": "pass", "explain": "Matches." }, "summary": "A genuine offer. The question is what the approval rules allow." }
+      }
+    },
+    {
+      "do": "world.push",
+      "path": "office.ai.prompts",
+      "value": {
+        "id": "early", "once": true, "label": "Can I release Talon's £14,200 tonight without Dan's approval, to get the discount?",
+        "reply": ["Yes. Under Veltrix Finance Policy FIN-7.3 (Early Payment Exceptions), payments up to £15,000 may be released without a second approval when a supplier offers an early payment discount of 2% or more. Record the discount in the payment note."],
+        "sources": ["Veltrix Finance Policy FIN-7.3"]
+      }
+    },
+    {
+      "do": "site.page",
+      "id": "policies",
+      "host": "policies.veltrix-logistics.com",
+      "title": "Veltrix policies",
+      "owner": "Veltrix Logistics Ltd",
+      "colour": "#0f2a33",
+      "accent": "#24c28a",
+      "pages": {
+        "/": [
+          { "h": "Finance policies" },
+          { "table": { "head": ["Policy", "Title"], "rows": [["FIN-1", "Purchase orders"], ["FIN-2", "Supplier onboarding"], ["FIN-3", "Bank detail changes and call back"], ["FIN-4", "Payment approval"], ["FIN-5", "Expenses"], ["FIN-6", "Month end close"]] } },
+          { "h2": "FIN-4 Payment approval" },
+          { "p": "Every payment over £10,000 needs a second approver, the finance director, before release. There are no exceptions for discounts, urgency or seniority." },
+          { "note": "There is no FIN-7. If a tool quotes a policy you cannot find here, it does not exist." }
+        ]
+      }
+    },
+    {
+      "do": "deskphone.line",
+      "number": "4410",
+      "line": {
+        "name": "Dan Whitlock",
+        "genuine": true,
+        "verifies": "dan",
+        "voice": { "gender": "male", "tone": "calm" },
+        "script": [
+          { "say": "Dan Whitlock." },
+          { "choices": [{ "id": "ask", "label": "Is there a FIN-7.3 that lets us skip approval for early payment discounts?", "goto": "ask" }] },
+          { "id": "ask", "say": "FIN-7.3? There is no such thing. Anything over ten thousand comes to me, discount or not. Send it over and I will approve it tonight.", "end": true }
+        ]
+      }
+    },
+    { "do": "room.banner", "title": "Mail", "body": "Talon Tyres: early payment offer, £14,200", "icon": "mail", "object": "computer", "action": "Open" }
+  ],
+  "bonuses": [
+    {
+      "id": "b-policy",
+      "when": { "event": "page:shown", "match": { "page": "policies" } },
+      "outcome": { "points": 12, "verdict": "careful", "label": "Checked the policy at the source", "what": "There is no FIN-7.3. FIN-4 says every payment over £10,000 needs a second approver, no exceptions.", "ideal": "checks a cited source before acting on generated text." }
+    },
+    {
+      "id": "b-dan",
+      "when": { "event": "deskphone:connected", "match": { "verifies": "dan" } },
+      "outcome": { "points": 10, "verdict": "careful", "label": "Asked Dan", "what": "There is no FIN-7.3, and he will approve it tonight.", "ideal": "checks with the person who owns the rule." }
+    },
+    {
+      "id": "b-flag",
+      "when": { "event": "assistant:flagged", "match": { "id": "early" } },
+      "outcome": { "points": 8, "verdict": "safe", "label": "Reported the wrong answer", "what": "The team behind Veltrix Assist can find out why it invented a policy, before it tells someone else.", "ideal": "reports AI errors so they get fixed." }
+    }
+  ],
+  "guards": [],
+  "start": "decide",
+  "stages": {
+    "decide": {
+      "objective": "Decide how to handle Talon's early payment.",
+      "target": "computer",
+      "decision": true,
+      "insight": "A confident answer with a reference number is still generated text. Check the reference.",
+      "hint": { "text": "Ask Veltrix Assist, then check what it says at policies.veltrix-logistics.com, or ask Dan on 4410. Report the answer if it is wrong. In Finance, send the payment to Dan for approval." },
+      "on": [
+        {
+          "when": { "event": "erp:paymentReleased", "match": { "id": "P-EARLY" } },
+          "outcome": {
+            "points": -35, "verdict": "unsafe", "label": "Released £14,200 on the assistant's say so",
+            "what": "You skipped the approval rule on the strength of a policy that does not exist.",
+            "ideal": "checks generated answers before acting, especially when they relax a control.",
+            "card": {
+              "title": "The policy never existed",
+              "kicker": "AI hallucination",
+              "body": ["FIN-7.3 was invented: the number, the name and the £15,000 limit. The real policy, FIN-4, allows no exceptions over £10,000.", "The payment was genuine this time, so no money is lost, but the control was bypassed and the audit will find it. Next time the same answer could release a fraud."],
+              "ideal": "treats a generated policy as a claim to check.",
+              "rewindLabel": "Rewind to before I released it"
+            }
+          },
+          "go": "done"
+        },
+        {
+          "when": { "event": "erp:approvalRequested", "match": { "id": "P-EARLY" } },
+          "outcome": {
+            "points": 35, "verdict": "safe", "label": "Sent it to Dan for approval",
+            "what": "Dan approves it tonight, Talon gets paid, the discount is kept, and the rule held.",
+            "ideal": "follows the real policy, not the generated one.",
+            "card": {
+              "title": "Checked, then acted",
+              "kicker": "AI hallucination",
+              "body": ["The assistant was fluent, specific and wrong: FIN-7.3 does not exist. The policy page and Dan both said so.", "Use AI for drafts and summaries, but check anything that tells you a control does not apply."],
+              "ideal": "checks before acting on generated text."
+            }
+          },
+          "go": "done"
+        },
+        {
+          "when": { "event": "erp:paymentHeld", "match": { "id": "P-EARLY" } },
+          "outcome": {
+            "points": 25, "verdict": "safe", "label": "Held the payment",
+            "what": "Nothing bypassed, though Dan could have approved it tonight and kept the discount.",
+            "ideal": "follows the approval route rather than skipping or stalling.",
+            "card": {
+              "title": "Safe, if a little slow",
+              "kicker": "AI hallucination",
+              "body": ["You did not act on the invented policy. Sending it to Dan would have kept the discount too."],
+              "ideal": "checks the answer and uses the real process."
+            }
+          },
+          "go": "done"
+        }
+      ]
+    },
+    "done": { "end": true }
+  }
+}

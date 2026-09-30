@@ -1,0 +1,175 @@
+{
+  "id": "ai-notetaker-consent",
+  "order": 208,
+  "title": "The AI note-taker in the meeting",
+  "kind": "AI note taker",
+  "track": "privacy-compliance",
+  "pool": false,
+  "level": "Core",
+  "minutes": 7,
+  "maxPoints": 58,
+  "startsAt": 1030,
+  "brief": "17:10. A supplier call about Q4 volumes. As it starts, a bot joins: an AI note-taker, already recording.",
+  "role": "Accounts payable, joining a supplier call",
+  "insight": "A note-taker records everyone on the call, including people who never agreed, and sends the recording somewhere you have not checked.",
+  "teaches": [
+    "Everyone on a call should know before a bot records, and be able to object",
+    "Ask what is recorded, where the transcript goes, and whether it trains someone's AI",
+    "Keep what the meeting needs, and delete the rest"
+  ],
+  "setup": [
+    {
+      "do": "world.push",
+      "path": "office.video.meetings",
+      "value": {
+        "id": "mt-northbank",
+        "live": true,
+        "title": "Q4 volumes: Northbank and Veltrix",
+        "host": "Owen Price, Northbank",
+        "link": "meet.veltrix-logistics.com/northbank-q4",
+        "external": false,
+        "genuine": true,
+        "skin": "#c69478",
+        "voice": { "gender": "male", "tone": "warm" },
+        "participants": [
+          { "name": "Notelyn Notetaker", "bot": true, "recording": true },
+          { "name": "Jade Ellis, Northbank", "skin": "#8d5a43" }
+        ],
+        "script": [
+          { "say": "Hi Sam, thanks for making time. Hope you do not mind, my Notelyn notetaker has joined. It records the call and emails everyone a summary and the full transcript." },
+          { "choices": [
+            { "id": "fine", "label": "No problem, go ahead", "goto": "carry" },
+            { "id": "pause", "label": "Before it records, can we pause it until everyone agrees? And where do the recordings go?", "goto": "where" },
+            { "id": "remove", "label": "Could we take the bot out? I will send notes afterwards.", "goto": "removed" }
+          ] },
+          { "id": "carry", "say": "Great. So, Q4 volumes, and those two customer complaints about the Harrogate deliveries, the Mendes and Wilk orders.", "end": true },
+          { "id": "where", "say": "Fair question. I think it stores them in their cloud, somewhere in the US, and uses them to train its AI unless you opt out. I will pause it for now.", "end": true },
+          { "id": "removed", "say": "No problem, I will remove it. Notes by email then.", "end": true }
+        ]
+      }
+    },
+    {
+      "do": "site.page",
+      "id": "notelyn",
+      "host": "notelyn.app",
+      "title": "Notelyn",
+      "owner": "Notelyn Inc",
+      "colour": "#2d2560",
+      "accent": "#b9a6ff",
+      "pages": {
+        "/": [
+          { "h": "Notelyn: your AI notetaker" },
+          { "p": "Joins your calls, records everything, and sends a summary to every attendee." },
+          { "button": "How we use your recordings", "go": "/privacy", "style": "ghost" }
+        ],
+        "/privacy": [
+          { "h": "How we use your recordings" },
+          { "kv": [["Stored", "United States"], ["Kept", "Until the account owner deletes it"], ["Model training", "Recordings and transcripts improve our AI unless the account owner opts out"], ["Who can see transcripts", "Every attendee, and anyone they share it with"]] },
+          { "note": "People on the call who do not have a Notelyn account cannot opt out themselves." }
+        ]
+      }
+    },
+    {
+      "do": "world.set",
+      "path": "office.cases",
+      "value": [
+        {
+          "id": "notes",
+          "title": "Notelyn transcript: Q4 volumes with Northbank",
+          "kind": "AI meeting transcript",
+          "from": "Notelyn, on behalf of Owen Price",
+          "received": "After the call",
+          "body": ["The note taker has emailed the full transcript to everyone on the call. It names two customers and their complaints.", "IT also wants your view on external note takers for the meeting policy."],
+          "sections": [
+            { "id": "copy", "title": "1. The transcript", "required": true, "options": [
+              { "id": "copy-trim", "label": "Keep the action points; delete the full transcript and ask Owen to delete his copy", "good": true, "why": "The meeting needs the actions, not a verbatim record naming customers." },
+              { "id": "copy-share", "label": "Forward it to the whole AP team for reference", "good": false, "bad": "spread", "why": "Two customers' complaints, by name, in a dozen more mailboxes." },
+              { "id": "copy-leave", "label": "Leave it, it is in Notelyn's cloud anyway", "good": false, "bad": "third", "why": "In a US cloud, kept indefinitely, training someone else's AI." }
+            ] },
+            { "id": "consent", "title": "2. Next time an external bot joins a Veltrix call", "required": true, "options": [
+              { "id": "consent-all", "label": "Everyone is told before it records, and anyone can object", "good": true, "why": "People have a right to know they are recorded and why." },
+              { "id": "consent-host", "label": "Only the organiser needs to agree", "good": false, "bad": "consent", "why": "The organiser cannot agree on behalf of everyone else on the call." }
+            ] },
+            { "id": "use", "title": "3. Can Veltrix staff use Notelyn themselves?", "required": true, "options": [
+              { "id": "use-check", "label": "Not until it has been checked: storage, AI training, a processing agreement", "good": true, "why": "An AI tool that records people is a processor like any other, with an AI Act angle too." },
+              { "id": "use-yes", "label": "Yes, it is free and saves time", "good": false, "bad": "unvetted", "why": "Free means the recordings are the payment." }
+            ] }
+          ],
+          "actions": [{ "id": "decide", "label": "Record the decision", "primary": true, "toast": "Decision recorded" }]
+        }
+      ]
+    },
+    { "do": "toast", "app": "video", "title": "Meet: Owen Price has started the call", "body": "Q4 volumes: Northbank and Veltrix" },
+    { "do": "room.banner", "title": "Meet", "body": "Your supplier call is starting", "icon": "video", "object": "computer", "action": "Join" }
+  ],
+  "bonuses": [
+    {
+      "id": "b-consent",
+      "when": { "event": "video:choice", "match": { "choice": ["pause", "remove"] } },
+      "outcome": { "points": 10, "verdict": "safe", "label": "Asked before the bot recorded", "what": "Nobody had agreed, and nobody knew where the recording would go.", "ideal": "asks for agreement before a bot records, and where the data goes." }
+    },
+    {
+      "id": "b-privacy",
+      "when": { "event": "page:shown", "match": { "page": "notelyn", "path": "/privacy" } },
+      "outcome": { "points": 8, "verdict": "careful", "label": "Read how the note taker uses recordings", "what": "Stored in the US, kept indefinitely, used to train the AI, and people on the call cannot opt out.", "ideal": "checks where an AI tool sends what it records." }
+    }
+  ],
+  "guards": [
+    {
+      "id": "g-fine",
+      "when": { "event": "video:choice", "match": { "choice": "fine" } },
+      "outcome": { "points": -6, "verdict": "risky", "label": "Let it record without asking anyone", "what": "Jade and the customers named on the call never agreed to being recorded, or to training someone's AI.", "ideal": "asks before a bot records." }
+    }
+  ],
+  "start": "call",
+  "stages": {
+    "call": {
+      "objective": "Join the supplier call in Meet, deal with the note taker, then leave.",
+      "target": "computer",
+      "decision": true,
+      "hint": { "text": "Open Meet and join. When Owen mentions the note taker, ask to pause it or take it out. Then leave the call." },
+      "on": [{ "when": { "event": "video:left" }, "go": "decide", "instant": true }]
+    },
+    "decide": {
+      "objective": "Decide what happens to the transcript, and to note takers in future.",
+      "target": "computer",
+      "decision": true,
+      "insight": "Keep what the meeting needs. Delete the rest, and make sure people are asked next time.",
+      "hint": { "text": "Read how Notelyn uses recordings at notelyn.app. Then in the Work queue keep only the actions, require everyone's agreement, and hold Notelyn until it is checked." },
+      "on": [
+        {
+          "when": { "event": "case:action", "match": { "case": "notes", "ok": true } },
+          "outcome": {
+            "points": 40, "verdict": "safe", "label": "Kept the actions, not the recording",
+            "what": "The action points stay; the transcript naming customers is deleted; people will be asked next time; and the tool waits for checks.",
+            "ideal": "applies consent, minimisation and due diligence to AI note takers.",
+            "card": {
+              "title": "Everyone asked, only the actions kept",
+              "kicker": "AI note taker",
+              "body": ["A note taker records everyone on the call and sends it to a cloud you have not checked, where it may train an AI. Nobody on this call had agreed.", "Asking first, keeping only what the meeting needs, and checking the tool like any other supplier covers privacy law and the EU AI Act's transparency duties alike."],
+              "ideal": "asks first, keeps the minimum, checks the tool."
+            }
+          },
+          "go": "done"
+        },
+        {
+          "when": { "event": "case:action", "match": { "case": "notes" } },
+          "outcome": {
+            "points": 5, "verdict": "risky", "label": "Left the recording, or the rules, too loose",
+            "what": "The transcript naming customers is spreading or staying in the cloud, or bots can still record without everyone agreeing.",
+            "ideal": "keeps only the actions and requires everyone's agreement.",
+            "card": {
+              "title": "The recording lives on",
+              "kicker": "AI note taker",
+              "body": ["Customers named on the call, and people who never agreed, are now in a transcript that is spreading or sitting in a US cloud training an AI. Open the case to see which choice was off."],
+              "ideal": "keeps the minimum and asks everyone first.",
+              "rewindLabel": "Rewind and decide again"
+            }
+          },
+          "go": "done"
+        }
+      ]
+    },
+    "done": { "end": true }
+  }
+}

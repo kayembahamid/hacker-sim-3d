@@ -241,9 +241,13 @@ export const ACTIONS = {
   'site.register': (a, ctx) => ctx.sites.alias(a.host, a.siteId, a.extra || {}),
   'flag.set': (a, ctx) => ctx.store.update((s) => { s.flags[a.key] = a.value ?? true; }, 'flag'),
   'world.set': (a, ctx) => ctx.store.update((s) => { setPath(s, a.path, clone(a.value)); }, 'world-set'),
+  // Add to a list in the world. A list that does not exist yet is created,
+  // so a value is never silently dropped.
   'world.push': (a, ctx) => ctx.store.update((s) => {
     const arr = getPath(s, a.path);
-    if (Array.isArray(arr)) { if (a.front) arr.unshift(clone(a.value)); else arr.push(clone(a.value)); }
+    if (arr === undefined) { setPath(s, a.path, [clone(a.value)]); return; }
+    if (!Array.isArray(arr)) { console.warn('[scenario] world.push: not a list', a.path); return; }
+    if (a.front) arr.unshift(clone(a.value)); else arr.push(clone(a.value));
   }, 'world-push'),
 
   'phone.lock': (a, ctx) => ctx.store.update((s) => { s.phone.locked = true; s.phone.app = null; }, 'phone-lock'),

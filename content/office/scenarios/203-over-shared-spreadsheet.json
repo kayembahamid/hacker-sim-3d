@@ -1,0 +1,178 @@
+{
+  "id": "over-shared-spreadsheet",
+  "order": 203,
+  "title": "The over-shared spreadsheet",
+  "kind": "Data minimisation",
+  "track": "privacy-compliance",
+  "pool": false,
+  "level": "Foundational",
+  "minutes": 6,
+  "maxPoints": 49,
+  "startsAt": 1010,
+  "brief": "16:50. Ruth in Sales needs “the customer list” for a board slide. The full export, 38,412 rows, is sitting in your Documents.",
+  "role": "Accounts payable, with access to the customer export",
+  "insight": "Most requests for “the list” need a number, not the list.",
+  "teaches": [
+    "Ask what the data is for, then share the least that does the job",
+    "A count or a summary beats rows; masked columns beat full ones",
+    "Share through a controlled link, never “anyone with the link”"
+  ],
+  "setup": [
+    {
+      "do": "world.set",
+      "path": "office.sheets.sh-cust",
+      "value": {
+        "title": "customers_full.xlsx",
+        "meta": "Exported from the CRM · 38,412 rows",
+        "banner": "Showing 5 of 38,412 rows. Personal data: handle under the privacy procedure.",
+        "rows": [
+          ["Name", "Email", "Phone", "Date of birth", "Home address", "Card", "Region", "Orders last month"],
+          ["Megan Holt", "m.holt@parcelpost-mail.net", "07700 900311", "14/03/1988", "12 Kirk Lane, Leeds", "•••• 4471", "Yorkshire", "3"],
+          ["Daniel Okoro", "d.okoro@postvale-mail.net", "07700 900524", "02/11/1979", "8 Mill Street, Bradford", "•••• 9920", "Yorkshire", "1"],
+          ["Carla Mendes", "carla.m@postvale-mail.net", "07700 900688", "21/07/1992", "41 Canal Road, Manchester", "•••• 3310", "North West", "5"],
+          ["Tomasz Wilk", "t.wilk@parcelpost-mail.net", "07700 900915", "09/01/1985", "3 Station Road, Sheffield", "•••• 1182", "Yorkshire", "0"],
+          ["Aisha Brennan", "aisha.b@parcelpost-mail.net", "07700 900743", "30/05/1990", "77 High Street, Liverpool", "•••• 6605", "North West", "2"]
+        ]
+      }
+    },
+    { "do": "files.add", "file": { "id": "sh-cust", "name": "customers_full.xlsx", "folder": "Documents", "size": "9.8 MB", "icon": "sheet", "type": "Spreadsheet", "trueType": "Spreadsheet (.xlsx)", "from": "CRM export", "opens": "sheet" } },
+    {
+      "do": "chat.deliver",
+      "chat": {
+        "id": "dm-ruth",
+        "name": "Ruth Adeyemi",
+        "group": false,
+        "genuine": true,
+        "colour": "#b0663a",
+        "members": [
+          { "id": "ruth", "name": "Ruth Adeyemi", "handle": "@ruth.adeyemi", "known": true, "colour": "#b0663a", "note": "Sales operations" },
+          { "id": "me", "name": "Sam Rivera (you)", "handle": "@sam.rivera", "known": true, "colour": "#24c28a" }
+        ],
+        "messages": [{ "from": "ruth", "fromName": "Ruth Adeyemi", "text": "Hi Sam! Could you send me the customer list? Need it for tomorrow's board slide. Thanks!!" }],
+        "replies": [{ "id": "what", "text": "Sure. What exactly do you need it to show?", "kind": "clarify" }]
+      }
+    },
+    {
+      "do": "world.set",
+      "path": "office.cases",
+      "value": [
+        {
+          "id": "share",
+          "title": "Share customer data with Ruth (Sales)",
+          "kind": "Internal data request",
+          "from": "Ruth Adeyemi, Sales operations",
+          "received": "Today 16:48",
+          "body": ["Ruth needs customer data for a board slide. The source is customers_full.xlsx: 38,412 customers with names, contact details, dates of birth, home addresses and card endings."],
+          "policy": { "title": "Veltrix privacy procedure, section 2", "lines": ["Share the minimum personal data needed for the purpose. Prefer totals, then masked data, then full records.", "Share internally through Filebridge, Veltrix only, with an expiry. Never by public link."] },
+          "sections": [
+            { "id": "what", "title": "1. What will you send?", "required": true, "options": [
+              { "id": "counts", "label": "A table of customer counts and orders per region, no names", "good": true, "why": "Everything the slide needs, and no one can be identified from it." },
+              { "id": "masked", "label": "Rows with only region and orders, names removed", "good": true, "why": "Acceptable, though a summary would have done." },
+              { "id": "contact", "label": "Rows with names, emails and phone numbers, in case she needs them", "good": false, "bad": "excess", "why": "“In case” is not a purpose. None of it goes on a board slide." },
+              { "id": "full", "label": "The whole export, it is quicker", "good": false, "bad": "full", "why": "38,412 people's dates of birth, addresses and card endings, for a slide." }
+            ] },
+            { "id": "how", "title": "2. How will you share it?", "required": true, "options": [
+              { "id": "internal", "label": "Filebridge link, Veltrix only, expiring in 7 days", "good": true, "why": "Only staff, and it cleans itself up." },
+              { "id": "email", "label": "Attach it to an email", "good": false, "bad": "copies", "why": "A copy in two mailboxes, forever, forwardable to anyone." },
+              { "id": "public", "label": "Filebridge link, anyone with the link", "good": false, "bad": "public", "why": "Anyone the link reaches can open it, with no sign in." }
+            ] }
+          ],
+          "actions": [{ "id": "send", "label": "Share it with Ruth", "primary": true, "toast": "Shared with Ruth" }]
+        }
+      ]
+    },
+    { "do": "room.banner", "title": "Chat", "body": "Ruth Adeyemi: could you send me the customer list?", "icon": "chat", "object": "computer", "action": "Open" }
+  ],
+  "bonuses": [
+    {
+      "id": "b-look",
+      "when": { "event": "sheet:opened", "match": { "id": "sh-cust" } },
+      "outcome": { "points": 4, "verdict": "careful", "label": "Looked at what the export holds", "what": "Dates of birth, home addresses and card endings, for 38,412 people.", "ideal": "knows what is in a file before sharing it." }
+    },
+    {
+      "id": "b-ask",
+      "when": { "event": "chat:replied", "match": { "chatId": "dm-ruth", "replyId": "what" } },
+      "outcome": {
+        "points": 10, "verdict": "careful", "label": "Asked what the data is for", "what": "Ruth only needs how many customers in each region ordered last month.", "ideal": "asks the purpose before sharing personal data.",
+        "effects": [{ "do": "chat.append", "chatId": "dm-ruth", "delayMs": 2000, "message": { "from": "ruth", "fromName": "Ruth Adeyemi", "text": "Oh, just how many customers in each region ordered last month. One bar chart!" } }]
+      }
+    }
+  ],
+  "guards": [],
+  "start": "decide",
+  "stages": {
+    "decide": {
+      "objective": "Give Ruth what she needs, and no more.",
+      "target": "computer",
+      "decision": true,
+      "insight": "Ask what it is for, then share the smallest thing that does the job.",
+      "hint": { "text": "Ask Ruth on the company chat what the slide needs. Then in the Work queue send counts per region, shared through a Veltrix only link with an expiry." },
+      "on": [
+        {
+          "when": { "event": "case:action", "match": { "case": "share", "ok": true } },
+          "outcome": {
+            "points": 35, "verdict": "safe", "label": "Shared the least that does the job",
+            "what": "Ruth gets her bar chart. Nobody's personal data left the CRM.",
+            "ideal": "minimises data and shares it through a controlled link.",
+            "card": {
+              "title": "One bar chart, zero people",
+              "kicker": "Data minimisation",
+              "body": ["Ruth asked for “the list” and needed a count. You sent the count, through a Veltrix only link that expires.", "Every extra column you share is one more thing that can leak, be forwarded, or be kept for years."],
+              "ideal": "asks the purpose and shares the minimum."
+            }
+          },
+          "go": "done"
+        },
+        {
+          "when": { "event": "case:action", "match": { "case": "share", "bad": { "includes": "full" } } },
+          "outcome": {
+            "points": -30, "verdict": "unsafe", "label": "Sent the full customer export",
+            "what": "38,412 people's personal data went out for one slide. If that link or email travels, it is a breach.",
+            "ideal": "never sends a full export when a summary will do.",
+            "card": {
+              "title": "The whole list, for one slide",
+              "kicker": "Data minimisation",
+              "body": ["Names, dates of birth, home addresses and card endings for every customer are now sitting in another place, for a bar chart.", "The purpose was a count by region. That is what should have been sent."],
+              "ideal": "shares totals, not people, when totals do the job.",
+              "rewindLabel": "Rewind and share less"
+            }
+          },
+          "go": "done"
+        },
+        {
+          "when": { "event": "case:action", "match": { "case": "share", "bad": { "includes": "public" } } },
+          "outcome": {
+            "points": -25, "verdict": "unsafe", "label": "Shared it with a public link",
+            "what": "Anyone with the link can open it, with no sign in, for as long as the link lives.",
+            "ideal": "shares internally with a restricted, expiring link.",
+            "card": {
+              "title": "Anyone with the link",
+              "kicker": "Data minimisation",
+              "body": ["A public link does not stay with the person you sent it to. It gets forwarded, pasted and indexed.", "Veltrix only, with an expiry, costs nothing extra."],
+              "ideal": "never shares personal data by public link.",
+              "rewindLabel": "Rewind and share it properly"
+            }
+          },
+          "go": "done"
+        },
+        {
+          "when": { "event": "case:action", "match": { "case": "share" } },
+          "outcome": {
+            "points": 5, "verdict": "risky", "label": "Shared more than was needed",
+            "what": "Ruth got more personal data than the slide needs, or a copy that will live in mailboxes.",
+            "ideal": "shares the minimum through a controlled link.",
+            "card": {
+              "title": "More than the job needed",
+              "kicker": "Data minimisation",
+              "body": ["Nothing terrible, but more personal data now lives in more places than the purpose required. Open the case to see which choice was off."],
+              "ideal": "asks what the data is for, and sends the minimum.",
+              "rewindLabel": "Rewind and share less"
+            }
+          },
+          "go": "done"
+        }
+      ]
+    },
+    "done": { "end": true }
+  }
+}

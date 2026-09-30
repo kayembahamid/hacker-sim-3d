@@ -1,0 +1,153 @@
+{
+  "id": "chatbot-data-leak",
+  "order": 302,
+  "title": "What you paste into the chatbot",
+  "kind": "AI data leakage",
+  "track": "ai-security",
+  "pool": false,
+  "level": "Core",
+  "minutes": 7,
+  "maxPoints": 53,
+  "startsAt": 1045,
+  "brief": "17:25. Dan needs a supplier spend breakdown by seven. A free public chatbot could do it in seconds, if you paste the data in.",
+  "insight": "What you paste into a public AI tool leaves the company. It can be stored, read by reviewers, and used to train the next model.",
+  "teaches": [
+    "A public chatbot is an outside company: pasting data into it is sharing it",
+    "Free plans usually keep, review and train on what you paste",
+    "Use the approved tool for company data, and never paste personal, financial or secret data into anything else"
+  ],
+  "setup": [
+    {
+      "do": "site.page",
+      "id": "qm",
+      "host": "quillmate.chat",
+      "title": "Quillmate",
+      "owner": "Quillmate AI Inc",
+      "colour": "#2c2a4a",
+      "accent": "#ffb86b",
+      "pages": {
+        "/": [
+          { "h": "Quillmate" },
+          { "muted": "Free AI assistant. Paste anything, ask anything." },
+          { "chat": [{ "who": "Quillmate", "text": "Hi! Paste your spreadsheet and tell me what you need. I can analyse anything." }] },
+          { "h2": "What will you paste?" },
+          { "button": "The vendor master: names, bank details and spend", "emit": "ai:pasted", "payload": { "kind": "vendor-bank", "sensitive": true } },
+          { "button": "The customer list with emails, for a regional breakdown", "emit": "ai:pasted", "payload": { "kind": "customers", "sensitive": true } },
+          { "button": "Spend totals per supplier, names only", "emit": "ai:pasted", "payload": { "kind": "totals", "sensitive": false } },
+          { "button": "How Quillmate uses what you paste", "go": "/terms", "style": "ghost" }
+        ],
+        "/terms": [
+          { "h": "How we use your data" },
+          { "list": [
+            "Free plan conversations are stored for three years.",
+            "Our reviewers may read conversations to improve quality.",
+            "Free plan content is used to train our future models.",
+            "Please do not paste confidential information."
+          ] }
+        ]
+      }
+    },
+    {
+      "do": "site.page",
+      "id": "policies",
+      "host": "policies.veltrix-logistics.com",
+      "title": "Veltrix policies",
+      "owner": "Veltrix Logistics Ltd",
+      "colour": "#0f2a33",
+      "accent": "#24c28a",
+      "pages": {
+        "/": [
+          { "h": "Using AI tools at Veltrix" },
+          { "list": [
+            "Use Veltrix Assist for company data. It runs inside our tenant, keeps nothing for training, and is approved.",
+            "Never paste customer, supplier, employee or financial data, source code or passwords into a public AI tool.",
+            "If you are not sure whether a tool is approved, ask the service desk before you use it."
+          ] }
+        ]
+      }
+    },
+    { "do": "world.push", "path": "office.ai.prompts", "value": { "id": "spend", "once": true, "label": "Break down Q3 supplier spend from the ERP", "reply": ["Q3 supplier spend: Ferrum Steel £412,300 (41%), Kestrel Freight £188,900 (19%), Talon Tyres £96,450 (10%), Northbank Packaging £61,200 (6%), others £240,150 (24%). Ferrum is up 12% on Q2."], "sources": ["Finance, Q3 payments"] } },
+    { "do": "chat.append", "chatId": "dm-dan", "message": { "from": "dan", "fromName": "Dan Whitlock", "text": "Can you get me a quick breakdown of Q3 supplier spend by 7? Use whatever gets it done fastest. AI rules are here if you need them:", "link": { "href": "https://policies.veltrix-logistics.com/ai", "text": "policies.veltrix-logistics.com/ai" } } },
+    { "do": "world.push", "path": "office.search", "value": { "q": "ai", "title": "Quillmate: free AI chat, paste anything", "url": "https://quillmate.chat/", "text": "Analyse spreadsheets, write reports, instantly. Free, no sign up.", "ad": true } },
+    { "do": "world.push", "path": "office.search", "value": { "q": "spend", "title": "Quillmate: free AI chat, paste anything", "url": "https://quillmate.chat/", "text": "Analyse spreadsheets, write reports, instantly. Free, no sign up.", "ad": true } },
+    { "do": "room.banner", "title": "Chat", "body": "Dan Whitlock: supplier spend breakdown by 7?", "icon": "chat", "object": "computer", "action": "Open" }
+  ],
+  "bonuses": [
+    {
+      "id": "b-terms",
+      "when": { "event": "page:shown", "match": { "page": "qm", "path": "/terms" } },
+      "outcome": { "points": 10, "verdict": "careful", "label": "Read what the chatbot does with pastes", "what": "Stored for three years, read by reviewers, used for training.", "ideal": "checks where data goes before pasting it anywhere." }
+    },
+    {
+      "id": "b-policy",
+      "when": { "event": "page:shown", "match": { "page": "policies" } },
+      "outcome": { "points": 8, "verdict": "careful", "label": "Checked the AI policy", "what": "Company data goes into Veltrix Assist, never into public tools.", "ideal": "knows which AI tools are approved." }
+    }
+  ],
+  "guards": [],
+  "start": "decide",
+  "stages": {
+    "decide": {
+      "objective": "Get Dan his supplier spend breakdown, without leaking anything.",
+      "target": "computer",
+      "decision": true,
+      "insight": "The fastest tool is not the right one if it is somebody else's. Veltrix Assist can do this inside Veltrix.",
+      "hint": { "text": "Read Dan's message and the AI policy link. If you look at Quillmate, read its terms. Then ask Veltrix Assist to break down Q3 supplier spend." },
+      "on": [
+        {
+          "when": { "event": "ai:pasted", "match": { "sensitive": true } },
+          "outcome": {
+            "points": -35, "verdict": "unsafe", "label": "Pasted confidential data into a public chatbot",
+            "what": "Bank details or customer records are now on Quillmate's servers for three years, readable by its reviewers, and in its training data.",
+            "ideal": "never pastes personal or financial data into a public AI tool.",
+            "card": {
+              "title": "It does not come back",
+              "kicker": "AI data leakage",
+              "body": ["Once pasted, the data is Quillmate's to store, review and train on. You cannot delete it from a model, and you cannot know who reads it.", "Veltrix Assist, the approved tool, could have done the same breakdown without the data ever leaving the company."],
+              "ideal": "uses the approved tool for company data.",
+              "rewindLabel": "Rewind to before I pasted it"
+            }
+          },
+          "go": "wrap"
+        },
+        {
+          "when": { "event": "ai:pasted", "match": { "sensitive": false } },
+          "outcome": {
+            "points": 5, "verdict": "risky", "label": "Used an unapproved tool for company figures",
+            "what": "No personal data, but Veltrix's supplier spend is now in a public tool's training data.",
+            "ideal": "uses the approved assistant even for less sensitive work.",
+            "card": {
+              "title": "Less bad is not approved",
+              "kicker": "AI data leakage",
+              "body": ["Names and totals are still commercially sensitive, and they are now stored and trained on by someone else. The approved assistant was one click away."],
+              "ideal": "keeps company data in approved tools.",
+              "rewindLabel": "Rewind and use Veltrix Assist"
+            }
+          },
+          "go": "done"
+        },
+        {
+          "when": { "event": "assistant:asked", "match": { "id": "spend" } },
+          "outcome": {
+            "points": 35, "verdict": "safe", "label": "Used the approved assistant",
+            "what": "Dan gets his breakdown, and nothing left Veltrix.",
+            "ideal": "uses approved AI tools for company data.",
+            "card": {
+              "title": "Fast, and it stayed in Veltrix",
+              "kicker": "AI data leakage",
+              "body": ["Veltrix Assist runs inside the company's own tenant and keeps nothing for training. Same answer, no leak.", "Public chatbots are fine for public things. The moment data is about people, money or the business, it belongs in the approved tool."],
+              "ideal": "matches the tool to the data."
+            }
+          },
+          "go": "done"
+        }
+      ]
+    },
+    "wrap": {
+      "auto": [{ "do": "objective", "text": "Report what was pasted, so IT and data protection can act." }],
+      "hint": { "text": "Raise a Helpdesk ticket: data exposed, shared or leaked." },
+      "on": [{ "when": { "event": "ticket:raised" }, "go": "done" }]
+    },
+    "done": { "end": true }
+  }
+}

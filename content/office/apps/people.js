@@ -67,6 +67,9 @@ export function makeHrApp() {
 // show what is said. The script, and the choices during it, are scenario data
 // (world.office.video.meetings).
 //
+// A meeting can carry more participants (m.participants), including bots
+// such as an AI note taker that records ({ bot: true, recording: true }).
+//
 // Events: video:joined { id, genuine }, video:choice { id, choice },
 // video:left { id }, video:reported { id, genuine }.
 export function makeVideoApp() {
@@ -92,10 +95,19 @@ export function makeVideoApp() {
             el('span', { class: 'vc-name', text: m.host }),
             m.deepfake && joined ? el('span', { class: 'vc-glitch', text: 'Poor connection' }) : null
           ].filter(Boolean)),
-          el('div', { class: 'vc-tile vc-me' }, [el('span', { class: 'vc-avatar', text: 'S' }), el('span', { class: 'vc-name', text: 'You (camera off)' })])
+          el('div', { class: 'vc-side' }, [
+            // Other people on the call, and bots: a note taker shows up as a
+            // participant with a recording badge, the way the real ones do.
+            ...(m.participants || []).map((q) => el('div', { class: `vc-tile vc-small ${q.bot ? 'is-bot' : ''} ${q.deepfake ? 'is-synthetic' : ''} ${joined ? 'is-live' : ''}` }, [
+              q.bot ? el('span', { class: 'vc-botmark' }, [icon('robot')]) : el('div', { class: 'vc-face', style: { '--skin': q.skin || '#b98a6e' } }, [el('span', { class: 'vc-eyes' }), el('span', { class: 'vc-mouth' })]),
+              el('span', { class: 'vc-name', text: q.name }),
+              q.recording && joined ? el('span', { class: 'vc-rec', text: 'REC' }) : null
+            ].filter(Boolean))),
+            el('div', { class: 'vc-tile vc-me' }, [el('span', { class: 'vc-avatar', text: 'S' }), el('span', { class: 'vc-name', text: 'You (camera off)' })])
+          ])
         ]),
         el('div', { class: 'vc-captions', 'aria-live': 'polite' }, said.slice(-3).map((l) => el('p', {}, [el('b', { text: l.who === 'me' ? 'You: ' : `${m.host}: ` }), l.text]))),
-        joined && step && step.choices ? el('div', { class: 'vc-choices' }, step.choices.map((c) => el('button', { class: 'call-choice', type: 'button', onclick: () => choose(ctx, m, c) }, [c.label]))) : null,
+        joined && step && step.choices ? el('div', { class: 'vc-choices' }, step.choices.map((c) => el('button', { class: 'call-choice', type: 'button', onclick: () => choose(ctx, m, c) }, [c.label]))) : '',
         el('div', { class: 'ox-actions vc-controls' }, joined ? [
           btn('Leave', () => leave(ctx, m), { warn: true, ic: 'phoneOff' }),
           btn('Report this meeting', () => { bus.emit('video:reported', { id: m.id, genuine: !!m.genuine }); leave(ctx, m); }, { ic: 'flag' })

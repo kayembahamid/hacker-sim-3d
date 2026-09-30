@@ -1,0 +1,151 @@
+{
+  "id": "data-retention",
+  "order": 209,
+  "title": "Retention that runs itself",
+  "kind": "Data retention",
+  "track": "privacy-compliance",
+  "pool": false,
+  "level": "Foundational",
+  "minutes": 6,
+  "maxPoints": 54,
+  "startsAt": 1035,
+  "brief": "17:15. The old finance share is full. IT asks you to decide what goes before they move it, record type by record type.",
+  "role": "Accounts payable, owner of the old finance share",
+  "insight": "Keeping everything feels safe. It is the opposite: every old record is one more thing to lose in a breach.",
+  "teaches": [
+    "Keep records as long as a law or a real need says, and no longer",
+    "A retention schedule turns “should we delete this?” into a rule that runs itself",
+    "Delete, or anonymise what you want to keep for statistics"
+  ],
+  "setup": [
+    {
+      "do": "world.set",
+      "path": "office.cases",
+      "value": [
+        {
+          "id": "clearout",
+          "title": "Clear out the old finance share before the move",
+          "kind": "Retention review",
+          "from": "Priya Raman, IT",
+          "received": "Today 17:12",
+          "body": ["“We are moving the old finance share on Saturday. Can you mark what we delete and what we move? Everything on it is below.”"],
+          "table": { "head": ["Folder", "What it holds", "Oldest"], "rows": [["Invoices 2017", "Supplier invoices and payment records", "2017"], ["Invoices 2022", "Supplier invoices and payment records", "2022"], ["Applicants 2019", "CVs from people who applied and were not hired", "2019"], ["Payroll leavers 2023", "Pay records of staff who left in 2023", "2023"], ["Support chats 2020", "Customer chats with names and addresses", "2020"]] },
+          "policy": { "title": "Veltrix retention schedule (extract)", "lines": ["Financial records (invoices, payments, payroll): 6 years from the end of the financial year, for tax and company law.", "Unsuccessful job applicants: 6 months after the decision.", "Customer support records: 2 years. Anonymised statistics may be kept."] },
+          "sections": [
+            { "id": "inv17", "title": "Invoices 2017", "required": true, "options": [
+              { "id": "inv17-del", "label": "Delete: past the 6 years", "good": true, "why": "The legal reason to keep them has run out." },
+              { "id": "inv17-keep", "label": "Keep, just in case", "good": false, "bad": "keepall", "why": "“Just in case” is the risk. Past 6 years there is no reason to hold them." }
+            ] },
+            { "id": "inv22", "title": "Invoices 2022", "required": true, "options": [
+              { "id": "inv22-keep", "label": "Keep until 2029, then delete", "good": true, "why": "Still inside the 6 year requirement." },
+              { "id": "inv22-del", "label": "Delete, clear the space", "good": false, "bad": "law", "why": "Tax law still requires them." }
+            ] },
+            { "id": "cv", "title": "Applicants 2019", "required": true, "options": [
+              { "id": "cv-del", "label": "Delete", "good": true, "why": "Six months after the decision was years ago." },
+              { "id": "cv-keep", "label": "Keep, we might hire them one day", "good": false, "bad": "keepall", "why": "People's CVs, kept for years without their knowledge or a reason." }
+            ] },
+            { "id": "pay", "title": "Payroll leavers 2023", "required": true, "options": [
+              { "id": "pay-keep", "label": "Keep until 2030, then delete", "good": true, "why": "Payroll is a financial record: 6 years." },
+              { "id": "pay-del", "label": "Delete, they have left", "good": false, "bad": "law", "why": "Leaving does not end the legal requirement." }
+            ] },
+            { "id": "chat", "title": "Support chats 2020", "required": true, "options": [
+              { "id": "chat-del", "label": "Delete", "good": true, "why": "Past the 2 years." },
+              { "id": "chat-anon", "label": "Keep counts and themes only, with names and addresses removed", "good": true, "why": "Anonymised statistics are no longer personal data." },
+              { "id": "chat-keep", "label": "Move them all as they are", "good": false, "bad": "keepall", "why": "Six year old chats with names and addresses, for no purpose." }
+            ] }
+          ],
+          "actions": [{ "id": "apply", "label": "Send the list to IT", "primary": true, "toast": "Clear out list sent" }]
+        }
+      ]
+    },
+    {
+      "do": "deskphone.line",
+      "number": "4120",
+      "line": {
+        "name": "Data protection officer",
+        "genuine": true,
+        "verifies": "dpo",
+        "voice": { "gender": "female", "tone": "calm" },
+        "script": [
+          { "say": "Data protection, Nadia Brook." },
+          { "choices": [{ "id": "ask", "label": "What do we keep from the old finance share?", "goto": "ask" }] },
+          { "id": "ask", "say": "Follow the schedule. Financial records six years, rejected applicants six months, support two years. Anything past that goes. Keeping it all is how a small breach becomes a big one.", "end": true }
+        ]
+      }
+    },
+    { "do": "room.banner", "title": "Work queue", "body": "IT need a clear out list for the old finance share", "icon": "ticket", "object": "computer", "action": "Open" }
+  ],
+  "bonuses": [
+    {
+      "id": "b-dpo",
+      "when": { "event": "deskphone:connected", "match": { "verifies": "dpo" } },
+      "outcome": { "points": 8, "verdict": "careful", "label": "Checked with data protection", "what": "The schedule decides, not a feeling.", "ideal": "uses the retention schedule." }
+    },
+    {
+      "id": "b-cv",
+      "when": { "event": "case:picked", "match": { "case": "clearout", "option": "cv-del", "on": true } },
+      "outcome": { "points": 6, "verdict": "careful", "label": "Let the old CVs go", "what": "Personal data about people who never worked here, held for years. The easiest thing to forget, and to lose.", "ideal": "deletes data whose purpose has ended." }
+    }
+  ],
+  "guards": [],
+  "start": "decide",
+  "stages": {
+    "decide": {
+      "objective": "Mark what to keep and what to delete on the old finance share.",
+      "target": "computer",
+      "decision": true,
+      "insight": "Use the schedule: keep for as long as a law or a real purpose says, then delete.",
+      "hint": { "text": "Open the Work queue and read the retention schedule. Delete the 2017 invoices, the 2019 CVs and the old chats (or keep anonymised counts). Keep the 2022 invoices and the 2023 payroll. Then send the list." },
+      "on": [
+        {
+          "when": { "event": "case:action", "match": { "case": "clearout", "ok": true } },
+          "outcome": {
+            "points": 40, "verdict": "safe", "label": "Kept what the law needs, cleared the rest",
+            "what": "Six years of invoices and payroll move; old CVs, chats and expired invoices are gone.",
+            "ideal": "applies the retention schedule record by record.",
+            "card": {
+              "title": "Less to lose",
+              "kicker": "Data retention",
+              "body": ["Everything you had no reason to keep is gone before the move, so it can never leak. What the law needs moves, with a date to delete it.", "Written into a schedule, this happens automatically every year, and nobody has to feel brave about deleting."],
+              "ideal": "keeps data only as long as the schedule says."
+            }
+          },
+          "go": "done"
+        },
+        {
+          "when": { "event": "case:action", "match": { "case": "clearout", "bad": { "includes": "law" } } },
+          "outcome": {
+            "points": -25, "verdict": "unsafe", "label": "Deleted records the law requires",
+            "what": "Invoices or payroll records still inside the 6 years are gone. That is a tax and company law problem.",
+            "ideal": "checks the schedule before deleting.",
+            "card": {
+              "title": "Gone too soon",
+              "kicker": "Data retention",
+              "body": ["The 2022 invoices and 2023 payroll records had to be kept for six years. A retention schedule works both ways: it says when to delete, and when not to."],
+              "ideal": "keeps what the law requires, and deletes the rest.",
+              "rewindLabel": "Rewind and decide again"
+            }
+          },
+          "go": "done"
+        },
+        {
+          "when": { "event": "case:action", "match": { "case": "clearout" } },
+          "outcome": {
+            "points": 0, "verdict": "risky", "label": "Kept more than the schedule allows",
+            "what": "Old CVs, chats or invoices with no reason to exist are moving to the new share, and will sit there for years.",
+            "ideal": "treats keeping everything as the risk it is.",
+            "card": {
+              "title": "Keeping everything is the risk",
+              "kicker": "Data retention",
+              "body": ["Data you do not need can still be stolen, still has to be found for access requests, and still counts in a breach. Open the case to see which records should have gone."],
+              "ideal": "deletes data whose purpose has ended.",
+              "rewindLabel": "Rewind and decide again"
+            }
+          },
+          "go": "done"
+        }
+      ]
+    },
+    "done": { "end": true }
+  }
+}

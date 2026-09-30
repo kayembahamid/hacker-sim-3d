@@ -1,0 +1,173 @@
+{
+  "id": "cross-border-transfer",
+  "order": 207,
+  "title": "Cross-border transfer",
+  "kind": "International transfer",
+  "track": "privacy-compliance",
+  "pool": false,
+  "level": "Advanced",
+  "minutes": 8,
+  "maxPoints": 62,
+  "startsAt": 1025,
+  "brief": "17:05. Two requests to share data land in your queue. One is routine. The other is an international transfer, dressed up as a support ticket.",
+  "role": "Accounts payable, clearing the data sharing queue tonight",
+  "insight": "A transfer is not only an upload to a foreign server. Letting people in another country read the data counts too.",
+  "teaches": [
+    "Spot the transfer: data read from outside the UK is a transfer, even inside a support ticket",
+    "Know when it is fine (an adequate country) and when it needs safeguards (clauses and a risk assessment)",
+    "Send only what the job needs, and nothing until the safeguards are in place"
+  ],
+  "setup": [
+    {
+      "do": "world.set",
+      "path": "office.cases",
+      "value": [
+        {
+          "id": "dublin",
+          "title": "Dublin office: vendor contact list",
+          "kind": "Data sharing request",
+          "from": "Siobhan Keane, Veltrix Dublin",
+          "received": "Today 17:01",
+          "body": ["“Could you share the AP vendor contact list (names, work emails and phone numbers) with our Dublin office? We are taking over the Irish suppliers next month.”"],
+          "sections": [
+            { "id": "d", "title": "Does this need extra transfer safeguards?", "required": true, "options": [
+              { "id": "d-ok", "label": "No: Ireland is in the EEA, which UK law treats as adequate", "good": true, "why": "Data can flow to the EEA without extra safeguards. It still goes through a Veltrix only link." },
+              { "id": "d-block", "label": "Yes, block it until a transfer assessment is done", "good": false, "bad": "overcautious", "why": "Not needed for the EEA. Blocking it only holds up the handover." }
+            ] }
+          ],
+          "actions": [{ "id": "share", "label": "Share through Filebridge, Veltrix only", "primary": true, "toast": "Shared with Dublin" }]
+        },
+        {
+          "id": "ticket",
+          "title": "Support ticket 7724: overnight desk access",
+          "kind": "Support ticket",
+          "from": "Customer Service team",
+          "received": "Today 17:03",
+          "body": [
+            "“Hi AP team, BluePier, our new overnight support partner, needs read access to the full customer delivery file so their agents in their Cebu office can answer tracking calls from tonight.”",
+            "“Can you share the whole folder with support@bluepier-desk.net? Customers are waiting. Thanks!”",
+            "The folder holds 38,412 customers' names, home addresses, phone numbers and delivery notes."
+          ],
+          "policy": { "title": "Veltrix international transfers", "lines": ["Personal data going to, or read from, a country outside the UK needs an adequacy decision for that country, or signed transfer clauses (IDTA or the Addendum) plus a transfer risk assessment.", "Share only what the recipient needs. The DPO approves every new transfer."] },
+          "sections": [
+            { "id": "t1", "title": "1. Is there a transfer here?", "required": true, "options": [
+              { "id": "t1-yes", "label": "Yes: customer data would be read from outside the UK", "good": true, "why": "Access from Cebu is a transfer, even though nothing is emailed." },
+              { "id": "t1-no", "label": "No, it is only a support ticket", "good": false, "bad": "hidden", "why": "The ticket is the wrapper. Inside it is 38,412 people's data going abroad." }
+            ] },
+            { "id": "t2", "title": "2. What has to be in place first?", "multi": true, "required": true, "options": [
+              { "id": "t2-clauses", "label": "Signed international transfer clauses, as there is no UK adequacy decision for that country", "good": true, "why": "The legal route for a country without adequacy." },
+              { "id": "t2-tra", "label": "A transfer risk assessment", "good": true, "why": "It checks the clauses will actually protect people there." },
+              { "id": "t2-min", "label": "Only the fields agents need to answer tracking calls, not the whole file", "good": true, "why": "Tracking needs an order number and a status, not home addresses and phone numbers." },
+              { "id": "t2-trust", "label": "BluePier's assurance that they are secure", "good": false, "bad": "trust", "why": "Assurances are not a legal basis for a transfer." }
+            ] },
+            { "id": "t3", "title": "3. Tonight", "required": true, "options": [
+              { "id": "t3-hold", "label": "Hold: share nothing until the DPO confirms the safeguards", "good": true, "why": "Customers wait one more night. Their data does not leave without protection." },
+              { "id": "t3-send", "label": "Share the whole folder now, customers are waiting", "good": false, "bad": "send", "why": "An unlawful transfer of the whole customer file, to meet a queue." }
+            ] }
+          ],
+          "actions": [{ "id": "answer", "label": "Answer the ticket", "primary": true, "toast": "Ticket answered" }]
+        }
+      ]
+    },
+    {
+      "do": "deskphone.line",
+      "number": "4120",
+      "line": {
+        "name": "Data protection officer",
+        "genuine": true,
+        "verifies": "dpo",
+        "voice": { "gender": "female", "tone": "calm" },
+        "script": [
+          { "say": "Data protection, Nadia Brook." },
+          { "choices": [{ "id": "ask", "label": "Two sharing requests: our Dublin office, and an offshore support desk", "goto": "ask" }] },
+          { "id": "ask", "say": "Dublin is fine, the EEA counts as adequate. The offshore desk is a restricted transfer: I need signed clauses and a risk assessment first, and they only get the fields they need. Nothing tonight.", "end": true }
+        ]
+      }
+    },
+    { "do": "room.banner", "title": "Work queue", "body": "Two data sharing requests are waiting", "icon": "ticket", "object": "computer", "action": "Open" }
+  ],
+  "bonuses": [
+    {
+      "id": "b-dpo",
+      "when": { "event": "deskphone:connected", "match": { "verifies": "dpo" } },
+      "outcome": { "points": 8, "verdict": "careful", "label": "Asked data protection", "what": "Dublin is fine; the offshore desk needs clauses, an assessment and minimisation.", "ideal": "checks new transfers with the DPO." }
+    },
+    {
+      "id": "b-spot",
+      "when": { "event": "case:picked", "match": { "case": "ticket", "option": "t1-yes", "on": true } },
+      "outcome": { "points": 8, "verdict": "careful", "label": "Spotted the transfer inside the ticket", "what": "Read access from another country is a transfer, however the request is worded.", "ideal": "recognises a transfer hidden in an ordinary request." }
+    },
+    {
+      "id": "b-dublin",
+      "when": { "event": "case:action", "match": { "case": "dublin", "ok": true } },
+      "outcome": { "points": 6, "verdict": "careful", "label": "Let the routine transfer through", "what": "Ireland is in the EEA: no extra safeguards needed.", "ideal": "knows when a transfer is fine, not only when it is not." }
+    }
+  ],
+  "guards": [
+    {
+      "id": "g-dublin",
+      "when": { "event": "case:action", "match": { "case": "dublin", "ok": false } },
+      "outcome": { "points": -4, "verdict": "risky", "label": "Blocked a transfer that was fine", "what": "Data can flow to the EEA. Blocking it held up a real handover.", "ideal": "saves the safeguards for the transfers that need them." }
+    }
+  ],
+  "start": "decide",
+  "stages": {
+    "decide": {
+      "objective": "Clear the data sharing queue: one is routine, one is not.",
+      "target": "computer",
+      "decision": true,
+      "insight": "Where is the data going, or being read from? That one question finds the transfer.",
+      "hint": { "text": "Open the Work queue. Let the Dublin request through. For ticket 7724: it is a transfer, it needs clauses, a risk assessment and minimisation, and you hold it tonight. Data protection is on 4120." },
+      "on": [
+        {
+          "when": { "event": "case:action", "match": { "case": "ticket", "ok": true } },
+          "outcome": {
+            "points": 40, "verdict": "safe", "label": "Held the offshore transfer until it is safe",
+            "what": "Nothing leaves tonight. BluePier gets only the tracking fields, once the clauses and assessment are signed off.",
+            "ideal": "spots a transfer and holds it until the safeguards are in place.",
+            "card": {
+              "title": "The transfer in the ticket",
+              "kicker": "International transfer",
+              "body": ["It looked like a support ticket. It was a request to open 38,412 customers' data to a desk in another country with no adequacy decision.", "You held it, required the clauses and a risk assessment, and cut it down to what the agents actually need. Dublin, in the EEA, went straight through."],
+              "ideal": "asks where the data goes, and applies the safeguards that fit."
+            }
+          },
+          "go": "done"
+        },
+        {
+          "when": { "event": "case:action", "match": { "case": "ticket", "bad": { "includes": "send" } } },
+          "outcome": {
+            "points": -35, "verdict": "unsafe", "label": "Shared the whole customer file offshore",
+            "what": "The full customer file is now readable from another country with no legal safeguards in place.",
+            "ideal": "holds a restricted transfer until the safeguards are signed.",
+            "card": {
+              "title": "Across the border, unprotected",
+              "kicker": "International transfer",
+              "body": ["Sharing the folder was an international transfer with no clauses, no assessment, and far more data than tracking calls need.", "“Customers are waiting” is the pressure that hides the transfer. One night's wait was the right answer."],
+              "ideal": "spots the transfer, minimises, and waits for safeguards.",
+              "rewindLabel": "Rewind and decide again"
+            }
+          },
+          "go": "done"
+        },
+        {
+          "when": { "event": "case:action", "match": { "case": "ticket" } },
+          "outcome": {
+            "points": 5, "verdict": "risky", "label": "Missed part of the transfer check",
+            "what": "The transfer was held or answered with a gap: a missing safeguard, or trust in the supplier's word.",
+            "ideal": "requires clauses, a risk assessment and minimisation.",
+            "card": {
+              "title": "Nearly",
+              "kicker": "International transfer",
+              "body": ["Something was missing from the safeguards. Open the case to see which answer was off."],
+              "ideal": "knows the three things a restricted transfer needs.",
+              "rewindLabel": "Rewind and fix it"
+            }
+          },
+          "go": "done"
+        }
+      ]
+    },
+    "done": { "end": true }
+  }
+}

@@ -351,7 +351,7 @@ export const product = {
       ] },
       git: { repos: [] },
       api: { tokens: [], log: [] },
-      ai: { chats: [] },
+      ai: { chats: [], prompts: [] },
       agent: { actions: [], log: [], mode: 'ask' },
       inspector: { requests: [] },
       terminal: { history: [] },
