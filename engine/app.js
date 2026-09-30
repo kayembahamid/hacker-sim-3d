@@ -31,8 +31,11 @@ import { mountCaptions } from './ui/captions.js';
 import { buildStartScreen } from './ui/startScreen.js';
 import { buildDebrief } from './ui/debrief.js';
 import { GameMenu } from './ui/menu.js';
+import { CoachPointer } from './ui/pointer.js';
 
-const MOBILE = 760;
+// The same query as the compact layout in engine.css: phones, phones held
+// sideways, and tablets held upright. One rule, so the CSS and this cannot drift.
+export const COMPACT_QUERY = '(max-width: 999px), (max-height: 559px)';
 
 // The engine. The product (room, cast, apps, scenarios, sites, copy) is
 // injected: Netizen passes the bedroom, Hacker's Notes passes the office, and
@@ -198,7 +201,7 @@ export class Engine {
     bus.on('camera:flightEnd', ({ pose }) => this.setLiveScreen(this.screens[pose] ? pose : null));
   }
 
-  isMobile() { return this.rig.viewport().w < MOBILE; }
+  isMobile() { return window.matchMedia(COMPACT_QUERY).matches; }
 
   setLiveScreen(id) {
     for (const [key, screen] of Object.entries(this.screens)) {
@@ -226,8 +229,9 @@ export class Engine {
     if (this.isMobile()) {
       // Phone first: on a small screen the device fills the stage, between
       // the tools at the top and the Back button at the bottom.
-      const top = 58;
-      const bottom = 64;
+      const short = h < 560;   // a phone held sideways
+      const top = short ? 50 : 58;
+      const bottom = short ? 50 : 64;
       screen.fullscreen(this.focusLayer, { x: 0, y: top, w, h: Math.max(200, h - top - bottom) }, { stretch: id !== 'phone' });
     } else {
       screen.focus(this.focusLayer, this.rig.camera, w, h);
@@ -325,6 +329,7 @@ export class Engine {
     this.overlay = new Overlay(this.shell.stage);
     mountCaptions(this.shell.captions);
     this.menu = new GameMenu({ engine: this, parent: this.shell.stage });
+    this.pointer = new CoachPointer({ engine: this, store });
     this.screenRoot = el('div', { class: 'screen-root', hidden: true });
     this.shell.stage.append(this.screenRoot);
     const wake = () => audio.start();

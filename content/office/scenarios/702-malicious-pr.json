@@ -229,6 +229,20 @@
       "target": "computer",
       "decision": true,
       "insight": "The readme change is the lure. The change to the build pipeline is what runs with your secrets.",
+      "points": [
+        {
+          "device": "desktop",
+          "app": "bench",
+          "sel": [
+            ".bn-attempt[data-attempt=\"diff\"]",
+            ".app-bench .ox-tab:nth-child(2)"
+          ],
+          "label": [
+            "Send this request: it breaks it",
+            "Open the Exploit tab"
+          ]
+        }
+      ],
       "hint": {
         "text": "Open the Workbench. Read the code, try normal use on the Exploit tab, then send the request that breaks it."
       },
@@ -264,6 +278,22 @@
       "objective": "Fix it: pick the changes on the Fix tab that close the hole for good, then apply the patch.",
       "target": "computer",
       "decision": true,
+      "points": [
+        {
+          "device": "desktop",
+          "app": "bench",
+          "sel": [
+            ".bn-apply:not([disabled])",
+            ".bn-fix .cs-options",
+            ".app-bench .ox-tab:nth-child(3)"
+          ],
+          "label": [
+            "Picked everything that fixes it? Apply the patch",
+            "Pick every change that fixes the cause",
+            "Open the Fix tab"
+          ]
+        }
+      ],
       "hint": {
         "text": "Pick every change that removes the cause. Avoid changes an attacker can walk around, and ones that do not touch the problem. Then Apply the patch."
       },
@@ -350,6 +380,20 @@
       "objective": "Prove it: re-run the exploit on the Exploit tab, then check normal use still works.",
       "target": "computer",
       "decision": true,
+      "points": [
+        {
+          "device": "desktop",
+          "app": "bench",
+          "sel": [
+            ".bn-attempt[data-attempt=\"diff\"]",
+            ".app-bench .ox-tab:nth-child(2)"
+          ],
+          "label": [
+            "Send the exploit again: it should be blocked",
+            "Open the Exploit tab"
+          ]
+        }
+      ],
       "hint": {
         "text": "On the Exploit tab, send the exploit again. It should be blocked. Then send the normal request to check nothing broke."
       },

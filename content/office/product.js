@@ -5,6 +5,7 @@
 // and phone number in it. Phone numbers are in Ofcom's drama ranges and IP
 // addresses in the ranges reserved for documentation.
 import { pickLookalike } from './sites/lookalikes.js';
+import { coachPoints } from './coachPoints.js';
 const art = (f) => `assets/art/${f}`;
 const NOTES = 'https://hamcodes.gitbook.io/hackersnotes';
 
@@ -41,6 +42,7 @@ export const product = {
   fictionNote: 'Veltrix Logistics and every person, vendor, bank and website in it are made up. No page here is a real login, and nothing you do leaves this browser.',
   seedHelp: 'The seed decides which attacks turn up, in what order, which vendor and domain the attacker uses, and what is in the logs. Same seed, same shift.',
   theme: { accent: '#24ff9c' },
+  coachPoints,
   // Single drills and tracks, opened by the Labs catalogue (?scenario=,
   // ?track=). Their names on the title card.
   drillKicker: 'Drill',

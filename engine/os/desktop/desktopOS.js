@@ -81,7 +81,10 @@ export class DesktopOS {
     return this;
   }
 
-  setScale(k) { this.k = k || 1; }
+  // Called whenever the screen is laid out again. A window opened before the
+  // screen went compact (the scenario opens some at the start) has to be drawn
+  // again to fill it, or it keeps its desktop size and runs off the edge.
+  setScale(k) { this.k = k || 1; this.render(); }
   get compact() { return this.screen.root.classList.contains('is-compact'); }
 
   // ------------------------------------------------------------ desktop
@@ -277,7 +280,7 @@ export class DesktopOS {
       clear(grid);
       for (const app of this.apps.values()) {
         if (app.hidden || (q && !app.title.toLowerCase().includes(q.toLowerCase()))) continue;
-        grid.append(el('button', { class: 'dk-start-app', type: 'button', onclick: () => { this.toggleStart(false); this.open(app.id); } }, [
+        grid.append(el('button', { class: 'dk-start-app', type: 'button', dataset: { app: app.id }, onclick: () => { this.toggleStart(false); this.open(app.id); } }, [
           el('span', { class: 'dk-icon-glyph', style: { background: app.colour || '#3b4660' } }, [icon(app.icon)]),
           el('span', { text: app.title })
         ]));

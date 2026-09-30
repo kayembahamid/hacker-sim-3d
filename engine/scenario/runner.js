@@ -202,7 +202,8 @@ export class ScenarioRunner {
         hint: (stage.hint && (stage.hint.text || stage.hint)) || '',
         target: stage.target || (stage.hint && stage.hint.glow) || null,
         targetLabel: stage.targetLabel || null,
-        decision: !!stage.decision
+        decision: !!stage.decision,
+        points: this.pointsFor(stage)
       });
     }
 
@@ -223,6 +224,44 @@ export class ScenarioRunner {
     // A closing stage may put a card up first. Let it be read before the
     // scenario hands over to the next one or to the debrief.
     if (stage.end) this.overlay.whenIdle().then(() => this.finish(stage.endReason || 'complete'));
+  }
+
+  // Where in the phone or computer this step is done, for the walkthrough's
+  // pointer: the stage's own list if it has one, otherwise the product's map
+  // from an event to the control that raises it, for every move the stage would
+  // reward. The risky move is never pointed at.
+  pointsFor(stage) {
+    if (Array.isArray(stage.points)) return stage.points;
+    const map = this.product.coachPoints || {};
+    const out = [];
+    const seen = new Set();
+    for (const r of stage.on || []) {
+      const o = r.outcome;
+      if (o && o.verdict !== 'safe' && o.verdict !== 'careful') continue;
+      if (!o && !r.go) continue;
+      const when = r.when || {};
+      for (const ev of [].concat(when.event || [])) {
+        const spec = map[ev];
+        if (!spec) continue;
+        const ctx = when.match || {};
+        const key = ev + JSON.stringify(ctx);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        const fill = (text) => {
+          let ok = true;
+          const out2 = String(text).replace(/\{(\w+)\}/g, (m, k) => {
+            const v = [].concat(ctx[k])[0];
+            if (v === undefined || typeof v === 'object') { ok = false; return m; }
+            return String(v);
+          });
+          return ok ? out2 : null;
+        };
+        const sel = []; const label = [];
+        (spec.sel || []).forEach((c, i) => { const f = fill(c); if (f) { sel.push(f); label.push((spec.label || [])[i] || (spec.label || [])[0] || ''); } });
+        if (sel.length) out.push({ device: spec.device, app: spec.app, sel, label });
+      }
+    }
+    return out;
   }
 
   onEvent(type, payload) {
@@ -327,7 +366,7 @@ export class ScenarioRunner {
     clearTimeout(a.hotspotTimer);
     if (this.actionCtx.hotspots) this.actionCtx.hotspots.clear();
     const next = a.scenario.stages[go] || {};
-    bus.emit('stage:complete', { scenario: a.scenario.id, stage: a.stageId, next: go, last: !!next.end });
+    bus.emit('stage:complete', { scenario: a.scenario.id, stage: a.stageId, next: go, last: !!next.end, nextObjective: next.end ? '' : (next.objective || ((next.auto || []).find((x) => x.do === 'objective') || {}).text || '') });
     if (this.shouldAutoAdvance()) this.next();
   }
 

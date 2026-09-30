@@ -27,6 +27,10 @@ function build(s, i) {
     fix: { prompt: s.fixPrompt, options: s.options }, found: false, decided: false, fixed: false, picks: [], last: null
   };
   const c = s.cards;
+  // Where the walkthrough's pointer sends the player on the Workbench.
+  const hit = (s.attempts.find((a) => a.exploits) || s.attempts[0]).id;
+  const tab = (n) => `.app-bench .ox-tab:nth-child(${n})`;
+  const point = (sel, label) => [{ device: 'desktop', app: 'bench', sel, label }];
   return {
     id: s.slug, order, title: s.title, kind: s.kind, track: s.track, pool: false, level: s.level, minutes: s.minutes,
     maxPoints: MAX, startsAt: 990 + i * 3,
@@ -48,6 +52,7 @@ function build(s, i) {
       exploit: {
         objective: 'Reproduce the bug: read the Code tab, then use the Exploit tab on staging.',
         target: 'computer', decision: true, insight: s.insight,
+        points: point([`.bn-attempt[data-attempt="${hit}"]`, tab(2)], ['Send this request: it breaks it', 'Open the Exploit tab']),
         hint: { text: 'Open the Workbench. Read the code, try normal use on the Exploit tab, then send the request that breaks it.' },
         on: [{
           when: { event: 'bench:attempt', match: { exploited: true } },
@@ -61,6 +66,7 @@ function build(s, i) {
       fix: {
         objective: 'Fix it: pick the changes on the Fix tab that close the hole for good, then apply the patch.',
         target: 'computer', decision: true,
+        points: point(['.bn-apply:not([disabled])', '.bn-fix .cs-options', tab(3)], ['Picked everything that fixes it? Apply the patch', 'Pick every change that fixes the cause', 'Open the Fix tab']),
         hint: { text: 'Pick every change that removes the cause. Avoid changes an attacker can walk around, and ones that do not touch the problem. Then Apply the patch.' },
         on: [
           {
@@ -92,6 +98,7 @@ function build(s, i) {
       verify: {
         objective: 'Prove it: re-run the exploit on the Exploit tab, then check normal use still works.',
         target: 'computer', decision: true,
+        points: point([`.bn-attempt[data-attempt="${hit}"]`, tab(2)], ['Send the exploit again: it should be blocked', 'Open the Exploit tab']),
         hint: { text: 'On the Exploit tab, send the exploit again. It should be blocked. Then send the normal request to check nothing broke.' },
         on: [
           {

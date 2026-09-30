@@ -28,7 +28,7 @@ export class Shell {
 
     this.textSize = load('textSize', 'normal');
     this.applyTextSize();
-    this.collapsed = load('sideCollapsed', false) && window.innerWidth > 760;
+    this.collapsed = load('sideCollapsed', false) && !window.matchMedia('(max-width: 999px), (max-height: 559px)').matches;
     this.applyCollapsed();
     this.guide = load('guide', true);
     this.renderGuideBtn();
@@ -275,17 +275,21 @@ export class Shell {
   buildNext() {
     this.nextLabel = el('b', { class: 'ns-label', text: 'Next step' });
     this.nextKicker = el('small', { class: 'ns-kicker', text: 'Step complete' });
+    // What the next step is, so pressing it is never a leap in the dark.
+    this.nextAbout = el('small', { class: 'ns-about', hidden: true });
     this.nextBtn = el('button', {
       class: 'next-step', type: 'button', hidden: true, onclick: () => this.goNext()
     }, [
       el('span', { class: 'ns-check' }, [icon('check')]),
-      el('span', { class: 'ns-text' }, [this.nextKicker, this.nextLabel]),
+      el('span', { class: 'ns-text' }, [this.nextKicker, this.nextLabel, this.nextAbout]),
       icon('forward', 'ns-arrow')
     ]);
   }
 
-  showNext({ last } = {}) {
+  showNext({ last, nextObjective } = {}) {
     this.pendingNext = true;
+    this.nextAbout.hidden = !nextObjective;
+    this.nextAbout.textContent = nextObjective ? `Next: ${nextObjective}` : '';
     this.nextKicker.textContent = last ? 'All done' : 'Step complete';
     this.nextLabel.textContent = last ? 'See how it went' : 'Next step';
     this.nextBtn.hidden = false;
