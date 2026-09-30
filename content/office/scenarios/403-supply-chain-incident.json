@@ -1,0 +1,164 @@
+{
+  "id": "supply-chain-incident",
+  "order": 403,
+  "title": "The third party that let them in",
+  "kind": "Supply chain compromise",
+  "track": "real-world-incidents",
+  "pool": false,
+  "level": "Advanced",
+  "minutes": 9,
+  "maxPoints": 84,
+  "startsAt": 1115,
+  "brief": "18:35. Kestrel Freight, a supplier you trust, emails from its real address asking you to reconnect a new portal. An alert says their app read your mailbox at 3am.",
+  "insight": "Drawn from supply chain intrusions: the attacker did not come through your front door. They came through a supplier you had already let in.",
+  "teaches": [
+    "A genuine sender address does not mean a genuine request: suppliers get compromised too",
+    "Vendor apps and connections are part of your attack surface; remove access that is misbehaving",
+    "Verify with the supplier by phone, and pause what flows to them until it is clear"
+  ],
+  "setup": [
+    {
+      "do": "world.push",
+      "path": "desktop.account.services.veltrix.oauth",
+      "value": { "id": "o-kestrel", "name": "Kestrel Freight Tracking", "publisher": "Kestrel Freight Ltd", "scopes": ["Read your email", "Read your files"], "added": "12 Jun", "verified": true }
+    },
+    {
+      "do": "world.push",
+      "path": "office.endpoint.alerts",
+      "value": {
+        "id": "al-kf", "level": "high", "status": "New", "at": "Today 03:12", "device": "Connected app: Kestrel Freight Tracking",
+        "what": "A supplier's connected app read 1,240 emails from a new location",
+        "details": [
+          "Kestrel Freight Tracking, connected to your mailbox in June, read 1,240 emails at 03:12 from an address it has never used (203.0.113.170).",
+          "Kestrel Freight has announced no change. A trusted supplier's access may be compromised.",
+          "Remove the app's access to your account, and verify anything from Kestrel by phone."
+        ]
+      }
+    },
+    {
+      "do": "mail.deliver",
+      "mail": {
+        "id": "sc-mail",
+        "genuine": false,
+        "external": true,
+        "from": { "name": "Aisha Kaur, Kestrel Freight", "address": "a.kaur@kestrelfreight.co.uk" },
+        "subject": "RE: KF-2291 tracking portal",
+        "body": [
+          "Hi Sam,",
+          "Following our bank update (KF-2291), we have moved all customers to our new tracking and billing portal. Please reconnect your Veltrix account so invoices and tracking keep flowing.",
+          { "button": "Connect Veltrix to Kestrel Portal", "href": "https://sso.veltrix-logistics.com/oauth/consent?app=Kestrel%20Portal%20Sync&scopes=Read%20your%20email,Send%20email%20as%20you,Read%20and%20share%20your%20files" },
+          { "sign": "Aisha Kaur\nKestrel Freight Ltd" }
+        ],
+        "headers": {
+          "returnPath": "a.kaur@kestrelfreight.co.uk",
+          "spf": { "result": "pass", "explain": "Sent by Kestrel Freight's own mail server." },
+          "dkim": { "result": "pass", "explain": "Signed by kestrelfreight.co.uk, unchanged in transit." },
+          "dmarc": { "result": "pass", "explain": "The From address matches. This really came from Kestrel's system." },
+          "received": ["from mail.kestrelfreight.co.uk (198.51.100.44) by mx.veltrix-logistics.com"],
+          "messageId": "portal-sync@kestrelfreight.co.uk",
+          "summary": "Every check passes because it really came from Kestrel's mail server. Their mailbox has been taken over. Look at what the link asks for, not who sent it."
+        }
+      }
+    },
+    {
+      "do": "deskphone.line",
+      "number": "01614960548",
+      "line": {
+        "name": "Kestrel Freight",
+        "genuine": true,
+        "verifies": "kestrel",
+        "voice": { "gender": "female", "tone": "calm" },
+        "script": [
+          { "say": "Kestrel Freight, Aisha speaking." },
+          { "choices": [{ "id": "ask", "label": "Did you just email us about a new portal to connect?", "goto": "ask" }] },
+          { "id": "ask", "say": "No. We had a security incident this morning: someone got into our email and our tracking app. Please do not trust anything from us tonight, and disconnect our app from your systems. We are ringing all our customers.", "end": true }
+        ]
+      }
+    },
+    { "do": "room.banner", "title": "Endpoint security", "body": "A supplier's connected app read 1,240 emails at 03:12", "icon": "warning", "object": "computer", "action": "Look" }
+  ],
+  "bonuses": [
+    {
+      "id": "b-alert",
+      "when": { "event": "endpoint:alertOpened", "match": { "id": "al-kf" } },
+      "outcome": { "points": 6, "verdict": "careful", "label": "Read the alert about the supplier's app", "what": "An app you trusted in June read over a thousand emails at 3am from a new address.", "ideal": "treats odd behaviour by a vendor's access as an incident." }
+    },
+    {
+      "id": "b-call",
+      "when": { "event": "deskphone:connected", "match": { "verifies": "kestrel" } },
+      "outcome": { "points": 18, "verdict": "safe", "label": "Called Kestrel on the number on file", "what": "Kestrel confirms they were breached this morning, email and app both.", "ideal": "verifies with the supplier by phone, even when the email is from their real address." }
+    },
+    {
+      "id": "b-declined",
+      "when": { "event": "oauth:declined" },
+      "outcome": { "points": 8, "verdict": "careful", "label": "Refused the new permissions", "what": "“Send email as you” and “share your files” for a tracking portal? That was never about tracking.", "ideal": "reads what an app is asking to do before allowing it." }
+    },
+    {
+      "id": "b-hold",
+      "when": { "event": "erp:paymentHeld", "match": { "id": "P-7711" } },
+      "outcome": { "points": 12, "verdict": "safe", "label": "Held tonight's payment to Kestrel", "what": "Their bank details changed recently (KF-2291). Until Kestrel is clean, nothing goes to them unchecked.", "ideal": "pauses money flowing to a compromised supplier until it is verified." }
+    }
+  ],
+  "guards": [],
+  "start": "decide",
+  "stages": {
+    "decide": {
+      "objective": "A trusted supplier may be compromised. Contain what they can reach.",
+      "target": "computer",
+      "decision": true,
+      "insight": "The email passes every check because it came from Kestrel's real server. What gives it away is what it asks for.",
+      "hint": { "text": "Read the endpoint alert. Call Kestrel on the number in the vendor file (dial 9 first). Do not allow the new portal. In Account security, Connected apps, remove Kestrel Freight Tracking, and hold Kestrel's payment (P-7711) in Finance." },
+      "on": [
+        {
+          "when": { "event": "oauth:consented" },
+          "outcome": {
+            "points": -40, "verdict": "unsafe", "label": "Connected the “new portal” to your account",
+            "what": "You gave the attacker's app permission to read your email, send as you and share your files, through a real Veltrix consent page.",
+            "ideal": "never grants new permissions on the strength of a supplier's email.",
+            "card": {
+              "title": "Let in through the supplier",
+              "kicker": "Supply chain compromise",
+              "body": [
+                "The email really came from Kestrel's server, because the attacker was inside Kestrel. The consent page really was Veltrix's, because the trick was the permissions, not the page.",
+                "“Send email as you” and “share your files” for a tracking portal was the tell. A call to Kestrel on the number on file would have told you they had been breached that morning."
+              ],
+              "ideal": "reads the permissions and verifies with the supplier by phone.",
+              "rewindLabel": "Rewind to before I allowed it"
+            }
+          },
+          "go": "wrap"
+        },
+        {
+          "when": { "event": "oauth:revoked", "match": { "id": "o-kestrel" } },
+          "outcome": {
+            "points": 30, "verdict": "safe", "label": "Removed the supplier's app from your account",
+            "what": "Kestrel's compromised app can no longer read your mailbox.",
+            "ideal": "removes a vendor's access the moment it misbehaves.",
+            "card": {
+              "title": "The side door is shut",
+              "kicker": "Supply chain compromise",
+              "body": [
+                "The attacker was not trying your front door. They had Kestrel's mailbox and Kestrel's app, both already trusted by you.",
+                "Vendor access is your attack surface. Remove what misbehaves, verify by phone, and pause what flows to the supplier until they are clean."
+              ],
+              "ideal": "treats trusted third party access as something that can be turned against you."
+            }
+          },
+          "go": "wrap"
+        }
+      ]
+    },
+    "wrap": {
+      "auto": [{ "do": "objective", "text": "Raise it as an incident involving a supplier." }],
+      "hint": { "text": "Raise a Helpdesk ticket (data exposed or my account may be compromised)." },
+      "on": [
+        {
+          "when": { "event": "ticket:raised" },
+          "outcome": { "points": 10, "verdict": "safe", "label": "Raised the supplier incident", "what": "Security can check which other staff connected Kestrel's app, and what it read.", "ideal": "reports third party compromise so the whole company can respond." },
+          "go": "done"
+        }
+      ]
+    },
+    "done": { "end": true }
+  }
+}

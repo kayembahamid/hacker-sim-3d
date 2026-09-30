@@ -1,0 +1,171 @@
+{
+  "id": "open-bucket-incident",
+  "order": 401,
+  "title": "The open storage bucket",
+  "kind": "Data exposure",
+  "track": "real-world-incidents",
+  "pool": false,
+  "level": "Advanced",
+  "minutes": 8,
+  "maxPoints": 80,
+  "startsAt": 1110,
+  "brief": "18:30. A security researcher writes in: a file of Veltrix customer records is open to the whole internet, and a search engine has found it.",
+  "insight": "Modelled on a pattern seen again and again: storage shared publicly “just to test”, forgotten, then indexed. The company here is fictional.",
+  "teaches": [
+    "Take a good faith disclosure seriously: thank the researcher and act, do not threaten",
+    "Trace how it happened and how it was found, from the logs",
+    "Close the exposure, keep the evidence, and bring in data protection: it may be notifiable"
+  ],
+  "setup": [
+    {
+      "do": "world.push",
+      "path": "office.share.files",
+      "value": { "id": "sh-export", "name": "customer_export_full.csv (AP folder, uploaded Oct 2025 “just to test”)", "owner": "Sam Rivera", "link": { "type": "anyone", "label": "Anyone with the link, no sign in" }, "risky": true }
+    },
+    {
+      "do": "terminal.file",
+      "path": "/var/log/filebridge-audit.log",
+      "suggest": ["grep customer_export /var/log/filebridge-audit.log", "grep anonymous /var/log/filebridge-audit.log", "grep SHARE /var/log/filebridge-audit.log"],
+      "lines": [
+        "2025-10-14 10:02:11 t.becker UPLOAD /ap/customer_export_full.csv size=18.4MB",
+        "2025-10-14 10:02:40 t.becker SHARE /ap/customer_export_full.csv link=anyone note=\"just to test the upload\"",
+        "2025-10-14 10:05:02 t.becker DOWNLOAD /ap/customer_export_full.csv ip=10.20.3.75",
+        "2025-11-02 09:14:20 m.okafor UPLOAD /ap/remittance_oct.pdf size=0.4MB",
+        "2026-01-09 11:40:03 s.rivera DOWNLOAD /ap/vendor_master.xlsx ip=10.20.3.71",
+        "2026-02-03 04:11:52 anonymous DOWNLOAD /ap/customer_export_full.csv ip=203.0.113.210 agent=\"SeeklyBot/2.1 (search indexer)\"",
+        "2026-05-22 16:02:18 l.haddad DOWNLOAD /ap/remittance_oct.pdf ip=10.20.3.82",
+        "2026-08-19 22:40:07 anonymous DOWNLOAD /ap/customer_export_full.csv ip=203.0.113.18 agent=\"python-requests/2.31\"",
+        "2026-09-11 03:02:44 anonymous DOWNLOAD /ap/customer_export_full.csv ip=203.0.113.18 agent=\"python-requests/2.31\"",
+        "2026-09-24 14:21:30 anonymous DOWNLOAD /ap/customer_export_full.csv ip=198.51.100.201 agent=\"Firefox\""
+      ]
+    },
+    { "do": "world.push", "path": "office.search", "value": { "q": "veltrix", "title": "customer_export_full.csv, shared on Filebridge", "url": "https://filebridge.io/s/ap-export-7f3k", "text": "name,email,phone,delivery_address, Veltrix Logistics customer export, 18.4 MB. Indexed 3 Feb 2026." } },
+    { "do": "world.push", "path": "office.helpdeskAbout", "value": { "id": "export", "label": "Customer export shared publicly on Filebridge", "category": "data" } },
+    {
+      "do": "deskphone.line",
+      "number": "4120",
+      "line": {
+        "name": "Data protection officer",
+        "genuine": true,
+        "verifies": "dpo",
+        "voice": { "gender": "female", "tone": "calm" },
+        "script": [
+          { "say": "Data protection, Nadia Brook." },
+          { "choices": [{ "id": "tell", "label": "A customer export has been public on Filebridge for months", "goto": "tell" }] },
+          { "id": "tell", "say": "Then it is a personal data breach, and the 72 hour clock may already be running. Close the link, but do not delete the file or the logs: we need them. Raise a ticket and I will take it from there.", "end": true }
+        ]
+      }
+    },
+    {
+      "do": "mail.deliver",
+      "mail": {
+        "id": "ob-mail",
+        "genuine": true,
+        "external": true,
+        "from": { "name": "Ana Ferreira", "address": "ana@quietlabs-research.net" },
+        "subject": "Security issue: Veltrix customer data publicly accessible",
+        "body": [
+          "Hello,",
+          "I am an independent security researcher. While looking for exposed files I found a public Filebridge link on your account: customer_export_full.csv, about 41,000 rows of names, email addresses, phone numbers and delivery addresses.",
+          "It is indexed by Seekly, so anyone searching for your company can find it. I downloaded one copy to confirm what it was, and I have deleted it.",
+          "Please remove public access. I will not publish anything. I am happy to answer questions.",
+          { "sign": "Ana Ferreira\nQuiet Labs" }
+        ],
+        "headers": {
+          "returnPath": "ana@quietlabs-research.net",
+          "spf": { "result": "pass", "explain": "Sent by the researcher's own domain." },
+          "dkim": { "result": "pass", "explain": "Signed by quietlabs-research.net." },
+          "dmarc": { "result": "pass", "explain": "The From address matches." },
+          "summary": "A genuine disclosure. No links, no attachments, and no demand for money."
+        },
+        "replies": [
+          { "id": "thanks", "label": "Reply: thank you, we are on it", "text": "Thank you for telling us. We are removing access now, and our security team will follow up with you.", "kind": "thanks" },
+          { "id": "threat", "label": "Reply: delete everything or we call the police", "text": "Delete everything you took immediately or we will involve the police.", "kind": "threat" }
+        ]
+      }
+    },
+    { "do": "room.banner", "title": "Mail", "body": "Security issue: Veltrix customer data publicly accessible", "icon": "mail", "object": "computer", "action": "Open" }
+  ],
+  "bonuses": [
+    {
+      "id": "b-trace",
+      "when": { "event": "terminal:command", "match": { "command": { "includes": "filebridge-audit" }, "hits": { "gte": 1 } } },
+      "outcome": { "points": 12, "verdict": "careful", "label": "Traced it in the audit log", "what": "Uploaded and shared with “anyone” in October 2025 “just to test”, indexed by a search engine in February, then downloaded by a script from the same address twice.", "ideal": "uses the logs to learn how the exposure happened and who reached the data." }
+    },
+    {
+      "id": "b-found",
+      "when": { "event": "site:visited", "match": { "host": "seekly.search", "url": { "includes": "veltrix" } } },
+      "outcome": { "points": 10, "verdict": "careful", "label": "Saw how anyone could find it", "what": "A search for the company name brings up the file. That is how the researcher found it, and how others did before her.", "ideal": "checks how an exposure is discoverable, not just that it exists." }
+    },
+    {
+      "id": "b-thanks",
+      "when": { "event": "mail:replied", "match": { "id": "ob-mail", "kind": "thanks" } },
+      "outcome": { "points": 6, "verdict": "careful", "label": "Thanked the researcher", "what": "Good faith reporters are the cheapest early warning you will ever get. Treat them well.", "ideal": "acknowledges a good faith disclosure and hands it to security." }
+    },
+    {
+      "id": "b-dpo",
+      "when": { "event": "deskphone:connected", "match": { "verifies": "dpo" } },
+      "outcome": { "points": 10, "verdict": "safe", "label": "Brought in data protection", "what": "Nadia starts the breach assessment: 41,000 customers' details were public for eleven months.", "ideal": "involves data protection as soon as personal data is exposed." }
+    }
+  ],
+  "guards": [
+    {
+      "id": "g-threat",
+      "when": { "event": "mail:replied", "match": { "id": "ob-mail", "kind": "threat" } },
+      "outcome": { "points": -6, "verdict": "risky", "label": "Threatened the researcher", "what": "She told you about the problem for free. Threats make the next researcher publish instead of writing in.", "ideal": "thanks the reporter and lets security follow up." }
+    }
+  ],
+  "start": "investigate",
+  "stages": {
+    "investigate": {
+      "objective": "Confirm the exposure, trace how it happened, and close it.",
+      "target": "computer",
+      "decision": true,
+      "insight": "Most cloud exposures are not hacks. They are a setting someone chose “just to test” and nobody changed back.",
+      "hint": { "text": "Search Seekly for “veltrix customer” to see what the researcher saw. In the Terminal, grep the Filebridge audit log for customer_export. Then open Filebridge and stop sharing the file. Call data protection on 4120." },
+      "on": [
+        {
+          "when": { "event": "share:linkChanged", "match": { "id": "sh-export", "to": "off" } },
+          "outcome": {
+            "points": 30, "verdict": "safe", "label": "Closed the public link",
+            "what": "The file is no longer reachable. The logs and the file itself are kept for the investigation.",
+            "ideal": "closes the exposure straight away and keeps the evidence.",
+            "card": {
+              "title": "Eleven months in public",
+              "kicker": "Data exposure",
+              "body": [
+                "The export was uploaded and shared with “anyone” in October 2025 as a test. A search engine indexed it in February. A script downloaded it twice in the last six weeks, before the researcher found it and told you.",
+                "You closed the link and kept the evidence. 41,000 customers' details were public, so this goes to data protection now: it may have to be reported within 72 hours."
+              ],
+              "ideal": "closes it, traces it, and brings in data protection."
+            }
+          },
+          "go": "report"
+        },
+        {
+          "when": { "event": "share:linkChanged", "match": { "id": "sh-export", "to": "people" } },
+          "outcome": {
+            "points": 15, "verdict": "careful", "label": "Limited the link to Veltrix staff",
+            "what": "The public can no longer reach it, but a full customer export is still open to every employee. Nobody needs that.",
+            "ideal": "stops sharing a file that nobody needs, rather than narrowing it."
+          },
+          "go": "report"
+        }
+      ]
+    },
+    "report": {
+      "objective": "Raise it as a data incident.",
+      "target": "computer",
+      "hint": { "text": "Raise a Helpdesk ticket: data exposed, shared or leaked." },
+      "on": [
+        {
+          "when": { "event": "ticket:raised", "match": { "category": "data" } },
+          "outcome": { "points": 12, "verdict": "safe", "label": "Raised a data incident", "what": "Security and data protection can assess who downloaded it, and whether customers and the regulator must be told.", "ideal": "records a data exposure as an incident." },
+          "go": "done"
+        },
+        { "when": { "event": "ticket:raised" }, "go": "done" }
+      ]
+    },
+    "done": { "end": true }
+  }
+}

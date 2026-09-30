@@ -43,6 +43,7 @@ export class Shell {
     bus.on('camera:flightEnd', ({ pose }) => { this.coachArrived = pose !== 'overview'; this.renderCoach(); });
     bus.on('device:live', ({ id }) => this.setDeviceOpen(!!id));
     bus.on('scenario:start', (s) => this.setScenario(s));
+    bus.on('intro:shown', (i) => { if (i && i.title) { this.stepTitle.textContent = i.title; this.stepBrief.textContent = i.lede || ''; } });
     bus.on('insight', ({ text, title }) => this.setInsight(text, title));
     bus.on('beat', (b) => this.addBeat(b));
     bus.on('progress', (p) => this.setProgress(p));

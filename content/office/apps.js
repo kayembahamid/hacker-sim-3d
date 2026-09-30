@@ -20,6 +20,9 @@ import { makeShareApp, makeVpnApp, makeEndpointApp } from './apps/cloud.js';
 import { makeGitApp, makeApiApp } from './apps/dev.js';
 import { makeTeamChatApp } from './apps/chat.js';
 import { makeBankApp, makeMobileMailApp } from './apps/mobile.js';
+import { makeCasesApp } from './apps/cases.js';
+import { makeNetworkApp } from './apps/network.js';
+import { makeCameraApp } from './apps/camera.js';
 
 // Which apps Sam's phone and computer have. Mail, the browser, Files, Vault
 // and the phone apps are the engine's; the rest are the office's own.
@@ -39,6 +42,7 @@ export function phoneApps({ store, sites, vars, product }) {
     makeMobileMailApp({ name: 'Mail' }),
     makeAuthenticatorApp({ name: 'Authenticator' }),
     makeBankApp({ name: 'Harbour Bank' }),
+    makeCameraApp({ name: 'Camera' }),
     makePhoneBrowser({ store, sites, vars, product, bookmarks: BOOKMARKS }),
     makePhoneSettings({ rows: [] })
   ];
@@ -51,7 +55,7 @@ export function desktopApps() {
     makeTeamChatApp({ title: 'Chat' }),
     makeErpApp(),
     makeHelpdeskApp(),
-    makeFilesApp({ title: 'Files' }),
+    makeFilesApp({ title: 'Files', folders: ['Downloads', 'Documents', 'Desktop', 'Shared (F:)'], canScan: true, canReport: true }),
     makeVaultApp({ title: 'Vault', suggestions: [] }),
     makeAssistantApp(),
     makeTerminalApp(),
@@ -68,6 +72,8 @@ export function desktopApps() {
     makeEndpointApp(),
     makeGitApp(),
     makeApiApp(),
+    makeCasesApp(),
+    makeNetworkApp(),
     makeNotesApp({ title: 'Notes', notes: [{ title: 'Late shift', lines: ['Payment run list to Dan by 18:30', 'Callback procedure for ANY bank change', 'Marta back Monday'], sign: 'Sam' }] })
   ];
 }

@@ -3,6 +3,7 @@
   "order": 6,
   "title": "The helpful assistant",
   "kind": "Prompt injection",
+  "track": "ai-security",
   "maxPoints": 72,
   "startsAt": 1100,
   "brief": "18:20. A vendor sends a contract PDF. You ask Veltrix Assist to summarise it. It offers to act on it.",

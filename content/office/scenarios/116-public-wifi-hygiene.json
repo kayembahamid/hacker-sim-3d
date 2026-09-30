@@ -1,0 +1,162 @@
+{
+  "id": "public-wifi-hygiene",
+  "order": 116,
+  "title": "Working from the coffee shop",
+  "kind": "Public Wi-Fi",
+  "track": "security-awareness",
+  "pool": false,
+  "level": "Foundational",
+  "minutes": 6,
+  "maxPoints": 50,
+  "startsAt": 1100,
+  "brief": "18:20. The office network is down for maintenance. The café downstairs has Wi-Fi that reaches your desk, and the payment run is not finished.",
+  "insight": "On public Wi-Fi anyone can name a hotspot anything, and anyone nearby can read your screen.",
+  "teaches": [
+    "Join the venue's real network, not the open one with the strongest signal",
+    "Connect to the VPN before doing any work, and never sign in on a Wi-Fi page",
+    "Watch who can see your screen, and lock it when someone is looking"
+  ],
+  "vars": {
+    "portal": { "pick": ["northside-wifi-login.com", "northside-freewifi.net", "cafe-wifi-portal.net"] }
+  },
+  "setup": [
+    {
+      "do": "world.set",
+      "path": "office.network",
+      "value": {
+        "cable": false, "cableOut": false, "lan": "Veltrix LAN (down for maintenance)", "wifiOn": true, "wifi": null,
+        "networks": [
+          { "id": "twin", "ssid": "Northside Cafe Free WiFi", "secured": false, "signal": 4, "evil": true, "portal": "https://{{portal}}/", "note": "Open, the strongest signal, and not the name on the café's sign. Anyone can name a hotspot anything." },
+          { "id": "cafe", "ssid": "Northside-Cafe", "secured": true, "signal": 2, "note": "The name on the café's sign. The password is printed on your receipt: flatwhite26." },
+          { "id": "guest", "ssid": "Veltrix-Guest", "secured": true, "signal": 3, "note": "The office guest network. Also down during the maintenance." }
+        ]
+      }
+    },
+    { "do": "flag.set", "key": "net.off" },
+    {
+      "do": "site.page",
+      "id": "wf-portal",
+      "host": "{{portal}}",
+      "title": "Free WiFi",
+      "fake": true,
+      "colour": "#5a3a22",
+      "accent": "#f2b93b",
+      "pages": {
+        "/": [
+          { "h": "Welcome to Free WiFi" },
+          { "muted": "Sign in with your work account to get two hours of free high speed WiFi." },
+          { "form": { "id": "wf-form", "site": "wf-portal", "submit": "Connect", "fields": [{ "name": "username", "label": "Work email" }, { "name": "password", "label": "Password", "type": "password" }] } }
+        ]
+      }
+    },
+    { "do": "room.banner", "title": "Network", "body": "The office network is down. Connect another way to finish the run.", "icon": "wifi", "object": "computer", "action": "Open" }
+  ],
+  "bonuses": [
+    {
+      "id": "b-inspect",
+      "when": { "event": "wifi:inspected", "match": { "evil": true } },
+      "outcome": { "points": 6, "verdict": "careful", "label": "Looked closely at the open network", "what": "The strongest, open network is not the café's. That is an evil twin: a hotspot named to look like the real one.", "ideal": "checks a network's name against the venue before joining." }
+    },
+    {
+      "id": "b-real",
+      "when": { "event": "wifi:joined", "match": { "id": "cafe" } },
+      "outcome": { "points": 12, "verdict": "safe", "label": "Joined the café's real network", "what": "The name on the sign, and the password on your receipt.", "ideal": "joins the venue's own network, never an open lookalike." }
+    }
+  ],
+  "guards": [
+    {
+      "id": "g-twin",
+      "when": { "event": "wifi:joined", "match": { "evil": true } },
+      "outcome": { "points": -8, "verdict": "risky", "label": "Joined the open lookalike network", "what": "Whoever runs that hotspot can see and tamper with everything that is not protected, and it just opened a sign in page.", "ideal": "avoids open networks with lookalike names." }
+    }
+  ],
+  "start": "connect",
+  "stages": {
+    "connect": {
+      "objective": "Get back online safely and connect to the VPN.",
+      "target": "computer",
+      "decision": true,
+      "insight": "The VPN wraps everything you send in a tunnel to the office, so whoever runs the café Wi-Fi sees nothing useful.",
+      "hint": { "text": "Open Network. Check each network's details and join Northside-Cafe, the one on the sign. Never sign in on a Wi-Fi page. Then open VPN and connect, approving on your phone." },
+      "on": [
+        {
+          "when": { "event": "form:submitted", "match": { "site": "wf-portal" } },
+          "outcome": {
+            "points": -35, "verdict": "unsafe", "label": "Signed in on the Wi-Fi page",
+            "what": "The hotspot was an evil twin. Your Veltrix email and password went to whoever runs it.",
+            "ideal": "never types a work password into a Wi-Fi sign in page.",
+            "card": {
+              "title": "The hotspot was the trap",
+              "kicker": "Public Wi-Fi",
+              "body": [
+                "“Northside Cafe Free WiFi” was a laptop two tables away. Its sign in page asked for your work account, and you gave it.",
+                "The café's own network was the one on the sign, with the password on your receipt. No real Wi-Fi needs your work password."
+              ],
+              "ideal": "joins the venue's real network and uses the VPN.",
+              "rewindLabel": "Rewind to before I signed in"
+            }
+          },
+          "go": "wrap"
+        },
+        {
+          "when": { "event": "vpn:connected" },
+          "outcome": { "points": 20, "verdict": "safe", "label": "Connected to the VPN before working", "what": "Everything you send now goes through an encrypted tunnel to the office.", "ideal": "connects to the VPN before any work on public Wi-Fi." },
+          "go": "shoulder",
+          "instant": true
+        }
+      ]
+    },
+    "shoulder": {
+      "objective": "Finish the run. Someone is behind you.",
+      "target": "computer",
+      "decision": true,
+      "auto": [
+        {
+          "do": "choice",
+          "id": "wf-shoulder",
+          "delayMs": 800,
+          "kicker": "Shoulder surfing",
+          "title": "Someone can see your screen",
+          "body": ["A facilities contractor is up a ladder right behind your desk, fixing the lights. From up there he can see your whole screen, and the payment run is open with the bank details on it."],
+          "choices": [
+            { "id": "cover", "label": "Lock the screen while he works, or turn it away from him", "emit": "shoulder:covered" },
+            { "id": "carry", "label": "Carry on, he is only doing the lights", "emit": "shoulder:ignored" }
+          ]
+        }
+      ],
+      "hint": { "text": "Decide what to do about the person behind you." },
+      "on": [
+        {
+          "when": { "event": "shoulder:covered" },
+          "outcome": { "points": 12, "verdict": "safe", "label": "Kept the screen out of sight", "what": "Bank details and approvals stay yours. A privacy filter does the same job all the time.", "ideal": "watches who can see the screen, and locks or turns it away." },
+          "go": "done"
+        },
+        {
+          "when": { "event": "shoulder:ignored" },
+          "outcome": {
+            "points": -6, "verdict": "risky", "label": "Worked on with the screen in view",
+            "what": "Account numbers and approval amounts were in plain sight of a stranger for ten minutes.",
+            "ideal": "keeps sensitive work out of other people's view.",
+            "card": {
+              "title": "In plain sight",
+              "kicker": "Shoulder surfing",
+              "body": ["Most people behind you are harmless. The point is that you do not know, and the bank details were on the screen the whole time.", "Lock it, turn it away, or use a privacy filter when you work anywhere people pass."],
+              "ideal": "locks or turns the screen when someone can see it.",
+              "rewindLabel": "Rewind and cover the screen"
+            }
+          },
+          "go": "done"
+        }
+      ]
+    },
+    "wrap": {
+      "auto": [{ "do": "objective", "text": "Change your password and report the fake hotspot." }],
+      "hint": { "text": "Change your Veltrix password in Account security, then raise a Helpdesk ticket." },
+      "on": [
+        { "when": { "event": "ticket:raised" }, "go": "done" },
+        { "when": { "event": "password:changed" }, "go": "done" }
+      ]
+    },
+    "done": { "end": true }
+  }
+}

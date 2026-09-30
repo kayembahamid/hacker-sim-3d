@@ -1,0 +1,197 @@
+{
+  "id": "ransomware-first-ten-minutes",
+  "order": 109,
+  "title": "Ransomware in the first ten minutes",
+  "kind": "Ransomware",
+  "track": "security-awareness",
+  "pool": false,
+  "level": "Core",
+  "minutes": 9,
+  "maxPoints": 71,
+  "startsAt": 1062,
+  "brief": "17:42. Files on the finance share are changing their names, one after another, while you watch.",
+  "insight": "Ransomware spreads across a network. Every minute it stays connected, more of the share is lost.",
+  "teaches": [
+    "Recognise the early signs: files renamed, a note you did not write, an endpoint alert",
+    "Disconnect the right way: take the computer off the network, but leave it switched on",
+    "Raise it fast, by phone, and touch nothing else"
+  ],
+  "vars": {
+    "tick": { "byDifficulty": { "training": 25000, "assessment": 16000, "expert": 11000, "normal": 16000 } }
+  },
+  "setup": [
+    { "do": "files.add", "file": { "id": "rw-1", "name": "Q3 accruals.xlsx", "folder": "Shared (F:)", "size": "212 KB", "icon": "sheet", "type": "Spreadsheet", "trueType": "Spreadsheet (.xlsx)", "from": "vlx-fs01, the finance share" } },
+    { "do": "files.add", "file": { "id": "rw-2", "name": "Vendor master.xlsx", "folder": "Shared (F:)", "size": "96 KB", "icon": "sheet", "type": "Spreadsheet", "trueType": "Spreadsheet (.xlsx)", "from": "vlx-fs01, the finance share" } },
+    { "do": "files.add", "file": { "id": "rw-3", "name": "Payment run 24 Sep.xlsx", "folder": "Shared (F:)", "size": "48 KB", "icon": "sheet", "type": "Spreadsheet", "trueType": "Spreadsheet (.xlsx)", "from": "vlx-fs01, the finance share" } },
+    { "do": "files.add", "file": { "id": "rw-4", "name": "Remittances September.pdf", "folder": "Shared (F:)", "size": "1.2 MB", "icon": "pdf", "type": "PDF document", "trueType": "PDF document (.pdf)", "from": "vlx-fs01, the finance share" } },
+    { "do": "files.add", "file": { "id": "rw-5", "name": "Audit notes.docx", "folder": "Shared (F:)", "size": "64 KB", "icon": "doc", "type": "Document", "trueType": "Word document (.docx)", "from": "vlx-fs01, the finance share" } },
+    { "do": "files.add", "file": { "id": "rw-6", "name": "Budget 2027 draft.xlsx", "folder": "Shared (F:)", "size": "388 KB", "icon": "sheet", "type": "Spreadsheet", "trueType": "Spreadsheet (.xlsx)", "from": "vlx-fs01, the finance share" } },
+    { "do": "files.add", "file": { "id": "rw-7", "name": "Supplier contracts.zip", "folder": "Shared (F:)", "size": "14.6 MB", "icon": "zip", "type": "Compressed folder", "trueType": "Compressed folder (.zip)", "from": "vlx-fs01, the finance share" } },
+    { "do": "files.add", "file": { "id": "rw-8", "name": "AP team rota.xlsx", "folder": "Shared (F:)", "size": "22 KB", "icon": "sheet", "type": "Spreadsheet", "trueType": "Spreadsheet (.xlsx)", "from": "vlx-fs01, the finance share" } },
+    { "do": "files.add", "file": { "id": "rw-note", "name": "READ_ME_TO_RESTORE.txt", "folder": "Shared (F:)", "size": "2 KB", "icon": "text", "type": "Text document", "trueType": "Text document (.txt)", "from": "Written to the share at 17:41", "note_ransom": true, "opens": "docs" } },
+    {
+      "do": "world.set",
+      "path": "office.docs.rw-note",
+      "value": {
+        "title": "READ_ME_TO_RESTORE.txt",
+        "meta": "Written to the finance share at 17:41",
+        "macros": false,
+        "pages": [{ "lines": [
+          { "h": "Your files are encrypted" },
+          "Every document on this share has been encrypted by GreyTide. Without our key they cannot be opened.",
+          "To restore them, pay 4.2 BTC within 72 hours. Do not switch off your computer. Do not contact the police or your IT team, or the key will be destroyed.",
+          "Contact address removed from this training copy."
+        ] }]
+      }
+    },
+    { "do": "files.encrypt", "folder": "Shared (F:)", "count": 2, "ext": ".vlxlock" },
+    {
+      "do": "world.push",
+      "path": "office.endpoint.alerts",
+      "value": {
+        "id": "al-rw", "level": "high", "status": "New", "at": "Today 17:41", "device": "VLX-PC-4471 (Sam Rivera)",
+        "what": "Mass file changes on the finance share (F:)",
+        "details": [
+          "Files on the finance share are being rewritten and renamed to .vlxlock, several a minute.",
+          "The process is running on this computer: invoice_viewer.exe, started 17:38 from Downloads.",
+          "Contain it: take this computer off the network straight away. Leave it switched on for the investigation."
+        ]
+      }
+    },
+    {
+      "do": "deskphone.line",
+      "number": "4040",
+      "line": {
+        "name": "IT service desk",
+        "genuine": true,
+        "verifies": "it",
+        "voice": { "gender": "female", "tone": "calm" },
+        "script": [
+          { "say": "IT service desk, Priya speaking." },
+          { "choices": [{ "id": "tell", "label": "Files on the finance share are being encrypted, from my computer", "goto": "tell" }] },
+          { "id": "tell", "say": "Right. Keep it off the network, leave it switched on, and do not open anything else. I am taking the share offline now and I will be at your desk in ten minutes. Log a ticket so we have the time on record.", "end": true }
+        ]
+      }
+    },
+    { "do": "toast", "app": "endpoint", "title": "Endpoint security: high alert", "body": "Mass file changes on the finance share" },
+    { "do": "room.banner", "title": "Endpoint security", "body": "Files on the finance share are being renamed", "icon": "warning", "object": "computer", "action": "Look" }
+  ],
+  "bonuses": [
+    {
+      "id": "b-alert",
+      "when": { "event": "endpoint:alertOpened", "match": { "id": "al-rw" } },
+      "outcome": { "points": 8, "verdict": "careful", "label": "Read the endpoint alert", "what": "It names the cause, a program started from Downloads, and says exactly what to do: off the network, but switched on.", "ideal": "reads the alert rather than dismissing it." }
+    },
+    {
+      "id": "b-spotted",
+      "when": { "event": ["file:selected", "file:properties"], "match": { "name": { "includes": ".vlxlock" } } },
+      "outcome": { "points": 6, "verdict": "careful", "label": "Spotted the renamed files", "what": "Files with a new ending you have never seen, and a note you did not write: the early signs.", "ideal": "recognises the early signs of ransomware." }
+    },
+    {
+      "id": "b-call",
+      "when": { "event": "deskphone:connected", "match": { "verifies": "it" } },
+      "outcome": { "points": 12, "verdict": "safe", "label": "Called the service desk at once", "what": "Priya takes the share offline before it spreads to other teams.", "ideal": "raises ransomware by phone, straight away." }
+    }
+  ],
+  "guards": [
+    {
+      "id": "g-reconnect",
+      "when": { "event": "network:reconnected" },
+      "outcome": { "points": -10, "verdict": "risky", "label": "Put the computer back on the network", "what": "Whatever was running can reach the share again.", "ideal": "leaves an infected computer off the network until IT says otherwise." }
+    }
+  ],
+  "start": "contain",
+  "stages": {
+    "contain": {
+      "objective": "Something is encrypting the finance share. Stop it spreading.",
+      "target": "computer",
+      "decision": true,
+      "insight": "Pull the network, not the power. Off the network it cannot reach anything else; switched on, the responders can still see what it did.",
+      "hint": { "text": "Open Endpoint security and read the alert. Then open the Network app and unplug the cable (or disconnect from every network). Leave the computer on, and call the service desk on 4040." },
+      "auto": [
+        {
+          "do": "after", "ms": "{{tick}}", "actions": [{ "do": "if", "flag": "desktop.off", "else": [{ "do": "if", "flag": "net.off", "else": [
+            { "do": "files.encrypt", "folder": "Shared (F:)", "count": 2, "ext": ".vlxlock" },
+            { "do": "after", "ms": "{{tick}}", "actions": [{ "do": "if", "flag": "desktop.off", "else": [{ "do": "if", "flag": "net.off", "else": [
+              { "do": "files.encrypt", "folder": "Shared (F:)", "count": 2, "ext": ".vlxlock" },
+              { "do": "after", "ms": "{{tick}}", "actions": [{ "do": "if", "flag": "desktop.off", "else": [{ "do": "if", "flag": "net.off", "else": [
+                { "do": "files.encrypt", "folder": "Shared (F:)", "count": 2, "ext": ".vlxlock" }
+              ] }] }] }
+            ] }] }] }
+          ] }] }]
+        }
+      ],
+      "on": [
+        {
+          "when": { "event": "network:disconnected", "match": { "offline": true } },
+          "outcome": {
+            "points": 35, "verdict": "safe", "label": "Took the computer off the network",
+            "what": "The encryption stopped reaching the share. The computer is still on, so IT can see what ran and how it got in.",
+            "ideal": "disconnects from the network straight away and leaves the power on.",
+            "card": {
+              "title": "Cut off, still switched on",
+              "kicker": "Ransomware",
+              "body": [
+                "You pulled it off the network, and it stopped reaching the share. Some files were already lost; the rest are safe.",
+                "You also left it switched on. What is running in memory, and the trail of how it got in, is what the responders need. Now tell them."
+              ],
+              "ideal": "disconnects the network, not the power, and raises it by phone."
+            }
+          },
+          "go": "raise"
+        },
+        {
+          "when": { "event": "desktop:shutdown" },
+          "outcome": {
+            "points": -8, "verdict": "risky", "label": "Switched the computer off",
+            "what": "It stopped, but the evidence of what ran and how it got in went with the power.",
+            "ideal": "takes the computer off the network instead of switching it off.",
+            "card": {
+              "title": "Stopped, but the evidence went with it",
+              "kicker": "Ransomware",
+              "body": [
+                "Switching off did stop the encryption. It also wiped what was running in memory, which is what the responders use to find how it got in and whether it is anywhere else.",
+                "Unplugging the network cable would have stopped the spread and kept the evidence."
+              ],
+              "ideal": "pulls the network, not the power.",
+              "rewindLabel": "Rewind to before I switched it off"
+            }
+          },
+          "go": "raise"
+        },
+        {
+          "when": { "event": "ransom:progress", "match": { "all": true } },
+          "outcome": {
+            "points": -30, "verdict": "unsafe", "label": "Left it connected until the share was gone",
+            "what": "Every file on the finance share is now encrypted, including the payment run and the vendor master.",
+            "ideal": "takes an infected computer off the network in the first minute.",
+            "card": {
+              "title": "The whole share is gone",
+              "kicker": "Ransomware",
+              "body": [
+                "While the computer stayed connected, the encryption worked through every file on the finance share. Tonight's payment run is now a .vlxlock file.",
+                "The early signs were all there: renamed files, a note you did not write, a high alert naming a program from Downloads. Unplugging the network in the first minute would have saved most of it."
+              ],
+              "ideal": "recognises the signs and disconnects straight away.",
+              "rewindLabel": "Rewind and act sooner"
+            }
+          },
+          "go": "raise"
+        }
+      ]
+    },
+    "raise": {
+      "objective": "Raise it with IT, and touch nothing else.",
+      "target": "deskphone",
+      "hint": { "text": "Call the service desk on 4040 from the desk phone, then raise a Helpdesk ticket (the Helpdesk is on the computer)." },
+      "on": [
+        {
+          "when": { "event": "ticket:raised" },
+          "outcome": { "points": 10, "verdict": "safe", "label": "Logged it with the service desk", "what": "The time you noticed and what you did are on record for the investigation.", "ideal": "logs the incident as well as phoning it in." },
+          "go": "done"
+        }
+      ]
+    },
+    "done": { "end": true }
+  }
+}

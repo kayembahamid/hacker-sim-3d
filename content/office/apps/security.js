@@ -8,7 +8,12 @@ import { changed, btn, tabs, kv, empty, badge, head } from './kit.js';
 // an attacker leaves a way back in: an inbox rule that forwards invoices out,
 // an app with permission to read your mail, an app password nobody uses.
 //
-// Events: method:changed { id, on }, signins:viewed, session:signedOut
+// Recovery is the back door: whoever controls the recovery email, the phone
+// number or the answers to the security questions can reset the password
+// without ever knowing it.
+//
+// Events: method:changed { id, on }, signins:viewed, recovery:viewed { stale },
+// recovery:removed { id, stale }, session:signedOut
 // { id, suspicious }, password:changed, mailrule:viewed { id, malicious },
 // mailrule:removed { id, malicious }, oauth:revoked { id, malicious },
 // apppassword:revoked { id, suspicious }.
@@ -25,11 +30,12 @@ export function makeSecurityApp() {
         head('Account security', `${svc.user} · ${svc.domain}`, [badge(svc.twoStep ? 'Two step on' : 'Two step off', svc.twoStep ? 'good' : 'bad')]),
         tabs(ctx, 'security', [
           ['methods', 'Sign in methods', 'key'], ['activity', 'Sign in activity', 'places'], ['sessions', 'Devices', 'browser'],
-          ['password', 'Password', 'lock'], ['rules', 'Mailbox rules', 'mail'], ['apps', 'Connected apps', 'link'], ['apppw', 'App passwords', 'key']
+          ['password', 'Password', 'lock'], ['recovery', 'Recovery', 'refresh'], ['rules', 'Mailbox rules', 'mail'], ['apps', 'Connected apps', 'link'], ['apppw', 'App passwords', 'key']
         ], tab),
         el('div', { class: 'ox-page' }, [pages[tab](ctx, svc)])
       );
       if (tab === 'activity' && !x.seenActivity) { ctx.setExtra('security', { seenActivity: true }); bus.emit('signins:viewed', {}); }
+      if (tab === 'recovery' && !x.seenRecovery) { ctx.setExtra('security', { seenRecovery: true }); bus.emit('recovery:viewed', { stale: (svc.recovery || []).filter((r) => r.stale).length }); }
       if (tab === 'rules' && !x.seenRules) { ctx.setExtra('security', { seenRules: true }); bus.emit('mailrule:viewed', { malicious: svc.mailRules.some((r) => r.external) }); }
     }
   };
@@ -75,6 +81,16 @@ export function makeSecurityApp() {
         bus.emit('password:changed', { service: 'veltrix' });
         ctx.toast({ app: 'security', title: 'Password changed', body: 'Other devices have been signed out.' });
       }, { primary: true, ic: 'lock' })
+    ]),
+    recovery: (ctx, svc) => el('div', {}, [
+      el('p', { class: 'ox-note', text: 'Anyone who controls one of these can reset your password without knowing it. Keep only what you own and use today.' }),
+      (svc.recovery || []).length ? el('ul', { class: 'ox-cards' }, svc.recovery.map((r) => el('li', { class: `ox-card ${r.stale ? 'is-bad' : ''}`, dataset: { recovery: r.id } }, [
+        el('span', { class: 'ox-row-main' }, [el('b', { text: r.label }), el('small', { class: 'mono', text: r.value }), r.note ? el('small', { class: r.stale ? 'ox-bad-text' : '', text: r.note }) : null].filter(Boolean)),
+        r.locked ? badge('Primary') : btn('Remove', () => {
+          edit(ctx, (v) => { v.recovery = (v.recovery || []).filter((q) => q.id !== r.id); }, 'recovery-remove');
+          bus.emit('recovery:removed', { id: r.id, stale: !!r.stale, kind: r.kind || '' });
+        }, { warn: !!r.stale, ic: 'bin' })
+      ]))) : empty('No recovery options. Only your authenticator can prove it is you.')
     ]),
     rules: (ctx, svc) => svc.mailRules.length ? el('ul', { class: 'ox-cards' }, svc.mailRules.map((r) => el('li', { class: `ox-card ${r.external ? 'is-bad' : ''}`, dataset: { rule: r.id } }, [
       el('span', { class: 'ox-row-main' }, [

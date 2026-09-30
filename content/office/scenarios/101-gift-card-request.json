@@ -1,0 +1,195 @@
+{
+  "id": "gift-card-request",
+  "order": 101,
+  "title": "Gift cards for the boss",
+  "kind": "Business email compromise",
+  "track": "security-awareness",
+  "pool": false,
+  "level": "Foundational",
+  "minutes": 6,
+  "maxPoints": 64,
+  "startsAt": 1000,
+  "brief": "16:40. A short email from Dan Whitlock, the finance director: he needs a quiet favour, and he needs it tonight.",
+  "insight": "Urgent, secret, off the usual channel, and paid in gift cards. Each on its own is odd. Together they are a script.",
+  "teaches": [
+    "Spot the gift card pattern: urgency, secrecy, an unusual channel, and a payment that cannot be traced or reversed",
+    "Verify with the real person on a channel you already had, never by replying",
+    "Report it so the rest of the finance team is warned"
+  ],
+  "vars": {
+    "fakeDomain": { "pick": ["veltrix-logistic.com", "veltrlx-logistics.com", "veltrix-logistics.co"] },
+    "cards": { "pick": ["six £200 cards", "five £250 cards", "eight £150 cards"] },
+    "reason": { "pick": ["a thank you for the Halden team", "client gifts for tomorrow's meeting", "staff awards I forgot to order"] }
+  },
+  "setup": [
+    {
+      "do": "mail.deliver",
+      "mail": {
+        "id": "gc-mail",
+        "genuine": false,
+        "external": true,
+        "from": { "name": "Dan Whitlock", "address": "d.whitlock@{{fakeDomain}}" },
+        "replyTo": "d.whitlock.exec@postvale-mail.net",
+        "subject": "Quick favour, are you at your desk?",
+        "body": [
+          "Sam,",
+          "Are you still in the office? I need a quick favour and I am stuck in back to back meetings, so email only please.",
+          "I need {{cards}} from Larkmoor for {{reason}}. It is a surprise, so keep this between us for now.",
+          "Buy them on the company card, scratch the backs and reply with photos of the codes. I will sort the expense claim tomorrow.",
+          { "sign": "Dan\nSent from my phone" }
+        ],
+        "headers": {
+          "returnPath": "bounce@{{fakeDomain}}",
+          "spf": { "result": "pass", "explain": "Sent by {{fakeDomain}}, which the attacker registered. Passing SPF proves that domain sent it, not that Dan did." },
+          "dkim": { "result": "pass", "explain": "Signed by {{fakeDomain}}, not by veltrix-logistics.com." },
+          "dmarc": { "result": "none", "explain": "No policy on the lookalike domain. Veltrix's real domain has one." },
+          "received": ["from mail.{{fakeDomain}} (203.0.113.91) by mx.veltrix-logistics.com"],
+          "messageId": "favour-7731@{{fakeDomain}}",
+          "summary": "The name says Dan Whitlock. The address is {{fakeDomain}}, one small change away from veltrix-logistics.com, and replies go to a free mail account. Dan's real address is d.whitlock@veltrix-logistics.com."
+        },
+        "replies": [
+          { "id": "comply", "label": "Reply: on it, buying them now", "text": "Of course, I will buy them now and send the codes over.", "kind": "comply" },
+          { "id": "engage", "label": "Reply: can I call you to check?", "text": "Happy to help. Can I give you a quick call first to check the details?", "kind": "engage" }
+        ]
+      }
+    },
+    {
+      "do": "chat.append",
+      "chatId": "dm-dan",
+      "notify": false,
+      "message": { "from": "system", "text": "Dan Whitlock is active on Chat." },
+      "replies": [
+        { "id": "ask-gc", "text": "Dan, did you just email me asking for gift cards?", "kind": "verify" }
+      ]
+    },
+    {
+      "do": "deskphone.line",
+      "number": "4410",
+      "line": {
+        "name": "Dan Whitlock",
+        "genuine": true,
+        "verifies": "dan",
+        "voice": { "gender": "male", "tone": "calm" },
+        "script": [
+          { "say": "Dan Whitlock." },
+          { "choices": [
+            { "id": "ask", "label": "Did you just email me asking for gift cards?", "goto": "ask" },
+            { "id": "other", "label": "Just checking in about the payment run", "goto": "other" }
+          ] },
+          { "id": "ask", "say": "Gift cards? No. I have been at my desk upstairs all afternoon, and I would never ask for gift cards. Do not buy anything. Report it, please.", "end": true },
+          { "id": "other", "say": "List by half six, please. Anything else?", "end": true }
+        ]
+      }
+    },
+    { "do": "room.banner", "title": "Mail", "body": "Dan Whitlock: Quick favour, are you at your desk?", "icon": "mail", "object": "computer", "action": "Open" }
+  ],
+  "bonuses": [
+    {
+      "id": "b-sender",
+      "when": { "event": "sender:checked", "match": { "id": "gc-mail" } },
+      "outcome": { "points": 8, "verdict": "careful", "label": "Checked the real sender address", "what": "The name is Dan's. The address is {{fakeDomain}}, not veltrix-logistics.com, and replies go to a free mail account.", "ideal": "reads the address, not the display name, before acting on a request." }
+    },
+    {
+      "id": "b-headers",
+      "when": { "event": "headers:viewed", "match": { "id": "gc-mail" } },
+      "outcome": { "points": 6, "verdict": "careful", "label": "Read the full headers", "what": "The checks pass for the lookalike domain, which proves nothing about Dan.", "ideal": "knows a passing check only proves which domain sent a message." }
+    },
+    {
+      "id": "b-call",
+      "group": "verify",
+      "when": { "event": "deskphone:connected", "match": { "verifies": "dan" }, "notFlag": "gc.verified" },
+      "outcome": { "points": 20, "verdict": "safe", "label": "Called Dan on his extension", "what": "Dan never sent it. One call on a number you already had broke the whole thing.", "ideal": "verifies an unusual request on a channel they already had, not by replying.", "effects": [{ "do": "flag.set", "key": "gc.verified" }] }
+    },
+    {
+      "id": "b-chat",
+      "group": "verify",
+      "when": { "event": "chat:replied", "match": { "chatId": "dm-dan", "replyId": "ask-gc" }, "notFlag": "gc.verified" },
+      "outcome": {
+        "points": 20, "verdict": "safe", "label": "Asked Dan on the company chat", "what": "Dan answers on his real account: it was not him.", "ideal": "moves the question to a channel the attacker does not control.",
+        "effects": [
+          { "do": "flag.set", "key": "gc.verified" },
+          { "do": "chat.append", "chatId": "dm-dan", "delayMs": 2500, "message": { "from": "dan", "fromName": "Dan Whitlock", "text": "No! Not me. I would never ask for gift cards. Please report it and do not buy anything." } }
+        ]
+      }
+    }
+  ],
+  "guards": [
+    {
+      "id": "g-engage",
+      "when": { "event": "mail:replied", "match": { "id": "gc-mail", "kind": "engage" } },
+      "outcome": { "points": -4, "verdict": "risky", "label": "Replied to the email to check", "what": "The reply went to the attacker's free mail account. Checking with the sender only gets you the sender's answer, and tells them your mailbox is live.", "ideal": "checks through a channel they already had, never by replying." }
+    }
+  ],
+  "start": "decide",
+  "stages": {
+    "decide": {
+      "objective": "Decide what to do about Dan's gift card request.",
+      "target": "computer",
+      "decision": true,
+      "insight": "Gift cards are the payment of choice for fraud: they are as good as cash, and once the codes are read out, they are gone.",
+      "hint": { "text": "Open the email and check the sender's real address. Ask Dan on the company chat, or call his extension (4410) on the desk phone. Then report the email." },
+      "on": [
+        {
+          "when": { "event": "mail:replied", "match": { "id": "gc-mail", "kind": "engage" } },
+          "effects": [
+            { "do": "mail.deliver", "delayMs": 4000, "mail": {
+              "id": "gc-mail-2", "genuine": false, "external": true,
+              "from": { "name": "Dan Whitlock", "address": "d.whitlock@{{fakeDomain}}" },
+              "replyTo": "d.whitlock.exec@postvale-mail.net",
+              "subject": "RE: Quick favour, are you at your desk?",
+              "body": ["I cannot talk, I am in with the board. Please just get them now, it needs to be done before 7. I will explain tomorrow.", { "sign": "Dan" }],
+              "headers": { "returnPath": "bounce@{{fakeDomain}}", "spf": { "result": "pass", "explain": "Sent by the lookalike domain again." }, "dkim": { "result": "pass", "explain": "Signed by {{fakeDomain}}." }, "dmarc": { "result": "none", "explain": "No policy." }, "summary": "More pressure, still no way to check. That is the tell." },
+              "replies": [{ "id": "comply", "label": "Reply: OK, buying them now", "text": "OK, buying them now.", "kind": "comply" }]
+            } }
+          ]
+        },
+        {
+          "when": { "event": "mail:replied", "match": { "kind": "comply" } },
+          "outcome": {
+            "points": -35, "verdict": "unsafe", "label": "Agreed to buy the gift cards",
+            "what": "You bought the cards and sent the codes. They were spent within minutes, and a gift card cannot be clawed back.",
+            "ideal": "never buys gift cards on an email request, and checks with the person on a known channel.",
+            "card": {
+              "title": "The codes were spent in minutes",
+              "kicker": "Business email compromise",
+              "body": [
+                "The cards were drained almost as soon as you sent the codes. A gift card is cash that cannot be traced or reversed, which is exactly why the attacker asked for them.",
+                "The email came from {{fakeDomain}}, not veltrix-logistics.com. A single call to Dan on 4410, or a message on the company chat, would have ended it."
+              ],
+              "ideal": "treats urgent, secret, off channel and gift cards as a stop sign, and verifies with the real person.",
+              "rewindLabel": "Rewind to before I replied"
+            }
+          },
+          "go": "wrap"
+        },
+        {
+          "when": { "event": "mail:reported", "match": { "genuine": false } },
+          "outcome": {
+            "points": 30, "verdict": "safe", "label": "Reported it, bought nothing",
+            "what": "The email is with the service desk, the lookalike domain gets blocked, and nobody else on the team gets caught by it.",
+            "ideal": "stops, verifies, and reports a gift card request.",
+            "card": {
+              "title": "Nothing bought, everyone warned",
+              "kicker": "Business email compromise",
+              "body": [
+                "You reported it instead of buying anything. The service desk blocks {{fakeDomain}} for the whole company.",
+                "The pattern is always the same: a senior name, a rush, a request to keep it quiet, a payment that cannot be reversed. Real managers do not buy gift cards through their accounts payable team."
+              ],
+              "ideal": "spots the pattern, checks with the real person, and reports."
+            }
+          },
+          "go": "done"
+        }
+      ]
+    },
+    "wrap": {
+      "auto": [{ "do": "objective", "text": "Report it so the cards can be stopped and the team warned." }],
+      "hint": { "text": "Report the email from Mail, or raise a Helpdesk ticket under payment fraud." },
+      "on": [
+        { "when": { "event": "mail:reported" }, "go": "done" },
+        { "when": { "event": "ticket:raised" }, "go": "done" }
+      ]
+    },
+    "done": { "end": true }
+  }
+}

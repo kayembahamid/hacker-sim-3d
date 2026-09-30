@@ -3,6 +3,7 @@
   "order": 7,
   "title": "The CEO calls",
   "kind": "Deepfake voice",
+  "track": "security-awareness",
   "maxPoints": 95,
   "startsAt": 1120,
   "brief": "18:40. Your phone rings. The caller ID says Helen Marsh, the CEO, and it sounds like her.",

@@ -1,0 +1,152 @@
+{
+  "id": "payroll-diversion-incident",
+  "order": 402,
+  "title": "The payroll diversion",
+  "kind": "Payroll diversion",
+  "track": "real-world-incidents",
+  "pool": false,
+  "level": "Core",
+  "minutes": 8,
+  "maxPoints": 88,
+  "startsAt": 1112,
+  "brief": "18:32. Leila asks you to clear the payroll inbox while she is in a meeting. One email asks to move a salary to a new bank account before Friday.",
+  "insight": "A composite of many real cases: one convincing email to payroll, and a month's salary goes to a stranger. Every name here is fictional.",
+  "teaches": [
+    "Never change bank details on the strength of an email",
+    "Verify with the employee on the number HR already holds",
+    "Report attempts so payroll can watch for the next one"
+  ],
+  "vars": {
+    "acct": { "pick": ["5520 8841", "6031 2294", "7714 0058"] }
+  },
+  "setup": [
+    { "do": "world.push", "path": "office.hr.employees", "value": { "id": "e-jordan", "name": "Jordan Patel", "team": "Warehouse operations · desk phone 4486", "bank": "Albion Mutual •••• 6620" } },
+    { "do": "world.push", "path": "office.hr.changes", "value": { "id": "HR-3317", "employee": "Jordan Patel", "via": "Email to the payroll inbox", "address": "jordan.patel.vlx@postvale-mail.net", "newBank": "Crestline Bank", "account": "40-11-09 · {{acct}}", "received": "Today 18:12", "status": "pending", "genuine": false } },
+    { "do": "chat.append", "chatId": "ap-team", "message": { "from": "leila", "fromName": "Leila Haddad", "text": "Sam, could you clear the payroll inbox while I am in the budget meeting? There is a bank change in the HR portal. Usual rules!" } },
+    {
+      "do": "mail.deliver",
+      "mail": {
+        "id": "pd-mail",
+        "genuine": false,
+        "external": true,
+        "from": { "name": "Jordan Patel", "address": "jordan.patel.vlx@postvale-mail.net" },
+        "subject": "Change of bank details before Friday",
+        "body": [
+          "Hi payroll team,",
+          "I have switched banks. Please update my salary account before Friday's payroll: Crestline Bank, sort code 40-11-09, account {{acct}}.",
+          "I am on the road all week, so email is best. Thanks!",
+          { "sign": "Jordan" }
+        ],
+        "headers": {
+          "returnPath": "jordan.patel.vlx@postvale-mail.net",
+          "spf": { "result": "pass", "explain": "Sent by a free mail service, not by Veltrix." },
+          "dkim": { "result": "pass", "explain": "Signed by the free mail service." },
+          "dmarc": { "result": "pass", "explain": "Passes for the free mail domain, which proves nothing about Jordan." },
+          "received": ["from mail.postvale-mail.net (203.0.113.130) by mx.veltrix-logistics.com"],
+          "messageId": "bank-change@postvale-mail.net",
+          "summary": "Jordan's real address is j.patel@veltrix-logistics.com. Anyone can open a free mail account in someone else's name."
+        }
+      }
+    },
+    {
+      "do": "deskphone.line",
+      "number": "4486",
+      "line": {
+        "name": "Jordan Patel",
+        "genuine": true,
+        "verifies": "jordan",
+        "voice": { "gender": "male", "tone": "warm" },
+        "script": [
+          { "say": "Warehouse, Jordan speaking." },
+          { "choices": [{ "id": "ask", "label": "Did you email payroll to change your bank details?", "goto": "ask" }] },
+          { "id": "ask", "say": "No! I have not changed banks, and that is not my email. I have been here all week. Please do not touch my pay.", "end": true }
+        ]
+      }
+    },
+    { "do": "room.banner", "title": "Chat", "body": "Leila Haddad: could you clear the payroll inbox?", "icon": "chat", "object": "computer", "action": "Open" }
+  ],
+  "bonuses": [
+    {
+      "id": "b-sender",
+      "when": { "event": "sender:checked", "match": { "id": "pd-mail" } },
+      "outcome": { "points": 8, "verdict": "careful", "label": "Checked the sender's real address", "what": "A free mail account with Jordan's name on it, not his Veltrix address.", "ideal": "checks where a bank change request really came from." }
+    },
+    {
+      "id": "b-headers",
+      "when": { "event": "headers:viewed", "match": { "id": "pd-mail" } },
+      "outcome": { "points": 6, "verdict": "careful", "label": "Read the headers", "what": "Every check passes for the free mail domain, which proves nothing about who wrote it.", "ideal": "knows passing checks only prove the sending domain." }
+    },
+    {
+      "id": "b-viewed",
+      "when": { "event": "hr:changeViewed", "match": { "id": "HR-3317" } },
+      "outcome": { "points": 4, "verdict": "careful", "label": "Read the change in the HR portal", "what": "Requested by email, from an outside address, with no verification.", "ideal": "reads where a change came from before deciding." }
+    },
+    {
+      "id": "b-call",
+      "when": { "event": "deskphone:connected", "match": { "verifies": "jordan" } },
+      "outcome": { "points": 20, "verdict": "safe", "label": "Called Jordan on the number HR holds", "what": "Jordan has not changed banks and has never used that address.", "ideal": "verifies a salary change with the employee on a number already on file." }
+    }
+  ],
+  "guards": [],
+  "start": "decide",
+  "stages": {
+    "decide": {
+      "objective": "Decide what to do with Jordan Patel's bank change (HR-3317).",
+      "target": "computer",
+      "decision": true,
+      "insight": "Payroll diversion is quiet: nobody notices until the real employee asks where their salary went.",
+      "hint": { "text": "Check the email's real sender. Find Jordan's desk number in the HR portal (People), call him on the desk phone (4486), then reject HR-3317 in the HR portal." },
+      "on": [
+        {
+          "when": { "event": "hr:changeApproved", "match": { "id": "HR-3317" } },
+          "outcome": {
+            "points": -45, "verdict": "unsafe", "label": "Approved the salary change",
+            "what": "On Friday, Jordan's salary goes to the attacker's account. Jordan finds out when rent is due.",
+            "ideal": "never changes bank details from an email alone.",
+            "card": {
+              "title": "Friday's salary, gone",
+              "kicker": "Payroll diversion",
+              "body": [
+                "The request came from a free mail account with Jordan's name on it. On Friday his salary will land in an account the attacker empties within the hour.",
+                "Jordan was one call away on 4486. The HR portal says it plainly: changes are made by the employee, signed in as themselves, or after a call to them."
+              ],
+              "ideal": "verifies with the employee on a number already held, and rejects email requests.",
+              "rewindLabel": "Rewind to before I approved"
+            }
+          },
+          "go": "wrap"
+        },
+        {
+          "when": { "event": "hr:changeRejected", "match": { "id": "HR-3317" } },
+          "outcome": {
+            "points": 40, "verdict": "safe", "label": "Rejected the change",
+            "what": "Jordan's pay goes where it always has.",
+            "ideal": "rejects unverified bank detail changes.",
+            "card": {
+              "title": "Jordan gets paid",
+              "kicker": "Payroll diversion",
+              "body": [
+                "You rejected it. The email used Jordan's name on a free mail account, and Jordan had never heard of it.",
+                "In the real cases this is modelled on, the one control that works every time is a call to the employee on a number the company already holds."
+              ],
+              "ideal": "verifies by phone and rejects email requests."
+            }
+          },
+          "go": "wrap"
+        }
+      ]
+    },
+    "wrap": {
+      "auto": [{ "do": "objective", "text": "Report the attempt so payroll can watch for the next one." }],
+      "hint": { "text": "Raise a Helpdesk ticket under payment or bank detail fraud." },
+      "on": [
+        {
+          "when": { "event": "ticket:raised" },
+          "outcome": { "points": 10, "verdict": "safe", "label": "Reported the diversion attempt", "what": "Payroll can check for similar requests about other staff.", "ideal": "reports payroll fraud attempts." },
+          "go": "done"
+        }
+      ]
+    },
+    "done": { "end": true }
+  }
+}

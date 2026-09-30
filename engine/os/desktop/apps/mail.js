@@ -3,6 +3,7 @@ import { bus } from '../../../core/bus.js';
 import { audio } from '../../../core/audio.js';
 import { icon } from '../../../ui/icons.js';
 import { makeLink } from '../../link.js';
+import { qrSvg } from '../../../ui/qr.js';
 
 // Mail. The reading pane shows the display name, which anyone can set to
 // anything; the real address is one click (or hover) away, and so is a
@@ -173,6 +174,9 @@ export function makeMailApp({ title = 'Mail', account = 'me@example.com', report
       });
       return el('p', {}, [a]);
     }
+    // A QR code: a picture only. Mail cannot follow it, which is exactly why
+    // it slips past link scanners; the phone's Camera reads it (scenario data).
+    if (b.qr) return el('figure', { class: 'ml-qr' }, [qrSvg(b.qr), b.caption ? el('figcaption', { text: b.caption }) : null].filter(Boolean));
     if (b.sign) return el('p', { class: 'ml-sign', text: b.sign });
     if (b.small) return el('p', { class: 'ml-small', text: b.small });
     return el('p', { text: b.text || '' });

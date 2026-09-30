@@ -3,6 +3,7 @@
   "order": 2,
   "title": "The push storm",
   "kind": "MFA fatigue and vishing",
+  "track": "security-awareness",
   "maxPoints": 70,
   "startsAt": 1010,
   "brief": "16:50. Your phone starts buzzing with sign in requests you did not start. Then the desk phone rings: IT.",

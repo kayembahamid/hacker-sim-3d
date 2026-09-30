@@ -14,7 +14,7 @@ import { icon } from '../../../engine/ui/icons.js';
 // one thing the browser chrome shows truthfully and the page cannot fake.
 const foot = (fake) => (fake ? '2024' : '2026');
 
-function frame(brand, fake, body, { nav = [], wide = false } = {}) {
+export function frame(brand, fake, body, { nav = [], wide = false } = {}) {
   return el('div', { class: `site site-ox site-${brand.kind} ${fake ? 'is-fake' : ''}`, style: { '--b': brand.colour, '--a': brand.accent } }, [
     el('header', { class: 'sx-head' }, [
       el('span', { class: 'sx-logo' }, [el('span', { class: 'sx-mark', text: brand.name[0] }), el('b', { text: brand.name })]),
@@ -166,7 +166,10 @@ const KINDS = {
 
   search(ctx, brand) {
     const q = ctx.url.searchParams.get('q') || '';
-    const results = SEARCH[q.toLowerCase().trim()] || (q ? GENERIC(q) : []);
+    // A scenario can add results of its own (world.office.search): the ad that
+    // outbids the real bank, the page that shows what the internet knows.
+    const extra = ((ctx.world.office && ctx.world.office.search) || []).filter((r) => q && q.toLowerCase().includes(r.q));
+    const results = [...extra, ...(SEARCH[q.toLowerCase().trim()] || (q ? GENERIC(q) : []))];
     return frame(brand, false, [
       el('div', { class: 'sx-search' }, [
         el('div', { class: 'sx-searchbar' }, [icon('search'), el('span', { text: q || 'Search Seekly' })]),

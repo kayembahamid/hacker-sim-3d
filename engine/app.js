@@ -352,14 +352,51 @@ export class Engine {
   }
 
   // ---------------------------------------------------------------- flow
+  // Links can ask for less than the whole evening:
+  //   ?scenario=id        one scenario on its own (a single drill, the tests)
+  //   ?scenarios=a,b,c    these, in this order
+  //   ?track=name         every scenario on that track, in order
+  // Without one, the product's run config deals the usual hand.
+  selection() {
+    const q = new URLSearchParams(window.location.search);
+    const byId = (id) => this.scenarios.find((s) => s.id === id);
+    const one = q.get('scenario');
+    if (one && byId(one)) return { kind: 'one', list: [byId(one)] };
+    const many = (q.get('scenarios') || '').split(',').map((s) => s.trim()).filter(Boolean).map(byId).filter(Boolean);
+    if (many.length) return { kind: 'list', list: many };
+    const track = (q.get('track') || '').toLowerCase().replace(/[^a-z0-9-]/g, '');
+    if (track) {
+      const list = this.scenarios.filter((s) => [].concat(s.track || []).includes(track)).sort((a, b) => (a.order ?? 99) - (b.order ?? 99));
+      if (list.length) return { kind: 'track', track, list };
+    }
+    return null;
+  }
+
+  // What the title card says: the evening, or the one drill (or track) the
+  // link asked for.
+  intro() {
+    const sel = this.selection();
+    if (!sel) return null;
+    if (sel.kind === 'one') {
+      const s = sel.list[0];
+      return { kicker: `${this.product.drillKicker || 'Drill'} · ${s.kind || ''}`.replace(/ · $/, ''), title: s.title, lede: s.brief, role: s.role || null, minutes: s.minutes || null };
+    }
+    const names = this.product.tracks || {};
+    const title = sel.kind === 'track' ? (names[sel.track] || sel.track.replace(/-/g, ' ').replace(/^./, (c) => c.toUpperCase())) : 'Your drills';
+    return { kicker: `${this.product.drillKicker || 'Drill'} track · ${sel.list.length} drills`, title, lede: `${sel.list.length} short drills, back to back: ${sel.list.map((s) => s.title).join(', ')}.`, role: null };
+  }
+
   showStart() {
     this.shell.root.classList.remove('is-debrief');
     clear(this.screenRoot);
     this.screenRoot.hidden = false;
     this.screenRoot.className = 'screen-root is-start';
     this.shell.root.classList.add('is-title');
+    const intro = this.intro();
+    if (intro) bus.emit('intro:shown', intro);
     this.screenRoot.append(buildStartScreen({
       product: this.product,
+      intro,
       defaultMode: load('mode', this.product.defaultMode),
       lastRun: load('lastRun', null),
       // ?seed=words fills in the seed, so a teacher can give a whole class the
@@ -398,11 +435,8 @@ export class Engine {
     });
 
     this.rig.toOverview({ instant: true });
-    // ?scenario=id plays one scenario on its own (used by the tests, and
-    // handy for a teacher who wants to show one lesson).
-    const only = new URLSearchParams(window.location.search).get('scenario');
-    const picked = only && this.scenarios.find((s) => s.id === only);
-    const list = picked ? [picked] : pickScenarios(this.scenarios, this.product.run, this.rng, mode);
+    const chosen = this.selection();
+    const list = chosen ? chosen.list : pickScenarios(this.scenarios, this.product.run, this.rng, mode);
     this.runList = list;
     this.runner.runEpisode(list).then(() => this.showDebrief());
     bus.emit('run:start', { seed, mode, scenarios: list.map((s) => s.id) });
@@ -417,8 +451,9 @@ export class Engine {
     this.screenRoot.hidden = false;
     this.screenRoot.className = 'screen-root is-debrief';
     clear(this.screenRoot);
+    const intro = this.intro();
     this.screenRoot.append(buildDebrief({
-      product: this.product, log: this.log, score: this.score, seed: this.seed, mode: this.mode,
+      product: intro ? { ...this.product, debriefKicker: intro.title, debriefTitle: intro.kicker.includes('track') ? 'Your track, replayed' : 'Your drill, replayed', newRunLabel: 'Play it again' } : this.product, log: this.log, score: this.score, seed: this.seed, mode: this.mode,
       links: this.product.links,
       onReplay: () => this.startRun(this.seed, this.mode),
       onNewRun: () => this.showStart(),

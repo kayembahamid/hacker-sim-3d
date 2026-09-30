@@ -3,6 +3,7 @@
   "order": 3,
   "title": "The shared document",
   "kind": "Credential phishing",
+  "track": "security-awareness",
   "maxPoints": 60,
   "startsAt": 1035,
   "brief": "17:15. An email says a colleague shared a document with you. The link asks you to sign in again.",

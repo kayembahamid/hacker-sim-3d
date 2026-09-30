@@ -1,0 +1,201 @@
+{
+  "id": "tech-support-scam",
+  "order": 111,
+  "title": "The tech support scam",
+  "kind": "Tech support scam",
+  "track": "security-awareness",
+  "pool": false,
+  "level": "Foundational",
+  "minutes": 6,
+  "maxPoints": 51,
+  "startsAt": 1075,
+  "brief": "17:55. You click a freight news story and the whole browser turns red: your computer is infected, call this number now.",
+  "insight": "The warning is not about an attack. The warning is the attack.",
+  "teaches": [
+    "A web page that says your computer is infected is an advert, not a diagnosis",
+    "Close the tab or the browser; never call the number and never click inside it",
+    "Real security tools never ask you to phone a stranger or install remote access"
+  ],
+  "vars": {
+    "host": { "pick": ["pc-shield-alert.support", "system-alert-centre.help", "secure-pc-check.support"] },
+    "num": { "pick": [{ "shown": "0808 157 0733", "digits": "08081570733" }, { "shown": "0808 157 0268", "digits": "08081570268" }] }
+  },
+  "setup": [
+    {
+      "do": "site.page",
+      "id": "ts-scare",
+      "host": "{{host}}",
+      "title": "Security Alert",
+      "fake": true,
+      "pages": {
+        "/": [
+          { "scare": {
+            "brand": "System Security Alert",
+            "title": "Your computer has been blocked",
+            "lines": [
+              "Error 0x80073AFD: trojan spyware detected. Your passwords, bank details and email are at risk.",
+              "This computer is locked for your protection. Call technical support now to unlock it."
+            ],
+            "number": "{{num.shown}}",
+            "ok": "OK",
+            "scan": "Scan now",
+            "foot": "Do not close this window or restart your computer. Doing so will delete your data."
+          } }
+        ]
+      }
+    },
+    {
+      "do": "deskphone.line",
+      "number": "{{num.digits}}",
+      "line": {
+        "name": "{{num.shown}}",
+        "genuine": false,
+        "voice": { "gender": "male", "tone": "warm" },
+        "script": [
+          { "say": "Technical support, this is Daniel. I can see your computer has reported a serious infection. I can remove it for you right now." },
+          { "say": "Open your browser, go to rescuelink-remote.help, and read me the six digit code on the screen." },
+          { "choices": [
+            { "id": "comply", "label": "OK, opening it now", "goto": "connect" },
+            { "id": "hang", "label": "Hang up", "hangUp": true }
+          ] },
+          { "id": "connect", "say": "Thank you. I am connecting now. Please do not touch the mouse.", "end": true }
+        ]
+      }
+    },
+    {
+      "do": "deskphone.line",
+      "number": "4040",
+      "line": {
+        "name": "IT service desk",
+        "genuine": true,
+        "verifies": "it",
+        "voice": { "gender": "female", "tone": "warm" },
+        "script": [
+          { "say": "IT service desk, Priya speaking." },
+          { "choices": [{ "id": "tell", "label": "A page said my computer is infected and to call a number", "goto": "tell" }] },
+          { "id": "tell", "say": "Good that you called us, not them. Those pages are adverts that take over the browser. Close it, do not ring the number, and log a ticket so I can check the machine.", "end": true }
+        ]
+      }
+    },
+    { "do": "desktop.open", "app": "browser", "params": { "url": "https://{{host}}/", "from": "ad" } },
+    { "do": "room.banner", "title": "Computer", "body": "A red warning has taken over the browser", "icon": "warning", "object": "computer", "action": "Look" }
+  ],
+  "bonuses": [
+    {
+      "id": "b-owner",
+      "when": { "event": "domain:checked", "match": { "host": "{{host}}" } },
+      "outcome": { "points": 8, "verdict": "careful", "label": "Checked who owns the warning page", "what": "It is a web page on {{host}}, not a message from your computer or from IT.", "ideal": "reads the address of a scary page: it is a website, not a system alert." }
+    },
+    {
+      "id": "b-it",
+      "when": { "event": "deskphone:connected", "match": { "verifies": "it" } },
+      "outcome": { "points": 8, "verdict": "safe", "label": "Called your own service desk", "what": "Priya confirms it is a browser advert, not an infection.", "ideal": "calls their own IT, never the number on a warning." }
+    }
+  ],
+  "guards": [
+    {
+      "id": "g-dial",
+      "when": { "event": "deskphone:dialed", "match": { "number": "{{num.digits}}" } },
+      "outcome": { "points": -8, "verdict": "risky", "label": "Called the number on the warning", "what": "That number reaches the scammer. The page exists to make you ring it.", "ideal": "never calls a number shown by a pop up." }
+    },
+    {
+      "id": "g-click",
+      "when": { "event": "scare:clicked" },
+      "outcome": { "points": -4, "verdict": "risky", "label": "Clicked a button on the warning", "what": "Every button on a scareware page does what the scammer wants: here, it downloaded a “scanner”.", "ideal": "closes the tab without clicking anything inside it." }
+    }
+  ],
+  "start": "decide",
+  "stages": {
+    "decide": {
+      "objective": "Deal with the warning that has taken over the browser.",
+      "target": "computer",
+      "decision": true,
+      "insight": "Your computer does not talk to you through a web page with a phone number on it. A page cannot lock anything: closing it ends it.",
+      "hint": { "text": "Do not click anything on the red page and do not call the number. Close the browser tab, or close the Browser window. Then call the service desk on 4040." },
+      "on": [
+        {
+          "when": { "event": "scare:clicked" },
+          "effects": [
+            { "do": "files.add", "file": { "id": "ts-setup", "name": "SecurityScan_Setup.exe", "folder": "Downloads", "size": "3.1 MB", "icon": "app", "type": "Application", "trueType": "Application (.exe), a program that runs when opened", "danger": true, "motw": true, "signed": null, "from": "https://{{host}}/" } },
+            { "do": "toast", "app": "files", "title": "Download complete", "body": "SecurityScan_Setup.exe" }
+          ]
+        },
+        {
+          "when": { "event": "browser:tabClosed", "match": { "host": "{{host}}" } },
+          "outcome": { "points": 25, "verdict": "safe", "label": "Closed the fake warning", "what": "It was a web page, and closing the tab was all it took.", "ideal": "closes a scareware page without clicking inside it or calling the number.", "card": { "title": "It was only ever a web page", "kicker": "Tech support scam", "body": ["You closed it and it was gone. The red screen, the error code and the countdown were an advert on {{host}}.", "Real security software never shows a phone number and never asks you to install remote access. Now tell your own service desk."], "ideal": "closes the page, calls their own IT, and never the number on the screen." } },
+          "go": "report"
+        },
+        {
+          "when": { "event": "app:closed", "match": { "app": "browser" } },
+          "outcome": {
+            "points": 25, "verdict": "safe", "label": "Closed the fake warning",
+            "what": "It was a web page, and closing it was all it took.",
+            "ideal": "closes a scareware page without clicking inside it or calling the number.",
+            "card": {
+              "title": "It was only ever a web page",
+              "kicker": "Tech support scam",
+              "body": [
+                "You closed it and it was gone. The red screen, the error code and the countdown were an advert on {{host}}.",
+                "Real security software never shows a phone number and never asks you to install remote access. Now tell your own service desk."
+              ],
+              "ideal": "closes the page, calls their own IT, and never the number on the screen."
+            }
+          },
+          "go": "report"
+        },
+        {
+          "when": { "event": "deskphone:choice", "match": { "choice": "comply" } },
+          "outcome": {
+            "points": -38, "verdict": "unsafe", "label": "Let the “support” caller in",
+            "what": "The caller now controls your computer. Next comes a fake clean up, a fee, and a look around the finance network.",
+            "ideal": "never calls the number on a pop up, and never installs remote access for a caller.",
+            "card": {
+              "title": "The warning was the attack",
+              "kicker": "Tech support scam",
+              "body": [
+                "There was no infection until you let the caller connect. The page only existed to make you ring the number.",
+                "Closing the tab would have ended it. Your own service desk, on 4040, would have told you the same."
+              ],
+              "ideal": "closes the page and calls their own IT.",
+              "rewindLabel": "Rewind to the red screen"
+            }
+          },
+          "go": "report"
+        },
+        {
+          "when": { "event": "file:opened", "match": { "id": "ts-setup" } },
+          "outcome": {
+            "points": -38, "verdict": "unsafe", "label": "Ran the “scanner” the page downloaded",
+            "what": "The download was remote access software. The scammer now has your screen.",
+            "ideal": "never runs anything a warning page downloads.",
+            "card": {
+              "title": "The scanner was the scam",
+              "kicker": "Tech support scam",
+              "body": [
+                "The page's Scan button downloaded remote access software dressed up as a security scan. Running it let the scammer in.",
+                "Every button on a scareware page works for the scammer. Close the tab and call your own IT."
+              ],
+              "ideal": "closes the page without clicking anything in it.",
+              "rewindLabel": "Rewind to the red screen"
+            }
+          },
+          "go": "report"
+        }
+      ]
+    },
+    "report": {
+      "objective": "Tell the service desk what happened.",
+      "target": "computer",
+      "hint": { "text": "Raise a Helpdesk ticket, or call the service desk on 4040." },
+      "on": [
+        {
+          "when": { "event": "ticket:raised" },
+          "outcome": { "points": 10, "verdict": "safe", "label": "Logged it with the service desk", "what": "IT can block the site for everyone and check your computer.", "ideal": "reports a scareware page even when nothing went wrong." },
+          "go": "done"
+        },
+        { "when": { "event": "deskphone:connected", "match": { "verifies": "it" } }, "go": "done" }
+      ]
+    },
+    "done": { "end": true }
+  }
+}

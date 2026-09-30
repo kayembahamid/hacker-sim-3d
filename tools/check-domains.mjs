@@ -38,9 +38,11 @@ async function files(d) {
 const hosts = new Map();
 // Endings named in the text ("school addresses end in sch.uk") are not sites.
 const SUFFIXES = ['co.uk', 'sch.uk', 'org.uk', 'ac.uk', 'gov.uk', 'com.au'];
+// Scenario action names that happen to look like an address.
+const ACTION_NAMES = ['site.page'];
 const add = (host, where) => {
   host = host.toLowerCase().replace(/\.$/, '');
-  if (NOT_HOSTS.test(host) || SUFFIXES.includes(host)) return;
+  if (NOT_HOSTS.test(host) || SUFFIXES.includes(host) || ACTION_NAMES.includes(host)) return;
   if (!hosts.has(host)) hosts.set(host, new Set());
   hosts.get(host).add(where);
 };

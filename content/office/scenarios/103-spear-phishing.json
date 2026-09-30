@@ -1,0 +1,195 @@
+{
+  "id": "spear-phishing",
+  "order": 103,
+  "title": "Spear phishing from your own profile",
+  "kind": "Spear phishing",
+  "track": "security-awareness",
+  "pool": false,
+  "level": "Core",
+  "minutes": 7,
+  "maxPoints": 70,
+  "startsAt": 1025,
+  "brief": "17:05. An email congratulates you on your exam result and your 10k time, then asks you to activate an account before Monday.",
+  "insight": "It knows things about you. Everything it knows is on your public profile.",
+  "teaches": [
+    "Knowing personal details is not proof of identity: public posts are the attacker's script",
+    "Check the address, and verify through a channel you already trust",
+    "Share less about who is away and what systems your team is moving to"
+  ],
+  "vars": {
+    "sender": { "pick": ["Jess Carter", "Priti Shah", "Callum Reid"] },
+    "lbHost": { "pick": ["ledgerbay-onboarding.com", "ledgerbay-activate.io", "ledgerbay.io.account-check.net"] }
+  },
+  "setup": [
+    {
+      "do": "site.page",
+      "id": "sam-profile",
+      "host": "workfolk.social",
+      "title": "Workfolk",
+      "owner": "Workfolk Networks Ltd",
+      "colour": "#16325c",
+      "accent": "#5fa8ff",
+      "nav": ["Home", "Jobs", "Messages"],
+      "pages": {
+        "/": [
+          { "h": "Sam Rivera" },
+          { "muted": "Accounts Payable at Veltrix Logistics · Leeds · 212 connections" },
+          { "kv": [["Current role", "Accounts Payable, Veltrix Logistics (3 years)"], ["Studying", "AAT Level 4, passed this month"], ["Team news", "Our team moves to Ledgerbay this autumn"]] },
+          { "h2": "Recent posts" },
+          { "list": [
+            "Ran the Kirkstall 10k on Sunday in 52:10. Legs are gone.",
+            "Covering the late payment run this week while my manager Marta is on leave. Wish me luck!",
+            "Passed AAT Level 4! Thanks to everyone at Veltrix for the support."
+          ] },
+          { "note": "Everything on this page is public. Anyone can read it without an account, and search engines index it." },
+          { "button": "Edit profile: hide team news and who is on leave", "emit": "profile:trimmed", "style": "ghost" }
+        ]
+      }
+    },
+    { "do": "world.push", "path": "office.search", "value": { "q": "rivera", "title": "Sam Rivera, Accounts Payable at Veltrix Logistics | Workfolk", "url": "https://workfolk.social/in/sam-rivera", "text": "Leeds · Accounts Payable at Veltrix Logistics · Passed AAT Level 4 · Kirkstall 10k" } },
+    {
+      "do": "site.page",
+      "id": "lb-activate",
+      "host": "{{lbHost}}",
+      "title": "Ledgerbay",
+      "fake": true,
+      "colour": "#123f2f",
+      "accent": "#3fbf74",
+      "pages": {
+        "/": [
+          { "h": "Activate your Ledgerbay account" },
+          { "muted": "Veltrix Logistics is moving to Ledgerbay. Sign in with your Veltrix account to activate AP access before the Monday cutover." },
+          { "form": { "id": "lb-form", "site": "lb-activate", "submit": "Activate", "fields": [{ "name": "username", "label": "Work email" }, { "name": "password", "label": "Veltrix password", "type": "password" }] } }
+        ]
+      }
+    },
+    {
+      "do": "mail.deliver",
+      "mail": {
+        "id": "sp-mail",
+        "genuine": false,
+        "external": true,
+        "from": { "name": "{{sender}}, Ledgerbay", "address": "onboarding@{{lbHost}}" },
+        "subject": "Congrats Sam, and one thing before Monday",
+        "body": [
+          "Hi Sam,",
+          "Congratulations on passing AAT Level 4, and 52 minutes at Kirkstall is a great time!",
+          "I am on the Ledgerbay onboarding team for Veltrix's move this autumn. Marta mentioned you are covering while she is on leave, so you are the one to activate the AP accounts before Monday's cutover. It takes two minutes.",
+          { "button": "Activate Veltrix AP on Ledgerbay", "href": "https://{{lbHost}}/activate?team=ap" },
+          "Thanks so much, and enjoy the recovery run.",
+          { "sign": "{{sender}}\nCustomer Onboarding, Ledgerbay" }
+        ],
+        "headers": {
+          "returnPath": "bounce@{{lbHost}}",
+          "spf": { "result": "pass", "explain": "Sent by {{lbHost}}. Ledgerbay's real domain is ledgerbay.io." },
+          "dkim": { "result": "pass", "explain": "Signed by {{lbHost}}, a domain registered this month." },
+          "dmarc": { "result": "none", "explain": "No policy on this domain." },
+          "received": ["from mail.{{lbHost}} (203.0.113.87) by mx.veltrix-logistics.com"],
+          "messageId": "welcome-ap@{{lbHost}}",
+          "summary": "The personal details are all from Sam's public Workfolk profile. The domain is not ledgerbay.io."
+        }
+      }
+    },
+    {
+      "do": "deskphone.line",
+      "number": "4040",
+      "line": {
+        "name": "IT service desk",
+        "genuine": true,
+        "verifies": "it",
+        "voice": { "gender": "female", "tone": "warm" },
+        "script": [
+          { "say": "IT service desk, Priya speaking." },
+          { "choices": [
+            { "id": "ask", "label": "Is there a Ledgerbay activation we need to do before Monday?", "goto": "ask" },
+            { "id": "none", "label": "Sorry, wrong number", "hangUp": true }
+          ] },
+          { "id": "ask", "say": "No. Ledgerbay is a project for next year, and nobody from Ledgerbay contacts staff directly. There is nothing to activate. Please do not sign in, and report the email.", "end": true }
+        ]
+      }
+    },
+    { "do": "room.banner", "title": "Mail", "body": "Congrats Sam, and one thing before Monday", "icon": "mail", "object": "computer", "action": "Open" }
+  ],
+  "bonuses": [
+    {
+      "id": "b-sender",
+      "when": { "event": "sender:checked", "match": { "id": "sp-mail" } },
+      "outcome": { "points": 6, "verdict": "careful", "label": "Checked the real sender address", "what": "The address is {{lbHost}}, not ledgerbay.io.", "ideal": "checks the address, however personal the email feels." }
+    },
+    {
+      "id": "b-profile",
+      "when": { "event": "page:shown", "match": { "page": "sam-profile" } },
+      "outcome": { "points": 10, "verdict": "careful", "label": "Looked yourself up", "what": "The exam, the 10k time, Marta's leave and the Ledgerbay move are all on your public profile. The sender knew nothing a stranger could not.", "ideal": "asks where the details in a personal email could have come from." }
+    },
+    {
+      "id": "b-trim",
+      "when": { "event": "profile:trimmed" },
+      "outcome": { "points": 8, "verdict": "careful", "label": "Trimmed what your profile gives away", "what": "Who is on leave and which systems your team is moving to are exactly what a spear phisher needs.", "ideal": "keeps absences and system changes off public posts." }
+    },
+    {
+      "id": "b-verify",
+      "when": { "event": "deskphone:connected", "match": { "verifies": "it" } },
+      "outcome": { "points": 18, "verdict": "safe", "label": "Checked with the service desk", "what": "There is no activation, and Ledgerbay does not contact staff directly.", "ideal": "verifies through a channel they already trust." }
+    }
+  ],
+  "guards": [],
+  "start": "decide",
+  "stages": {
+    "decide": {
+      "objective": "Decide what to do with the Ledgerbay email.",
+      "target": "computer",
+      "decision": true,
+      "insight": "“Knows things about me” is not proof of anything. Search your own name and see what a stranger sees.",
+      "hint": { "text": "Check the sender's real address. Search Seekly for your own name to see where the details came from. Call the service desk (4040) to check, then report the email." },
+      "on": [
+        {
+          "when": { "event": "form:submitted", "match": { "site": "lb-activate" } },
+          "outcome": {
+            "points": -40, "verdict": "unsafe", "label": "Signed in on the fake activation page",
+            "what": "Your Veltrix password went to the attacker. The personal details made the email feel like it came from someone who knew you.",
+            "ideal": "does not treat personal details as proof, and checks before signing in.",
+            "card": {
+              "title": "It only knew what you posted",
+              "kicker": "Spear phishing",
+              "body": [
+                "The exam, the race time, Marta's leave and the Ledgerbay move all came from your public Workfolk profile. The sender was a stranger with a search engine.",
+                "The page was on {{lbHost}}, not ledgerbay.io. The service desk would have told you there was nothing to activate."
+              ],
+              "ideal": "verifies through a known channel however well the sender seems to know them.",
+              "rewindLabel": "Rewind to before I signed in"
+            }
+          },
+          "go": "wrap"
+        },
+        {
+          "when": { "event": "mail:reported", "match": { "genuine": false } },
+          "outcome": {
+            "points": 28, "verdict": "safe", "label": "Reported the email",
+            "what": "The domain is blocked, and the service desk can warn the rest of the finance team, who are on the same public pages.",
+            "ideal": "reports targeted phishing so colleagues are warned.",
+            "card": {
+              "title": "A stranger with a search engine",
+              "kicker": "Spear phishing",
+              "body": [
+                "You reported it instead of activating anything. Every detail in the email was lifted from your public profile.",
+                "Spear phishing feels personal because it is researched. The defence is the same as ever: the real address, and a check through a channel you already trust."
+              ],
+              "ideal": "treats personal details as public, not as proof."
+            }
+          },
+          "go": "done"
+        }
+      ]
+    },
+    "wrap": {
+      "auto": [{ "do": "objective", "text": "Report it, and change your password." }],
+      "hint": { "text": "Report the email, and change your Veltrix password in Account security." },
+      "on": [
+        { "when": { "event": "mail:reported" }, "go": "done" },
+        { "when": { "event": "ticket:raised" }, "go": "done" },
+        { "when": { "event": "password:changed" }, "go": "done" }
+      ]
+    },
+    "done": { "end": true }
+  }
+}

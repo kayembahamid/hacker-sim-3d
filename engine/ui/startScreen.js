@@ -5,7 +5,7 @@ import { icon } from './icons.js';
 // The title card, laid over the room like RansomLeak's briefing card: who you
 // are tonight, what kind of run you want, and the seed. The seed field lives in
 // this tab only: nothing typed here is stored or sent anywhere.
-export function buildStartScreen({ product, defaultMode, onStart, lastRun, seed }) {
+export function buildStartScreen({ product, intro, defaultMode, onStart, lastRun, seed }) {
   const modes = product.modes;
   let mode = modes.find((m) => m.id === defaultMode) ? defaultMode : modes[1 % modes.length].id;
 
@@ -35,14 +35,14 @@ export function buildStartScreen({ product, defaultMode, onStart, lastRun, seed 
 
   const root = el('div', { class: 'start' }, [
     el('div', { class: 'st-card' }, [
-      el('p', { class: 'st-kicker', text: product.kicker }),
-      el('h1', { class: 'st-title', text: product.title }),
-      el('p', { class: 'st-lede', text: product.lede }),
+      el('p', { class: 'st-kicker', text: intro ? intro.kicker : product.kicker }),
+      el('h1', { class: 'st-title', text: intro ? intro.title : product.title }),
+      el('p', { class: 'st-lede', text: intro ? intro.lede : product.lede }),
       el('div', { class: 'st-player' }, [
         el('span', { class: 'st-avatar', text: product.player.initial || product.player.name[0] }),
         el('span', {}, [
           el('b', { text: `You are ${product.player.name}` }),
-          el('small', { text: product.player.bio })
+          el('small', { text: (intro && intro.role) || product.player.bio })
         ])
       ]),
       el('div', { class: 'st-modes', role: 'radiogroup', 'aria-label': product.modeLabel || 'Difficulty' }, modeButtons),

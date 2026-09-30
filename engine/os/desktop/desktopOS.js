@@ -57,7 +57,8 @@ export class DesktopOS {
     this.startEl = el('div', { class: 'dk-start-menu', hidden: true });
     this.centreEl = el('div', { class: 'dk-centre', hidden: true });
     this.menuEl = el('div', { class: 'dk-context', hidden: true, role: 'menu' });
-    root.append(this.desktopEl, this.windowsEl, this.toastEl, this.startEl, this.centreEl, this.menuEl, this.taskbarEl, this.bar);
+    this.lockEl = el('div', { class: 'dk-lock', hidden: true });
+    root.append(this.desktopEl, this.windowsEl, this.toastEl, this.startEl, this.centreEl, this.menuEl, this.taskbarEl, this.bar, this.lockEl);
 
     bus.on('world:changed', () => this.render());
     bus.on('clock:changed', () => this.renderTaskbar());
@@ -71,6 +72,8 @@ export class DesktopOS {
     });
     root.addEventListener('keydown', (ev) => {
       if (ev.key === 'Escape') { this.menuEl.hidden = true; this.toggleStart(false); this.centreEl.hidden = true; }
+      // Win+L never reaches a web page, so the sim also takes Ctrl+Alt+L.
+      if ((ev.metaKey || (ev.ctrlKey && ev.altKey)) && ev.key.toLowerCase() === 'l') { ev.preventDefault(); this.lock(); }
     });
 
     this.renderDesktop();
@@ -141,6 +144,65 @@ export class DesktopOS {
       if (!seen.has(id)) { node.root.remove(); this.mounted.delete(id); }
     }
     this.renderTaskbar();
+    this.renderLock();
+  }
+
+  // ------------------------------------------------------ lock and power
+  // Locking is the habit being taught when someone steps away: the screen
+  // stays exactly as it was underneath, and only the owner gets back in.
+  // The state lives in the world (and a flag), so a rewind undoes it and a
+  // scenario rule can ask whether the screen was locked.
+  lock() {
+    if (this.desk.locked || this.desk.power === 'off') return;
+    this.toggleStart(false);
+    this.store.update((s) => { s.desktop.locked = true; s.flags['desktop.locked'] = true; }, 'desktop-lock');
+    audio.play('click');
+    bus.emit('desktop:locked', {});
+  }
+
+  unlock() {
+    this.store.update((s) => { s.desktop.locked = false; s.flags['desktop.locked'] = false; }, 'desktop-unlock');
+    audio.play('click');
+    bus.emit('desktop:unlocked', {});
+  }
+
+  shutDown() {
+    this.toggleStart(false);
+    this.store.update((s) => { s.desktop.power = 'off'; s.flags['desktop.off'] = true; }, 'desktop-off');
+    bus.emit('desktop:shutdown', {});
+  }
+
+  powerOn() {
+    this.store.update((s) => { s.desktop.power = 'on'; s.desktop.locked = false; s.flags['desktop.off'] = false; s.flags['desktop.locked'] = false; }, 'desktop-on');
+    bus.emit('desktop:poweredOn', {});
+  }
+
+  renderLock() {
+    const off = this.desk.power === 'off';
+    const locked = !!this.desk.locked;
+    const key = off ? 'off' : locked ? `locked:${this.world.clock.minutes}` : '';
+    if (key === this.lockKey) return;
+    this.lockKey = key;
+    clear(this.lockEl);
+    this.lockEl.hidden = !off && !locked;
+    this.lockEl.classList.toggle('is-off', off);
+    if (off) {
+      this.lockEl.append(el('div', { class: 'dk-lock-card' }, [
+        el('p', { class: 'dk-lock-sub', text: 'This computer is switched off.' }),
+        el('button', { class: 'tb-btn primary', type: 'button', onclick: () => this.powerOn() }, [icon('play'), 'Turn it back on'])
+      ]));
+      return;
+    }
+    if (!locked) return;
+    const user = (this.product.desktop && this.product.desktop.user) || { name: 'User' };
+    this.lockEl.append(el('div', { class: 'dk-lock-card' }, [
+      el('b', { class: 'dk-lock-time', text: format(this.world.clock.minutes) }),
+      el('small', { text: (this.product.desktop && this.product.desktop.date) || '' }),
+      el('span', { class: 'dk-avatar dk-lock-avatar', text: user.name[0] }),
+      el('b', { text: user.name }),
+      el('p', { class: 'dk-lock-sub' }, [icon('lock'), ' Locked. Everything is still open underneath.']),
+      el('button', { class: 'tb-btn primary', type: 'button', onclick: () => this.unlock() }, [icon('unlock'), 'Unlock'])
+    ]));
   }
 
   buildWindow(w) {
@@ -196,6 +258,7 @@ export class DesktopOS {
       ]),
       el('div', { class: 'dk-tasks' }, [...pinned, ...extraRunning].map(appBtn)),
       el('div', { class: 'dk-tray' }, [
+        el('button', { class: 'dk-bell dk-lockbtn', type: 'button', 'aria-label': 'Lock the screen (Windows key + L)', title: 'Lock (Win+L)', onclick: () => this.lock() }, [icon('lock')]),
         icon('wifi'), icon('soundOn'),
         el('button', { class: 'dk-bell', type: 'button', 'aria-label': unread ? `${unread} notifications` : 'Notifications', onclick: () => this.toggleCentre() }, [icon('bell'), unread ? el('span', { class: 'dk-dot' }) : null]),
         el('span', { class: 'dk-clock' }, [el('b', { text: format(this.world.clock.minutes) }), el('small', { text: (this.product.desktop && this.product.desktop.date) || '' })])
@@ -223,7 +286,11 @@ export class DesktopOS {
     search.addEventListener('input', () => fill(search.value));
     fill();
     const user = this.product.desktop && this.product.desktop.user;
-    this.startEl.append(...[search, grid, user ? el('div', { class: 'dk-start-user' }, [el('span', { class: 'dk-avatar', text: user.name[0] }), el('b', { text: user.name }), el('small', { text: user.account || '' })]) : null].filter(Boolean));
+    const power = el('div', { class: 'dk-power' }, [
+      el('button', { class: 'dk-power-btn', type: 'button', dataset: { power: 'lock' }, onclick: () => this.lock() }, [icon('lock'), 'Lock']),
+      el('button', { class: 'dk-power-btn', type: 'button', dataset: { power: 'off' }, onclick: () => this.shutDown() }, [icon('phoneOff'), 'Shut down'])
+    ]);
+    this.startEl.append(...[search, grid, user ? el('div', { class: 'dk-start-user' }, [el('span', { class: 'dk-avatar', text: user.name[0] }), el('span', { class: 'dk-start-who' }, [el('b', { text: user.name }), el('small', { text: user.account || '' })]), power]) : power].filter(Boolean));
     setTimeout(() => search.focus(), 0);
   }
 

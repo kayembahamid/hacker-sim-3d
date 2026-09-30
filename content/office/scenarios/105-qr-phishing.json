@@ -1,0 +1,175 @@
+{
+  "id": "qr-phishing",
+  "order": 105,
+  "title": "QR code phishing (quishing)",
+  "kind": "QR code phishing",
+  "track": "security-awareness",
+  "pool": false,
+  "level": "Foundational",
+  "minutes": 5,
+  "maxPoints": 68,
+  "startsAt": 1040,
+  "brief": "17:20. IT emails everyone: re-register your authenticator tonight by scanning a code with your phone.",
+  "insight": "A QR code is a link in a disguise your mail filter cannot read. It also moves you from a managed computer to your phone.",
+  "teaches": [
+    "Treat a QR code like any other link: read where it goes before opening it",
+    "Codes in emails skip the link scanner and land on your phone, where addresses are hard to read",
+    "IT never needs you to scan a code to keep your account"
+  ],
+  "vars": {
+    "sender": { "pick": ["veltrix-itdesk.com", "vlx-servicedesk.net", "veltrix-support-desk.com"] },
+    "qrHost": { "pick": ["sso.veltrix-logistics.com.authgate-verify.net", "veltrix-mfa-enrol.com", "sso-veltrix-logistics.net"] }
+  },
+  "setup": [
+    {
+      "do": "site.page",
+      "id": "qr-fake",
+      "host": "{{qrHost}}",
+      "title": "Veltrix sign in",
+      "fake": true,
+      "colour": "#0f2a33",
+      "accent": "#24c28a",
+      "pages": {
+        "/": [
+          { "h": "Re-register your authenticator" },
+          { "muted": "Sign in to keep your account active after tonight's security upgrade." },
+          { "form": { "id": "qr-form", "site": "qr-fake", "submit": "Continue", "fields": [{ "name": "username", "label": "Work email" }, { "name": "password", "label": "Password", "type": "password" }] } }
+        ]
+      }
+    },
+    {
+      "do": "mail.deliver",
+      "mail": {
+        "id": "qr-mail",
+        "genuine": false,
+        "external": true,
+        "from": { "name": "IT Service Desk", "address": "servicedesk@{{sender}}" },
+        "subject": "Action required tonight: re-register your authenticator",
+        "body": [
+          "Hi,",
+          "As part of tonight's security upgrade, every user must re-register their authenticator before 19:00 or they will be signed out.",
+          "For your security this email contains no links. Scan the code below with your phone camera to continue.",
+          { "qr": "https://{{qrHost}}/enrol", "caption": "Scan with your phone camera" },
+          { "sign": "IT Service Desk\nVeltrix Logistics" }
+        ],
+        "headers": {
+          "returnPath": "bounce@{{sender}}",
+          "spf": { "result": "pass", "explain": "Sent by {{sender}}, not by Veltrix's own mail servers." },
+          "dkim": { "result": "pass", "explain": "Signed by {{sender}}, not veltrix-logistics.com." },
+          "dmarc": { "result": "none", "explain": "No policy on this domain." },
+          "received": ["from mail.{{sender}} (203.0.113.77) by mx.veltrix-logistics.com"],
+          "messageId": "mfa-upgrade@{{sender}}",
+          "summary": "The real service desk writes from veltrix-logistics.com. The link scanner found nothing, because the link is a picture."
+        }
+      }
+    },
+    { "do": "world.push", "path": "phone.qr", "value": { "id": "qr-it", "label": "The code in the IT email", "url": "https://{{qrHost}}/enrol", "genuine": false } },
+    {
+      "do": "deskphone.line",
+      "number": "4040",
+      "line": {
+        "name": "IT service desk",
+        "genuine": true,
+        "verifies": "it",
+        "voice": { "gender": "female", "tone": "warm" },
+        "script": [
+          { "say": "IT service desk, Priya speaking." },
+          { "choices": [
+            { "id": "ask", "label": "Did you send an email asking us to scan a code for the authenticator?", "goto": "ask" },
+            { "id": "none", "label": "Sorry, wrong number", "hangUp": true }
+          ] },
+          { "id": "ask", "say": "No, that is not us. We never ask you to scan a code or sign in to keep your account. Please do not scan it, and report the email.", "end": true }
+        ]
+      }
+    },
+    { "do": "room.banner", "title": "Mail", "body": "IT Service Desk: re-register your authenticator", "icon": "mail", "object": "computer", "action": "Open" }
+  ],
+  "bonuses": [
+    {
+      "id": "b-sender",
+      "when": { "event": "sender:checked", "match": { "id": "qr-mail" } },
+      "outcome": { "points": 6, "verdict": "careful", "label": "Checked the real sender address", "what": "The service desk writes from veltrix-logistics.com. This came from {{sender}}.", "ideal": "checks the sender before acting on any code or link." }
+    },
+    {
+      "id": "b-headers",
+      "when": { "event": "headers:viewed", "match": { "id": "qr-mail" } },
+      "outcome": { "points": 6, "verdict": "careful", "label": "Read the headers", "what": "Sent from outside Veltrix. The checks only prove the lookalike domain sent it.", "ideal": "checks where an urgent IT email really came from." }
+    },
+    {
+      "id": "b-closed",
+      "when": { "event": "qr:closed", "match": { "id": "qr-it" } },
+      "outcome": { "points": 12, "verdict": "careful", "label": "Read where the code goes, and did not open it", "what": "The code opens {{qrHost}}, which is not sso.veltrix-logistics.com.", "ideal": "reads a QR code's address like any link, and stops when it is wrong." }
+    },
+    {
+      "id": "b-verify",
+      "when": { "event": "deskphone:connected", "match": { "verifies": "it" } },
+      "outcome": { "points": 16, "verdict": "safe", "label": "Checked with the real service desk", "what": "IT never asks anyone to scan a code to keep an account.", "ideal": "checks an urgent IT request by calling the service desk." }
+    }
+  ],
+  "guards": [
+    {
+      "id": "g-opened",
+      "when": { "event": "qr:opened", "match": { "id": "qr-it" } },
+      "outcome": { "points": -6, "verdict": "risky", "label": "Opened the link from the code", "what": "The phone opened {{qrHost}}. On a small screen the address is easy to miss.", "ideal": "reads the address the camera shows before opening it." }
+    }
+  ],
+  "start": "decide",
+  "stages": {
+    "decide": {
+      "objective": "Decide what to do about the code in the IT email.",
+      "target": "computer",
+      "decision": true,
+      "insight": "The mail filter checks links. It cannot read a picture. That is the only reason this email uses a QR code.",
+      "hint": { "text": "Check the sender of the email. If you scan the code with the phone's Camera app, read the address it shows and do not open it. Call the service desk (4040), then report the email." },
+      "on": [
+        {
+          "when": { "event": "form:submitted", "match": { "site": "qr-fake" } },
+          "outcome": {
+            "points": -40, "verdict": "unsafe", "label": "Signed in on the page behind the code",
+            "what": "Your Veltrix password went to the attacker, from your phone, where the address bar showed only part of the address.",
+            "ideal": "reads the QR code's address before opening it, and never signs in from a code in an email.",
+            "card": {
+              "title": "A link in disguise",
+              "kicker": "QR code phishing",
+              "body": [
+                "The code opened {{qrHost}}, not sso.veltrix-logistics.com. The camera showed the address before it opened; that was the moment to stop.",
+                "QR codes in email exist to dodge the link scanner and move you to your phone. IT never needs you to scan anything to keep your account."
+              ],
+              "ideal": "treats a QR code like any link, and reports it.",
+              "rewindLabel": "Rewind to before I signed in"
+            }
+          },
+          "go": "wrap"
+        },
+        {
+          "when": { "event": "mail:reported", "match": { "genuine": false } },
+          "outcome": {
+            "points": 28, "verdict": "safe", "label": "Reported the QR code email",
+            "what": "The service desk can pull it from every inbox before anyone scans it.",
+            "ideal": "reports QR code phishing so it is removed for everyone.",
+            "card": {
+              "title": "Not scanned, not signed in",
+              "kicker": "QR code phishing",
+              "body": [
+                "You reported it. The link was a picture so the filter could not see it, and a phone so the address would be hard to read.",
+                "A QR code is a link you cannot read until you look. Look, and treat it like any other link."
+              ],
+              "ideal": "previews a code's address, and reports an unexpected one."
+            }
+          },
+          "go": "done"
+        }
+      ]
+    },
+    "wrap": {
+      "auto": [{ "do": "objective", "text": "Report it, and change your password." }],
+      "hint": { "text": "Report the email, and change your Veltrix password in Account security." },
+      "on": [
+        { "when": { "event": "mail:reported" }, "go": "done" },
+        { "when": { "event": "ticket:raised" }, "go": "done" },
+        { "when": { "event": "password:changed" }, "go": "done" }
+      ]
+    },
+    "done": { "end": true }
+  }
+}

@@ -1,0 +1,163 @@
+{
+  "id": "report-fast",
+  "order": 118,
+  "title": "Report it in the first minute",
+  "kind": "Incident reporting",
+  "track": "security-awareness",
+  "pool": false,
+  "level": "Foundational",
+  "minutes": 4,
+  "maxPoints": 53,
+  "startsAt": 1108,
+  "brief": "18:28. A file share notification lands in every finance inbox at once. The clock starts now.",
+  "insight": "The same phishing email usually goes to everyone. The first report is what lets IT pull it before the next person clicks.",
+  "teaches": [
+    "Report the moment something looks wrong: the first minute matters most",
+    "Report even if you clicked. Especially if you clicked",
+    "Use the button in Mail, or ring the service desk; do not just delete it"
+  ],
+  "vars": {
+    "fb": { "fake": "filebridge" },
+    "late": { "byDifficulty": { "training": 75000, "assessment": 55000, "expert": 45000, "normal": 55000 } }
+  },
+  "setup": [
+    { "do": "site.fake", "brand": "filebridge", "host": "{{fb.host}}", "trick": "{{fb.trick}}" },
+    {
+      "do": "mail.deliver",
+      "mail": {
+        "id": "rf-mail",
+        "genuine": false,
+        "external": true,
+        "from": { "name": "Filebridge", "address": "no-reply@{{fb.host}}" },
+        "subject": "Marta Okafor shared “Bonus letters 2026.pdf” with you",
+        "body": [
+          "Marta Okafor shared a file with you on Filebridge.",
+          { "button": "Open in Filebridge", "href": "https://{{fb.host}}/v/bonus-letters-2026" },
+          { "small": "You received this because you are a member of Veltrix Logistics on Filebridge." }
+        ],
+        "headers": {
+          "returnPath": "bounce@{{fb.host}}",
+          "spf": { "result": "pass", "explain": "Sent by {{fb.host}}, not filebridge.io." },
+          "dkim": { "result": "pass", "explain": "Signed by {{fb.host}}." },
+          "dmarc": { "result": "none", "explain": "No policy on this domain." },
+          "received": ["from mail.{{fb.host}} (203.0.113.39) by mx.veltrix-logistics.com"],
+          "messageId": "share-bonus@{{fb.host}}",
+          "summary": "A lookalike of filebridge.io, sent to the whole finance team at the same moment."
+        }
+      }
+    },
+    {
+      "do": "deskphone.line",
+      "number": "4040",
+      "line": {
+        "name": "IT service desk",
+        "genuine": true,
+        "verifies": "it",
+        "voice": { "gender": "female", "tone": "warm" },
+        "script": [
+          { "say": "IT service desk, Priya speaking." },
+          { "choices": [{ "id": "tell", "label": "A fake Filebridge share just went to the finance team", "goto": "tell" }] },
+          { "id": "tell", "say": "Thank you, that is exactly what I need. I am pulling it from every inbox now. If you clicked, tell me, no blame. Log it with Report phishing too.", "end": true }
+        ]
+      }
+    },
+    { "do": "room.banner", "title": "Mail", "body": "Marta Okafor shared “Bonus letters 2026.pdf” with you", "icon": "mail", "object": "computer", "action": "Open" }
+  ],
+  "bonuses": [
+    {
+      "id": "b-fast",
+      "group": "speed",
+      "when": { "event": "mail:reported", "match": { "id": "rf-mail" }, "notFlag": "rf.late" },
+      "outcome": { "points": 25, "verdict": "safe", "label": "Reported it inside the first minute", "what": "Your report was the first. IT pulled the email before anyone else clicked.", "ideal": "reports the moment something looks wrong." }
+    },
+    {
+      "id": "b-late",
+      "group": "speed",
+      "when": { "event": "mail:reported", "match": { "id": "rf-mail" }, "flag": "rf.late" },
+      "outcome": { "points": 8, "verdict": "careful", "label": "Reported it, a little late", "what": "Reported, but not before a colleague had already signed in on the fake page.", "ideal": "reports in the first minute, before anyone else clicks." }
+    },
+    {
+      "id": "b-call",
+      "when": { "event": "deskphone:connected", "match": { "verifies": "it" } },
+      "outcome": { "points": 8, "verdict": "safe", "label": "Rang the service desk as well", "what": "A call gets a human moving straight away.", "ideal": "rings the service desk when something is spreading." }
+    }
+  ],
+  "guards": [],
+  "start": "decide",
+  "stages": {
+    "decide": {
+      "objective": "A suspicious share has reached the whole team. Act fast.",
+      "target": "computer",
+      "decision": true,
+      "insight": "Deleting it protects you. Reporting it protects everyone who has not opened it yet.",
+      "hint": { "text": "Open the email, check the sender's real address, and press Report phishing. Then ring the service desk on 4040." },
+      "auto": [
+        {
+          "do": "after",
+          "ms": "{{late}}",
+          "actions": [
+            { "do": "flag.set", "key": "rf.late" },
+            { "do": "chat.append", "chatId": "ap-team", "message": [
+              { "from": "tom", "fromName": "Tom Becker", "text": "anyone else get a bonus letter from Marta? signed in to read it and it just went blank" },
+              { "from": "leila", "fromName": "Leila Haddad", "text": "Marta is on leave, she has not shared anything. Do not open it!" }
+            ] }
+          ]
+        }
+      ],
+      "on": [
+        {
+          "when": { "event": "form:submitted", "match": { "site": "filebridge-fake" } },
+          "outcome": {
+            "points": -20, "verdict": "unsafe", "label": "Signed in on the fake share",
+            "what": "Your password went to the attacker. What matters most now is how fast you say so.",
+            "ideal": "reports straight away, even after clicking.",
+            "card": {
+              "title": "Now the clock matters even more",
+              "kicker": "Incident reporting",
+              "body": [
+                "The page was {{fb.host}}, not filebridge.io. It happens, to careful people too.",
+                "What decides how bad this gets is the next minute: report it and tell the service desk you signed in, so they can reset your password and pull the email from everyone else."
+              ],
+              "ideal": "reports at once, including their own click."
+            }
+          },
+          "go": "own-up"
+        },
+        {
+          "when": { "event": "mail:reported", "match": { "id": "rf-mail" } },
+          "outcome": {
+            "points": 20, "verdict": "safe", "label": "Reported the fake share",
+            "what": "The service desk pulled it from 23 inboxes.",
+            "ideal": "reports rather than just deleting.",
+            "effects": [
+              { "do": "chat.append", "chatId": "ap-team", "delayMs": 1500, "message": { "from": "leila", "fromName": "Leila Haddad", "text": "Heads up: that Filebridge share was fake, not from Marta. Priya has pulled it from everyone's inbox. Thanks Sam for the quick report." } }
+            ],
+            "card": {
+              "title": "An early warning for everyone",
+              "kicker": "Incident reporting",
+              "body": [
+                "One report, and the service desk pulled the email from every inbox on the floor. The people who had not opened it yet never will.",
+                "The fastest security control you have is the Report button. Use it the moment something looks wrong, and ring the desk when it is spreading."
+              ],
+              "ideal": "reports in the first minute."
+            }
+          },
+          "go": "done"
+        }
+      ]
+    },
+    "own-up": {
+      "objective": "Report it now, and say that you signed in.",
+      "target": "computer",
+      "hint": { "text": "Press Report phishing in Mail, and ring the service desk on 4040 (or raise a ticket) to say you signed in." },
+      "on": [
+        {
+          "when": { "event": ["mail:reported", "ticket:raised"] },
+          "outcome": { "points": 15, "verdict": "safe", "label": "Reported it, including your own click", "what": "Your password is reset and the email is pulled from everyone else's inbox.", "ideal": "owns up fast; no blame, just speed." },
+          "go": "done"
+        }
+      ]
+    },
+    "done": { "end": true }
+  }
+}

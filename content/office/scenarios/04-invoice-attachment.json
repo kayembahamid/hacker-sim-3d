@@ -3,6 +3,7 @@
   "order": 4,
   "title": "The invoice attachment",
   "kind": "Malicious attachment",
+  "track": "real-world-incidents",
   "maxPoints": 58,
   "startsAt": 1055,
   "brief": "17:35. An invoice lands from a supplier you do not recognise, with a file attached.",

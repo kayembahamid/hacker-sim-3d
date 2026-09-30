@@ -13,13 +13,14 @@ import { changed, btn, empty, badge, head, office } from './kit.js';
 // the attack.
 //
 // Events: doc:opened { id }, doc:hiddenShown { id, hasHidden },
-// doc:macroEnabled { id }, sheet:opened { id }, sheet:macroEnabled { id }.
+// doc:macroEnabled { id }, doc:macroKept { id }, sheet:opened { id },
+// sheet:macroEnabled { id }, sheet:macroKept { id }.
 function macroBar(ctx, kind, id, file, onEnable) {
   return el('div', { class: 'dc-macro' }, [
     icon('warning'),
     el('span', {}, [el('b', { text: 'Security warning ' }), 'Macros have been disabled. This file came from the internet.']),
     btn('Enable content', onEnable, { warn: true }),
-    btn('Keep disabled', () => ctx.setExtra(kind, { [`kept-${id}`]: true }))
+    btn('Keep disabled', () => { ctx.setExtra(kind, { [`kept-${id}`]: true }); bus.emit(kind === 'docs' ? 'doc:macroKept' : 'sheet:macroKept', { id }); })
   ]);
 }
 

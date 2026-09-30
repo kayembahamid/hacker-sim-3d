@@ -1,6 +1,7 @@
 import { BRANDS } from './brands.js';
 import { lookalikesFor, split } from './lookalikes.js';
 import { renderSite } from './render.js';
+import { pageSite } from './pages.js';
 import { registrableDomain } from '../../../engine/scenario/lookalike.js';
 
 // Turns the brand data into the site descriptors the browser resolves. Every
@@ -89,6 +90,13 @@ export class SiteRegistry {
     if (!brand) return null;
     const site = { ...fakeSite(brand, host, trick), ...extra };
     this.byHost.set(host.toLowerCase(), site);
+    return site;
+  }
+
+  // A page written by a scenario, as data (see pages.js).
+  page(spec) {
+    const site = pageSite(spec);
+    this.byHost.set(String(spec.host).toLowerCase(), site);
     return site;
   }
 

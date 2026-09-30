@@ -41,6 +41,19 @@ export const product = {
   fictionNote: 'Veltrix Logistics and every person, vendor, bank and website in it are made up. No page here is a real login, and nothing you do leaves this browser.',
   seedHelp: 'The seed decides which attacks turn up, in what order, which vendor and domain the attacker uses, and what is in the logs. Same seed, same shift.',
   theme: { accent: '#24ff9c' },
+  // Single drills and tracks, opened by the Labs catalogue (?scenario=,
+  // ?track=). Their names on the title card.
+  drillKicker: 'Drill',
+  tracks: {
+    'security-awareness': 'Security Awareness',
+    'privacy-compliance': 'Privacy and Compliance',
+    'ai-security': 'AI and LLM Security',
+    'real-world-incidents': 'Real-World Incidents',
+    'application-security': 'Application Security',
+    'api-security': 'API Security',
+    'git-security': 'Git and Repository Security',
+    'cloud-security': 'Cloud Security'
+  },
   exportResult: true,
 
   // The office picks a lookalike address for one of its brands with a
@@ -222,6 +235,7 @@ export const product = {
 
   initialWorld(w) {
     w.phone.pinKnown = true;
+    w.phone.qr = [];
     w.phone.codes = [{ id: 'vlx', issuer: 'Veltrix Logistics', account: 's.rivera', seed: 'veltrix-sam' }];
     w.phone.bank = { balance: 1842.37, payees: ['Alex', 'Northside Lettings'], history: [
       { at: 'Today 08:12', what: 'Northside Café', amount: -3.2 },
@@ -234,6 +248,10 @@ export const product = {
         name: 'Veltrix sign in', domain: 'sso.veltrix-logistics.com', user: 's.rivera', twoStep: true, codeSeed: 'veltrix-sam',
         recovery: 's.rivera@veltrix-logistics.com',
         recoveryOptions: [{ label: 'Work email', address: 's.rivera@veltrix-logistics.com', trusted: true }],
+        recovery: [
+          { id: 'rc-work', kind: 'email', label: 'Recovery email', value: 's.rivera@veltrix-logistics.com', note: 'Your work mailbox.', locked: true },
+          { id: 'rc-auth', kind: 'app', label: 'Authenticator app', value: 'Phone, number matching', note: 'The strongest way back in.', locked: true }
+        ],
         password: { strong: true, note: 'Changed 41 days ago.' },
         methods: [
           { id: 'push', label: 'Authenticator app push, with number matching', on: true },
@@ -261,10 +279,10 @@ export const product = {
       }
     };
     w.desktop.vault = { setup: true, locked: false, entries: [
-      { id: 'v-sso', host: 'sso.veltrix-logistics.com', service: 'veltrix', username: 's.rivera', strong: true },
-      { id: 'v-erp', host: 'erp.veltrix-logistics.com', service: 'veltrix', username: 's.rivera', strong: true },
-      { id: 'v-bank', host: 'business.harbourbank.co.uk', service: 'harbour', username: 'VLX-AP-02', strong: true },
-      { id: 'v-share', host: 'filebridge.io', service: 'filebridge', username: 's.rivera@veltrix-logistics.com', strong: true }
+      { id: 'v-sso', host: 'sso.veltrix-logistics.com', service: 'veltrix', username: 's.rivera', strong: true, strength: 'strong', fingerprint: 'vx-sso-7Qm' },
+      { id: 'v-erp', host: 'erp.veltrix-logistics.com', service: 'veltrix', username: 's.rivera', strong: true, strength: 'strong', fingerprint: 'vx-erp-2Lp' },
+      { id: 'v-bank', host: 'business.harbourbank.co.uk', service: 'harbour', username: 'VLX-AP-02', strong: true, strength: 'strong', fingerprint: 'hb-biz-9Tw' },
+      { id: 'v-share', host: 'filebridge.io', service: 'filebridge', username: 's.rivera@veltrix-logistics.com', strong: true, strength: 'strong', fingerprint: 'fb-io-4Kd' }
     ] };
     w.desktop.files = [
       { id: 'f-runlist', name: 'payment_run_24Sep.xlsx', folder: 'Documents', size: '48 KB', icon: 'sheet', type: 'Spreadsheet', trueType: 'Spreadsheet (.xlsx)', from: 'this computer', signed: null },
@@ -323,6 +341,11 @@ export const product = {
         { id: 'sh-remit', name: 'Remittance advice Q3', owner: 'Sam Rivera', link: { type: 'anyone', label: 'Anyone with the link, no sign in' }, risky: true }
       ] },
       vpn: { connected: false, server: 'vpn.veltrix-logistics.com' },
+      network: { cable: true, lan: 'Veltrix LAN', wifiOn: false, wifi: null, networks: [] },
+      cases: [],
+      search: [],
+      helpdeskAbout: [],
+      video: { meetings: [] },
       endpoint: { alerts: [
         { id: 'al-yday', level: 'medium', at: 'Yesterday 16:48', device: 'VLX-PC-4475 (Tom Becker)', what: 'Browser visited a newly registered domain', status: 'Closed by user' }
       ] },

@@ -1,0 +1,174 @@
+{
+  "id": "chat-impersonation",
+  "order": 107,
+  "title": "Your boss on the chat app",
+  "kind": "Impersonation",
+  "track": "security-awareness",
+  "pool": false,
+  "level": "Core",
+  "minutes": 6,
+  "maxPoints": 58,
+  "startsAt": 1050,
+  "brief": "17:30. A new number messages you. It says it is Helen Marsh, the CEO, on her personal phone.",
+  "insight": "A new number, an excuse for why, and a request for something you would never send to a stranger.",
+  "teaches": [
+    "A new number claiming to be someone senior is not verified by the name it uses",
+    "Move the conversation back to a channel you both already trust before doing anything",
+    "Report the number so others get warned"
+  ],
+  "vars": {
+    "excuse": { "pick": ["my work phone has died", "I left my work phone at the hotel", "my work phone is being repaired"] }
+  },
+  "setup": [
+    {
+      "do": "chat.deliver",
+      "notify": false,
+      "chat": {
+        "id": "dm-helen",
+        "name": "Helen Marsh",
+        "group": false,
+        "genuine": true,
+        "colour": "#8a3a6b",
+        "unread": 0,
+        "members": [
+          { "id": "helen", "name": "Helen Marsh", "handle": "@helen.marsh", "known": true, "colour": "#8a3a6b", "note": "CEO" },
+          { "id": "me", "name": "Sam Rivera (you)", "handle": "@sam.rivera", "known": true, "colour": "#24c28a" }
+        ],
+        "messages": [{ "from": "helen", "fromName": "Helen Marsh", "text": "Thanks for covering the run this week, Sam.", "at": "Mon 09:12" }],
+        "replies": [{ "id": "ask", "text": "Helen, are you texting me from a new number tonight?", "kind": "verify" }]
+      }
+    },
+    {
+      "do": "sms.deliver",
+      "thread": {
+        "id": "t-helen-new",
+        "genuine": false,
+        "from": { "name": "+44 7700 900863", "number": "+44 7700 900863", "known": false, "details": ["Not in your contacts. Helen Marsh is saved as +44 7700 900222."] },
+        "messages": [{ "id": "h1", "dir": "in", "text": "Hi Sam, it's Helen. New number, {{excuse}}. Are you still in the office? I need something handled discreetly tonight." }],
+        "replies": [
+          { "id": "yes", "text": "Hi Helen, yes, still here. What do you need?", "kind": "engage" },
+          { "id": "move", "text": "Hi, I will message you on the company chat to check it is you.", "kind": "verify" }
+        ]
+      }
+    },
+    {
+      "do": "deskphone.line",
+      "number": "4001",
+      "line": {
+        "name": "Office of the CEO",
+        "genuine": true,
+        "verifies": "ceo",
+        "voice": { "gender": "female", "tone": "calm" },
+        "script": [
+          { "say": "Helen Marsh's office, Chloe speaking." },
+          { "choices": [{ "id": "ask", "label": "Is Helen texting staff from a new number tonight?", "goto": "ask" }] },
+          { "id": "ask", "say": "No, her phone is fine and she is sitting right here. She has not texted anyone. Please report it.", "end": true }
+        ]
+      }
+    },
+    { "do": "room.banner", "title": "Messages", "body": "+44 7700 900863: Hi Sam, it's Helen. New number...", "icon": "messages", "object": "phone", "action": "Read" }
+  ],
+  "bonuses": [
+    {
+      "id": "b-sender",
+      "when": { "event": "sender:checked", "match": { "threadId": "t-helen-new" } },
+      "outcome": { "points": 6, "verdict": "careful", "label": "Checked the number", "what": "Not a contact. Helen's saved number is different.", "ideal": "checks the number, not the name a message uses." }
+    },
+    {
+      "id": "b-chat",
+      "group": "verify",
+      "when": { "event": "chat:replied", "match": { "chatId": "dm-helen", "replyId": "ask" }, "notFlag": "ci.verified" },
+      "outcome": {
+        "points": 22, "verdict": "safe", "label": "Asked Helen on the company chat",
+        "what": "Helen answers on her real, internal account: it is not her.",
+        "ideal": "moves the conversation back to a channel both people already trust.",
+        "effects": [
+          { "do": "flag.set", "key": "ci.verified" },
+          { "do": "chat.append", "chatId": "dm-helen", "delayMs": 2500, "message": { "from": "helen", "fromName": "Helen Marsh", "text": "No, that is not me. My phone is fine. Please do not send them anything, and report it." } }
+        ]
+      }
+    },
+    {
+      "id": "b-call",
+      "group": "verify",
+      "when": { "event": "deskphone:connected", "match": { "verifies": "ceo" }, "notFlag": "ci.verified" },
+      "outcome": { "points": 22, "verdict": "safe", "label": "Called the CEO's office", "what": "Helen is sitting with Chloe. The text was not from her.", "ideal": "verifies on a number they already had.", "effects": [{ "do": "flag.set", "key": "ci.verified" }] }
+    }
+  ],
+  "guards": [],
+  "start": "decide",
+  "stages": {
+    "decide": {
+      "objective": "Decide what to do about the text from “Helen”.",
+      "target": "phone",
+      "decision": true,
+      "insight": "The excuse for the new number is part of the script. It arrives first so the new number does not feel strange.",
+      "hint": { "text": "Check the number in Details. Ask Helen on the company chat (her real account), or call her office on 4001 from the desk phone. Then report the text." },
+      "on": [
+        {
+          "when": { "event": "message:replied", "match": { "threadId": "t-helen-new", "replyId": "yes" } },
+          "effects": [
+            { "do": "sms.append", "threadId": "t-helen-new", "delayMs": 3000, "message": { "dir": "in", "text": "Thank you. Send me tonight's payment run list with the bank details, and the approval code from the business banking app. I am approving something from the airport. Quickly please." }, "replies": [
+              { "id": "send", "text": "OK, sending it now.", "kind": "comply" },
+              { "id": "check", "text": "I will call your office to check first.", "kind": "verify" }
+            ] }
+          ]
+        },
+        {
+          "when": { "event": "message:replied", "match": { "threadId": "t-helen-new", "replyId": ["move", "check"] } },
+          "effects": [
+            { "do": "sms.append", "threadId": "t-helen-new", "delayMs": 3000, "message": { "dir": "in", "text": "There is no time for that, I am boarding. Just send it, I will explain tomorrow." }, "replies": [
+              { "id": "send", "text": "OK, sending it now.", "kind": "comply" }
+            ] }
+          ]
+        },
+        {
+          "when": { "event": "message:replied", "match": { "threadId": "t-helen-new", "kind": "comply" } },
+          "outcome": {
+            "points": -35, "verdict": "unsafe", "label": "Sent the payment list and the approval code",
+            "what": "The attacker now has tonight's payments, the bank details and a code that approves a transfer. The real Helen never texted you.",
+            "ideal": "never sends payment details or codes to a new number, whoever it claims to be.",
+            "card": {
+              "title": "It was never Helen",
+              "kicker": "Impersonation",
+              "body": [
+                "The new number, the dead work phone and the rush were a script. The attacker used the approval code within minutes.",
+                "Helen was one message away on the company chat, and one call away through her office on 4001. Either would have ended it."
+              ],
+              "ideal": "moves the conversation to a trusted channel before acting.",
+              "rewindLabel": "Rewind to before I sent it"
+            }
+          },
+          "go": "wrap"
+        },
+        {
+          "when": { "event": "message:reported", "match": { "threadId": "t-helen-new" } },
+          "outcome": {
+            "points": 30, "verdict": "safe", "label": "Reported the text",
+            "what": "The number is blocked, and the rest of finance can be warned that someone is texting as Helen.",
+            "ideal": "reports impersonation so the rest of the team is warned.",
+            "card": {
+              "title": "Back on a channel you trust",
+              "kicker": "Impersonation",
+              "body": [
+                "You did not act on a new number. Whoever they claim to be, the check is the same: go back to a channel you both already use.",
+                "Attackers pick the most senior name they can find, because people hesitate to question the boss."
+              ],
+              "ideal": "verifies on a trusted channel and reports."
+            }
+          },
+          "go": "done"
+        }
+      ]
+    },
+    "wrap": {
+      "auto": [{ "do": "objective", "text": "Tell the service desk and Dan what was sent, straight away." }],
+      "hint": { "text": "Raise a Helpdesk ticket under payment fraud, and report the text." },
+      "on": [
+        { "when": { "event": "ticket:raised" }, "go": "done" },
+        { "when": { "event": "message:reported" }, "go": "done" }
+      ]
+    },
+    "done": { "end": true }
+  }
+}

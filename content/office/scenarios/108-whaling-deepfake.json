@@ -1,0 +1,173 @@
+{
+  "id": "whaling-deepfake",
+  "order": 108,
+  "title": "Whaling with a deepfake",
+  "kind": "Deepfake video call",
+  "track": "security-awareness",
+  "pool": false,
+  "level": "Advanced",
+  "minutes": 8,
+  "maxPoints": 86,
+  "startsAt": 1060,
+  "brief": "17:40. Helen Marsh, the CEO, calls you on Meet. You can see her face and hear her voice. She needs a payment made tonight.",
+  "insight": "A face and a voice can both be generated from a few minutes of public video. Seeing is no longer proof.",
+  "teaches": [
+    "The call back rule: end the call, and call the person on a number you already hold",
+    "Spot the tells: a stiff face, a mouth out of time, excuses not to move or turn",
+    "No call, however senior, skips the payment approval process"
+  ],
+  "vars": {
+    "amt": { "pick": [{ "n": 185000, "s": "185,000" }, { "n": 142500, "s": "142,500" }, { "n": 210000, "s": "210,000" }] },
+    "deal": { "pick": ["Halden", "Corvid Freight", "Marlow Cold Chain"] }
+  },
+  "setup": [
+    {
+      "do": "world.push",
+      "path": "office.video.meetings",
+      "value": {
+        "id": "mt-helen",
+        "live": true,
+        "title": "Urgent: {{deal}} completion",
+        "host": "Helen Marsh",
+        "link": "meet.veltrix-logistics.com.boardroom-live.net/{{deal}}",
+        "external": true,
+        "genuine": false,
+        "deepfake": true,
+        "skin": "#d4a58a",
+        "voice": { "gender": "female", "tone": "pushy" },
+        "script": [
+          { "say": "Sam, thank you for joining at short notice. I will be quick, the signal here is terrible." },
+          { "say": "We are completing the {{deal}} deal tonight. The escrow deposit of {{amt.s}} pounds has to leave before the run closes. Dan has signed it off, and I have put the payment in Finance for you." },
+          { "choices": [
+            { "id": "release", "label": "Of course, I will release it now", "goto": "thanks" },
+            { "id": "process", "label": "It needs Dan's approval in the ERP. I cannot skip that.", "goto": "pressure" },
+            { "id": "test", "label": "Before anything, could you turn your head for me, or wave?", "goto": "dodge" },
+            { "id": "callback", "label": "I will call your office back to confirm", "leave": true }
+          ] },
+          { "id": "thanks", "say": "Thank you. And please keep this to yourself until it is announced.", "end": true },
+          { "id": "pressure", "say": "Dan is with the lawyers, he cannot log in. I am authorising it myself. Just release it, Sam." },
+          { "choices": [
+            { "id": "release2", "label": "OK, I will do it", "goto": "thanks" },
+            { "id": "hold", "label": "Sorry, it goes through approval or not at all", "goto": "annoyed" },
+            { "id": "callback2", "label": "I will call your office to confirm", "leave": true }
+          ] },
+          { "id": "dodge", "say": "The camera keeps freezing, I cannot. We do not have time for this." },
+          { "choices": [
+            { "id": "process2", "label": "Then it waits for Dan's approval", "goto": "annoyed" },
+            { "id": "callback3", "label": "I will call your office and come back to you", "leave": true }
+          ] },
+          { "id": "annoyed", "say": "Fine. I will have Dan call you.", "end": true }
+        ]
+      }
+    },
+    {
+      "do": "world.push",
+      "path": "office.erp.payments",
+      "value": { "id": "P-ESCROW", "vendor": null, "vendorName": "{{deal}} escrow (added from a Meet call)", "amount": "{{amt.n}}", "due": "Now", "status": "urgent", "genuine": false, "urgent": true, "note": "Added tonight at the CEO's request on a call. No vendor record. Not approved by Dan." }
+    },
+    {
+      "do": "deskphone.line",
+      "number": "4001",
+      "line": {
+        "name": "Office of the CEO",
+        "genuine": true,
+        "verifies": "ceo",
+        "voice": { "gender": "female", "tone": "calm" },
+        "script": [
+          { "say": "Helen Marsh's office, Chloe speaking." },
+          { "choices": [{ "id": "ask", "label": "Is Helen on a Meet call asking me to release an escrow payment?", "goto": "ask" }] },
+          { "id": "ask", "say": "No. Helen is at a board dinner and her phone is off. Nothing about escrow has been sent to finance. Please do not pay anything, and report it.", "end": true }
+        ]
+      }
+    },
+    { "do": "toast", "app": "video", "title": "Meet: Helen Marsh is calling", "body": "Urgent: {{deal}} completion" },
+    { "do": "room.banner", "title": "Meet", "body": "Helen Marsh is calling you on Meet", "icon": "video", "object": "computer", "action": "Join" }
+  ],
+  "bonuses": [
+    {
+      "id": "b-test",
+      "when": { "event": "video:choice", "match": { "choice": "test" } },
+      "outcome": { "points": 8, "verdict": "careful", "label": "Asked for a live test", "what": "A real person can turn their head. A generated face tends to glitch, freeze, or find an excuse.", "ideal": "asks for something a fake struggles with, but still verifies elsewhere." }
+    },
+    {
+      "id": "b-refuse",
+      "when": { "event": "video:choice", "match": { "choice": ["process", "hold", "process2"] } },
+      "outcome": { "points": 10, "verdict": "safe", "label": "Would not skip the approval", "what": "Rank does not skip the process. The payment still needs Dan and a verified beneficiary.", "ideal": "keeps to the payment process on any call." }
+    },
+    {
+      "id": "b-callback",
+      "when": { "event": "deskphone:connected", "match": { "verifies": "ceo" } },
+      "outcome": { "points": 20, "verdict": "safe", "label": "Called the CEO's office back", "what": "Helen is at a board dinner with her phone off. The face on Meet was generated.", "ideal": "hangs up and calls back on a number they already hold." }
+    },
+    {
+      "id": "b-report",
+      "when": { "event": ["video:reported", "ticket:raised"] },
+      "outcome": { "points": 8, "verdict": "safe", "label": "Reported the call", "what": "Security needs to know someone can fake Helen live.", "ideal": "reports a deepfake so others are warned." }
+    }
+  ],
+  "guards": [
+    {
+      "id": "g-agree",
+      "when": { "event": "video:choice", "match": { "choice": ["release", "release2"] } },
+      "outcome": { "points": -10, "verdict": "risky", "label": "Agreed to release it on the call", "what": "A face on a screen asked, and you said yes. That is exactly the moment the call is designed for.", "ideal": "never agrees to move money on a call." }
+    }
+  ],
+  "start": "decide",
+  "stages": {
+    "decide": {
+      "objective": "Join the call, then decide what happens to the escrow payment (P-ESCROW in Finance).",
+      "target": "computer",
+      "decision": true,
+      "insight": "Look at the tile: the face barely moves and the mouth is out of time. Then remember that even a perfect face would prove nothing.",
+      "hint": { "text": "Join the Meet call. Do not agree to the payment. Leave, call Helen's office on 4001 from the desk phone, then hold P-ESCROW in Finance and report the call." },
+      "on": [
+        {
+          "when": { "event": "erp:paymentReleased", "match": { "id": "P-ESCROW" } },
+          "outcome": {
+            "points": -45, "verdict": "unsafe", "label": "Released the escrow payment",
+            "what": "£{{amt.s}} left for an account the attacker controls, on the strength of a face on a screen.",
+            "ideal": "never releases a payment that skipped approval, whoever asked on a call.",
+            "card": {
+              "title": "The face was generated",
+              "kicker": "Deepfake video call",
+              "body": [
+                "Helen was at a board dinner with her phone off. The face and voice on Meet were generated from her conference talks online.",
+                "The tells were there: a stiff face, a mouth out of time, excuses not to turn her head, an outside meeting link. But the rule does not need tells: hang up, call back on a number you hold, and let the approval process decide."
+              ],
+              "ideal": "uses the call back rule and keeps to the approval process.",
+              "rewindLabel": "Rewind to before I paid"
+            }
+          },
+          "go": "wrap"
+        },
+        {
+          "when": { "event": "erp:paymentHeld", "match": { "id": "P-ESCROW" } },
+          "outcome": {
+            "points": 40, "verdict": "safe", "label": "Held the escrow payment",
+            "what": "Nothing moves without Dan's approval and a verified beneficiary, and neither is coming.",
+            "ideal": "holds a payment that arrived by call until it is properly approved.",
+            "card": {
+              "title": "Seeing was not believing",
+              "kicker": "Deepfake video call",
+              "body": [
+                "You held the payment. The call came from an outside link, the face barely moved, and she could not turn her head. Helen's office confirmed she was never on it.",
+                "A convincing face and voice can now be made from public video. The defence is not a sharper eye: it is the call back and the approval process."
+              ],
+              "ideal": "hangs up, calls back on a known number, and keeps to the process."
+            }
+          },
+          "go": "wrap"
+        }
+      ]
+    },
+    "wrap": {
+      "auto": [{ "do": "objective", "text": "Report the call so security knows Helen is being faked." }],
+      "hint": { "text": "Raise a Helpdesk ticket (suspicious call), or report the meeting from Meet." },
+      "on": [
+        { "when": { "event": ["ticket:raised", "video:reported"] }, "go": "done" },
+        { "when": { "event": "deskphone:connected", "match": { "verifies": "ceo" } }, "go": "done" }
+      ]
+    },
+    "done": { "end": true }
+  }
+}

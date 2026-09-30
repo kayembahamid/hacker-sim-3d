@@ -1,0 +1,169 @@
+{
+  "id": "malicious-attachment",
+  "order": 110,
+  "title": "The attachment that runs",
+  "kind": "Malicious macro",
+  "track": "security-awareness",
+  "pool": false,
+  "level": "Core",
+  "minutes": 7,
+  "maxPoints": 76,
+  "startsAt": 1070,
+  "brief": "17:50. A routine looking invoice from Talon Tyres, with a document attached. It opens, and asks you to enable content.",
+  "insight": "The document is harmless until one yellow button is pressed. That button is the attack.",
+  "teaches": [
+    "Never enable content or macros in a document that arrived by email",
+    "Check the sender's real address and the file's real type before trusting it",
+    "A clean scan proves nothing: macro documents are built to pass scanners"
+  ],
+  "vars": {
+    "tl": { "fake": "talon" },
+    "num": { "pick": ["88213", "90417", "77302"] }
+  },
+  "setup": [
+    {
+      "do": "world.set",
+      "path": "office.docs.d-ttinv",
+      "value": {
+        "title": "Invoice_TT-{{num}}.docm",
+        "meta": "Opened read only · this file came from the internet",
+        "macros": true,
+        "pages": [{ "lines": [
+          { "h": "Talon Tyres Ltd" },
+          "INVOICE TT-{{num}}",
+          "This document is protected. To view the invoice amount and payment details, click Enable Content in the yellow bar above.",
+          "If you are using a phone, open this document on your computer."
+        ] }]
+      }
+    },
+    {
+      "do": "mail.deliver",
+      "mail": {
+        "id": "tt-mail",
+        "genuine": false,
+        "external": true,
+        "from": { "name": "Talon Tyres Accounts", "address": "accounts@{{tl.host}}" },
+        "subject": "Invoice TT-{{num}}",
+        "body": [
+          "Hello,",
+          "Please find invoice TT-{{num}} attached for the September deliveries. Kindly process in tonight's run.",
+          { "sign": "Rhea Doyle\nTalon Tyres Ltd" }
+        ],
+        "attachments": [
+          { "name": "Invoice_TT-{{num}}.docm", "size": "146 KB", "file": "d-ttinv", "props": { "icon": "doc", "type": "Word document", "trueType": "Word document with macros (.docm): it can run code when content is enabled", "motw": true, "signed": null, "opens": "docs", "scanResult": "No threats found. Macro documents are often built to pass scanners until the moment they run." } }
+        ],
+        "headers": {
+          "returnPath": "bounce@{{tl.host}}",
+          "spf": { "result": "pass", "explain": "Sent by {{tl.host}}. Talon Tyres' real domain is talontyres.co.uk." },
+          "dkim": { "result": "pass", "explain": "Signed by {{tl.host}}." },
+          "dmarc": { "result": "none", "explain": "No policy on the lookalike." },
+          "received": ["from mail.{{tl.host}} (203.0.113.83) by mx.veltrix-logistics.com"],
+          "messageId": "invoice-{{num}}@{{tl.host}}",
+          "summary": "{{tl.label}}: {{tl.host}} is not talontyres.co.uk. And Talon's real invoices come as PDFs through the supplier portal."
+        }
+      }
+    },
+    {
+      "do": "deskphone.line",
+      "number": "01134960555",
+      "line": {
+        "name": "Talon Tyres",
+        "genuine": true,
+        "verifies": "talon",
+        "voice": { "gender": "female", "tone": "calm" },
+        "script": [
+          { "say": "Talon Tyres, Rhea speaking." },
+          { "choices": [{ "id": "ask", "label": "Did you just email us invoice TT-{{num}} as a Word document?", "goto": "ask" }] },
+          { "id": "ask", "say": "No. We have not invoiced you this week, and our invoices go through your supplier portal as PDFs, never Word files. Please do not open it.", "end": true }
+        ]
+      }
+    },
+    { "do": "room.banner", "title": "Mail", "body": "Talon Tyres Accounts: Invoice TT-{{num}}", "icon": "mail", "object": "computer", "action": "Open" }
+  ],
+  "bonuses": [
+    {
+      "id": "b-sender",
+      "when": { "event": "sender:checked", "match": { "id": "tt-mail" } },
+      "outcome": { "points": 6, "verdict": "careful", "label": "Checked the real sender address", "what": "{{tl.host}} is not talontyres.co.uk.", "ideal": "checks the sender before opening an attachment." }
+    },
+    {
+      "id": "b-props",
+      "when": { "event": "file:properties", "match": { "id": "d-ttinv" } },
+      "outcome": { "points": 10, "verdict": "careful", "label": "Checked the file's real type", "what": "A .docm is a document with macros: code that runs when content is enabled.", "ideal": "checks a file's real type before opening it." }
+    },
+    {
+      "id": "b-kept",
+      "when": { "event": "doc:macroKept", "match": { "id": "d-ttinv" } },
+      "outcome": { "points": 10, "verdict": "safe", "label": "Kept the macros switched off", "what": "The document stays harmless. An invoice never needs code to show you a number.", "ideal": "never enables content in an emailed document." }
+    },
+    {
+      "id": "b-verify",
+      "when": { "event": "deskphone:connected", "match": { "verifies": "talon" } },
+      "outcome": { "points": 16, "verdict": "safe", "label": "Called Talon Tyres on the number on file", "what": "Talon sent nothing, and never sends Word invoices.", "ideal": "checks an unexpected invoice with the supplier on a number already held." }
+    },
+    {
+      "id": "b-delete",
+      "when": { "event": "file:deleted", "match": { "id": "d-ttinv" } },
+      "outcome": { "points": 6, "verdict": "careful", "label": "Deleted the saved attachment", "what": "It is gone from Downloads, so nobody opens it by accident later.", "ideal": "removes a malicious file after reporting it." }
+    }
+  ],
+  "guards": [],
+  "start": "decide",
+  "stages": {
+    "decide": {
+      "objective": "Decide what to do with the Talon Tyres invoice.",
+      "target": "computer",
+      "decision": true,
+      "insight": "“Enable content” means “let this document run a program”. No invoice needs that to show you an amount.",
+      "hint": { "text": "Check the sender's real address. Save the attachment and look at its properties in Files. If you open it, press Keep disabled, not Enable content. Call Talon (vendor file, dial 9 first), then report the email." },
+      "on": [
+        {
+          "when": { "event": "doc:macroEnabled", "match": { "id": "d-ttinv" } },
+          "outcome": {
+            "points": -40, "verdict": "unsafe", "label": "Enabled content in the invoice",
+            "what": "The macro ran. It quietly downloaded a loader, and the attacker now has a foothold on your computer, inside the finance network.",
+            "ideal": "never enables macros in a document from an email.",
+            "card": {
+              "title": "One yellow button",
+              "kicker": "Malicious macro",
+              "body": [
+                "The document was harmless until you enabled content. That let its macro run, and the macro fetched a program that gives the attacker a way in.",
+                "The sender was {{tl.host}}, not talontyres.co.uk; the file was a .docm; and Talon never sends Word invoices. Any one of those was enough to stop."
+              ],
+              "ideal": "keeps macros disabled and reports the email.",
+              "rewindLabel": "Rewind to before I enabled it"
+            }
+          },
+          "go": "wrap"
+        },
+        {
+          "when": { "event": "mail:reported", "match": { "genuine": false } },
+          "outcome": {
+            "points": 28, "verdict": "safe", "label": "Reported the email",
+            "what": "The service desk blocks the lookalike domain and pulls the email from other inboxes.",
+            "ideal": "reports a malicious attachment rather than testing it.",
+            "card": {
+              "title": "It never ran",
+              "kicker": "Malicious macro",
+              "body": [
+                "You reported it without enabling anything. The macro needed one click from you, and it never got it.",
+                "Malicious documents are built to look routine and to pass scanners. The rule is simple: never enable content in a file that came by email."
+              ],
+              "ideal": "checks the sender and the file type, keeps macros off, and reports."
+            }
+          },
+          "go": "done"
+        }
+      ]
+    },
+    "wrap": {
+      "auto": [{ "do": "objective", "text": "Report it at once so IT can isolate your computer." }],
+      "hint": { "text": "Raise a Helpdesk ticket (my account may be compromised), and report the email." },
+      "on": [
+        { "when": { "event": "ticket:raised" }, "go": "done" },
+        { "when": { "event": "mail:reported" }, "go": "done" }
+      ]
+    },
+    "done": { "end": true }
+  }
+}

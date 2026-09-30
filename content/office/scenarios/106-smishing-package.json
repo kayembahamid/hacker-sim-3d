@@ -1,0 +1,168 @@
+{
+  "id": "smishing-package",
+  "order": 106,
+  "title": "Smishing: the package that never came",
+  "kind": "Smishing",
+  "track": "security-awareness",
+  "pool": false,
+  "level": "Foundational",
+  "minutes": 5,
+  "maxPoints": 52,
+  "startsAt": 1045,
+  "brief": "17:25. A text from Dropwell Couriers: a parcel is held at the depot, and a small fee will release it.",
+  "insight": "Texts have no spam filter worth the name, and a sender name like DROPWELL costs nothing to fake.",
+  "teaches": [
+    "Read the link, not the panic: check where a text's link really goes",
+    "Go to the courier's real site yourself to track a parcel",
+    "Never pay a “release fee” from a text: the fee is small because the card details are the prize"
+  ],
+  "vars": {
+    "host": { "pick": ["dropwell-redelivery.com", "dropwell-parcel.support", "dropwell.co.uk.parcel-release.net"] },
+    "fee": { "pick": ["£1.99", "£2.49", "£1.45"] },
+    "ref": { "pick": ["44718", "30952", "61204"] }
+  },
+  "setup": [
+    {
+      "do": "site.page",
+      "id": "dw-pay",
+      "host": "{{host}}",
+      "title": "Dropwell",
+      "fake": true,
+      "colour": "#3a2a12",
+      "accent": "#f2994a",
+      "pages": {
+        "/": [
+          { "h": "Pay your redelivery fee" },
+          { "kv": [["Parcel", "DW-{{ref}}"], ["Fee", "{{fee}}"], ["Status", "Held at depot"]] },
+          { "warn": "Pay within 12 hours or your parcel will be returned to the sender." },
+          { "form": { "id": "dw-card", "site": "dw-pay", "submit": "Pay {{fee}}", "vault": false, "fields": [
+            { "name": "cardname", "label": "Name on card", "value": "S RIVERA" },
+            { "name": "card", "label": "Card number", "value": "4921 •••• •••• 4471" },
+            { "name": "expiry", "label": "Expiry", "value": "09/28" },
+            { "name": "cvv", "label": "Security code", "type": "password" }
+          ] } }
+        ]
+      }
+    },
+    {
+      "do": "site.page",
+      "id": "dw-track",
+      "host": "track.dropwell.co.uk",
+      "title": "Dropwell Couriers",
+      "owner": "Dropwell Couriers Ltd",
+      "colour": "#3a2a12",
+      "accent": "#f2994a",
+      "pages": {
+        "/": [
+          { "h": "Track a parcel" },
+          { "kv": [["Tracking number", "DW-{{ref}}"], ["Result", "No parcel found with this number"]] },
+          { "note": "Dropwell never charges a redelivery fee by text, and we will never text you a link to pay." },
+          { "p": "Missed a delivery? We leave a card with a reference, and rebooking is free." }
+        ]
+      }
+    },
+    { "do": "world.push", "path": "office.search", "value": { "q": "dropwell", "title": "Dropwell Couriers: track a parcel", "url": "https://track.dropwell.co.uk/", "text": "Official Dropwell tracking. Enter your reference to see where your parcel is." } },
+    {
+      "do": "sms.deliver",
+      "thread": {
+        "id": "t-dropwell",
+        "genuine": false,
+        "from": { "name": "DROPWELL", "number": "+44 7700 900417", "known": false, "details": ["Shown as DROPWELL, but a text can show any name it likes. The number behind it is an ordinary mobile."] },
+        "messages": [
+          { "id": "dw1", "dir": "in", "text": "Dropwell: your parcel DW-{{ref}} could not be delivered. A {{fee}} redelivery fee is due within 12 hours or it will be returned to the sender.", "link": { "href": "https://{{host}}/pay", "text": "https://{{host}}/pay" } }
+        ]
+      }
+    }
+  ],
+  "bonuses": [
+    {
+      "id": "b-sender",
+      "when": { "event": "sender:checked", "match": { "threadId": "t-dropwell" } },
+      "outcome": { "points": 6, "verdict": "careful", "label": "Checked who really sent the text", "what": "The name says DROPWELL. The number is an ordinary mobile.", "ideal": "checks the number behind a sender name." }
+    },
+    {
+      "id": "b-where",
+      "when": { "event": "link:hovered", "match": { "source": "sms:t-dropwell" } },
+      "outcome": { "points": 8, "verdict": "careful", "label": "Checked where the link goes", "what": "The link goes to {{host}}. Dropwell's real site is dropwell.co.uk.", "ideal": "reads a text's link before tapping it." }
+    },
+    {
+      "id": "b-track",
+      "when": { "event": "page:shown", "match": { "page": "dw-track" } },
+      "outcome": { "points": 12, "verdict": "careful", "label": "Tracked it on Dropwell's real site", "what": "No parcel exists with that number, and Dropwell never charges fees by text.", "ideal": "goes to the courier's real site instead of the link in the text." }
+    }
+  ],
+  "guards": [
+    {
+      "id": "g-open",
+      "when": { "event": "link:opened", "match": { "threadId": "t-dropwell" } },
+      "outcome": { "points": -4, "verdict": "risky", "label": "Opened the link in the text", "what": "It opened {{host}}. Nothing is lost yet, but that page exists to collect card details.", "ideal": "checks the link before tapping it." }
+    }
+  ],
+  "start": "decide",
+  "stages": {
+    "decide": {
+      "objective": "Decide what to do about the Dropwell text.",
+      "target": "phone",
+      "decision": true,
+      "insight": "The fee is tiny on purpose. Nobody thinks twice about £1.99. What they want is the card number, the expiry and the security code.",
+      "hint": { "text": "Open the text, check the sender's number and tap “Where does this link go?”. Search Seekly for Dropwell to track the parcel on their real site. Then report the text." },
+      "on": [
+        {
+          "when": { "event": "form:submitted", "match": { "site": "dw-pay" } },
+          "outcome": {
+            "points": -35, "verdict": "unsafe", "label": "Paid the release fee",
+            "what": "Your full card details went to the attacker for {{fee}}. Expect the card to be used within hours, and a follow up call from “your bank” offering to help.",
+            "ideal": "never pays a fee from a text, and tracks parcels on the courier's own site.",
+            "card": {
+              "title": "{{fee}} for your card details",
+              "kicker": "Smishing",
+              "body": [
+                "There was no parcel. The page on {{host}} took the card number, expiry and security code, which is everything needed to spend on your card.",
+                "Dropwell's real tracking page, one search away, would have shown no parcel and a note that they never charge by text. Call your bank on the number on the back of the card and cancel it."
+              ],
+              "ideal": "reads the link, not the panic, and goes to the courier's real site.",
+              "rewindLabel": "Rewind to before I paid"
+            }
+          },
+          "go": "wrap"
+        },
+        {
+          "when": { "event": "message:reported", "match": { "threadId": "t-dropwell" } },
+          "outcome": {
+            "points": 26, "verdict": "safe", "label": "Reported the text as spam",
+            "what": "Reporting a scam text helps the mobile networks block the number and the link for everyone.",
+            "ideal": "reports scam texts rather than just deleting them.",
+            "card": {
+              "title": "No parcel, no fee, reported",
+              "kicker": "Smishing",
+              "body": [
+                "You reported the text instead of paying. The link went to {{host}}, not dropwell.co.uk.",
+                "Texts arrive with none of the checks email gets. The defence is the same: the real address, and the real site you find yourself."
+              ],
+              "ideal": "checks the link and the sender, then reports."
+            }
+          },
+          "go": "done"
+        },
+        {
+          "when": { "event": ["message:blocked", "message:deleted"], "match": { "threadId": "t-dropwell" } },
+          "outcome": {
+            "points": 14, "verdict": "safe", "label": "Blocked or deleted the text",
+            "what": "Safe for you. Reporting it as well helps block it for everyone else.",
+            "ideal": "reports scam texts, so the number and link get blocked."
+          },
+          "go": "done"
+        }
+      ]
+    },
+    "wrap": {
+      "auto": [{ "do": "objective", "text": "Report the text, and tell the service desk your card was taken." }],
+      "hint": { "text": "Report the text as spam, or raise a Helpdesk ticket." },
+      "on": [
+        { "when": { "event": "message:reported" }, "go": "done" },
+        { "when": { "event": "ticket:raised" }, "go": "done" }
+      ]
+    },
+    "done": { "end": true }
+  }
+}

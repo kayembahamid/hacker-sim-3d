@@ -3,6 +3,7 @@
   "order": 5,
   "title": "Something already happened",
   "kind": "Post compromise",
+  "track": "real-world-incidents",
   "maxPoints": 70,
   "startsAt": 1080,
   "brief": "18:00. Endpoint security flags that a colleague clicked a bad link yesterday. You need to find out what it touched.",

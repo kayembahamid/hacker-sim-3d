@@ -1,0 +1,196 @@
+{
+  "id": "callback-phishing",
+  "order": 104,
+  "title": "Callback phishing",
+  "kind": "Callback phishing",
+  "track": "security-awareness",
+  "pool": false,
+  "level": "Core",
+  "minutes": 7,
+  "maxPoints": 70,
+  "startsAt": 1030,
+  "brief": "17:10. A receipt arrives for a software renewal nobody ordered. There is no link, just a number to call to cancel.",
+  "insight": "No link, no attachment, nothing for the filters to catch. The phone number is the link.",
+  "teaches": [
+    "A number in an unexpected email is as dangerous as a link: never dial it",
+    "Find the real vendor's contact details yourself",
+    "Never let a caller connect to your computer or read out card details"
+  ],
+  "vars": {
+    "fk": { "fake": "spendhawk" },
+    "amount": { "pick": ["£649.99", "£589.00", "£712.40"] },
+    "order": { "pick": ["SH-448102", "SH-590316", "SH-227845"] }
+  },
+  "setup": [
+    {
+      "do": "mail.deliver",
+      "mail": {
+        "id": "cb-mail",
+        "genuine": false,
+        "external": true,
+        "from": { "name": "Spendhawk Billing", "address": "billing@{{fk.host}}" },
+        "subject": "Receipt: Spendhawk Pro annual renewal {{amount}}",
+        "body": [
+          "Thank you for renewing Spendhawk Pro.",
+          "Order {{order}} · Spendhawk Pro, 25 users, 12 months · {{amount}} charged to the card ending 4471.",
+          "If you did not authorise this payment, call our billing team within 24 hours to cancel and receive a full refund: 0808 157 0412.",
+          { "small": "This is an automated receipt. Replies to this address are not monitored." }
+        ],
+        "headers": {
+          "returnPath": "bounce@{{fk.host}}",
+          "spf": { "result": "pass", "explain": "Sent by {{fk.host}}. Spendhawk's real domain is spendhawk.app." },
+          "dkim": { "result": "pass", "explain": "Signed by {{fk.host}}, not spendhawk.app." },
+          "dmarc": { "result": "none", "explain": "No policy on this domain." },
+          "received": ["from mail.{{fk.host}} (203.0.113.64) by mx.veltrix-logistics.com"],
+          "messageId": "receipt-{{order}}@{{fk.host}}",
+          "summary": "A lookalike of spendhawk.app, a scary amount and a deadline. The only thing it wants is for you to ring the number."
+        }
+      }
+    },
+    {
+      "do": "deskphone.line",
+      "number": "08081570412",
+      "line": {
+        "name": "0808 157 0412",
+        "genuine": false,
+        "voice": { "gender": "male", "tone": "warm" },
+        "script": [
+          { "say": "Spendhawk billing, this is Kyle. How can I help?" },
+          { "choices": [{ "id": "ask", "label": "I got a receipt for a renewal I did not order", "goto": "ask" }] },
+          { "id": "ask", "say": "No problem at all, I can cancel that and refund you. I just need to connect to your computer to process it. Open your browser, go to rescuelink-remote.help, and read me the six digit code." },
+          { "choices": [
+            { "id": "install", "label": "OK, opening it now", "goto": "card" },
+            { "id": "refuse", "label": "I would rather check with Spendhawk myself", "goto": "push" }
+          ] },
+          { "id": "card", "say": "Great. And while that loads, can you confirm the long number on the card ending 4471?", "end": true },
+          { "id": "push", "say": "If you hang up now the refund is cancelled and the charge stands. It is your call." },
+          { "choices": [
+            { "id": "install2", "label": "Fine, I will do it", "goto": "card" },
+            { "id": "hang", "label": "Hang up", "hangUp": true }
+          ] }
+        ]
+      }
+    },
+    {
+      "do": "site.page",
+      "id": "sh-help",
+      "host": "help.spendhawk.app",
+      "title": "Spendhawk Help",
+      "owner": "Spendhawk Software Ltd",
+      "colour": "#4a3212",
+      "accent": "#f2b93b",
+      "pages": {
+        "/": [
+          { "h": "Billing help" },
+          { "note": "We never send receipts asking you to phone a number to cancel, and we will never ask to connect to your computer." },
+          { "p": "To see your real invoices, sign in at spendhawk.app and open Settings, then Billing." },
+          { "kv": [["Support line", "0118 496 0999"], ["Hours", "08:00 to 20:00, Monday to Friday"]] }
+        ]
+      }
+    },
+    { "do": "world.push", "path": "office.search", "value": { "q": "spendhawk", "title": "Spendhawk Help: billing and refunds", "url": "https://help.spendhawk.app/", "text": "Official Spendhawk support. Contact us and check your invoices." } },
+    {
+      "do": "deskphone.line",
+      "number": "01184960999",
+      "line": {
+        "name": "Spendhawk support",
+        "genuine": true,
+        "verifies": "spendhawk",
+        "voice": { "gender": "female", "tone": "calm" },
+        "script": [
+          { "say": "Spendhawk support, Rosa speaking." },
+          { "choices": [{ "id": "ask", "label": "I have a renewal receipt for {{amount}}. Is it real?", "goto": "ask" }] },
+          { "id": "ask", "say": "Let me look. No, Veltrix's plan renews in March and nothing has been charged. That email is not from us. Please do not call the number in it, and report it.", "end": true }
+        ]
+      }
+    },
+    { "do": "room.banner", "title": "Mail", "body": "Receipt: Spendhawk Pro annual renewal {{amount}}", "icon": "mail", "object": "computer", "action": "Open" }
+  ],
+  "bonuses": [
+    {
+      "id": "b-sender",
+      "when": { "event": "sender:checked", "match": { "id": "cb-mail" } },
+      "outcome": { "points": 6, "verdict": "careful", "label": "Checked the real sender address", "what": "The receipt came from {{fk.host}}, not spendhawk.app.", "ideal": "checks who really sent a surprising receipt." }
+    },
+    {
+      "id": "b-headers",
+      "when": { "event": "headers:viewed", "match": { "id": "cb-mail" } },
+      "outcome": { "points": 6, "verdict": "careful", "label": "Read the headers", "what": "The checks pass for the lookalike domain only.", "ideal": "knows a passing check proves only which domain sent it." }
+    },
+    {
+      "id": "b-help",
+      "when": { "event": "page:shown", "match": { "page": "sh-help" } },
+      "outcome": { "points": 8, "verdict": "careful", "label": "Found Spendhawk's real contact details yourself", "what": "Spendhawk's own help page says they never ask you to call a number in a receipt.", "ideal": "looks up the vendor's real contact details instead of using the ones in the message." }
+    },
+    {
+      "id": "b-real",
+      "when": { "event": "deskphone:connected", "match": { "verifies": "spendhawk" } },
+      "outcome": { "points": 20, "verdict": "safe", "label": "Called Spendhawk on their real number", "what": "Nothing was charged. The receipt was bait for a phone scam.", "ideal": "calls the number they found themselves, never the one in the message." }
+    }
+  ],
+  "guards": [
+    {
+      "id": "g-dial",
+      "when": { "event": "deskphone:dialed", "match": { "number": "08081570412" } },
+      "outcome": { "points": -8, "verdict": "risky", "label": "Called the number in the email", "what": "The number reaches the attacker. That call is the whole point of the email.", "ideal": "never dials a number from an unexpected message." }
+    }
+  ],
+  "start": "decide",
+  "stages": {
+    "decide": {
+      "objective": "Decide what to do about the Spendhawk receipt.",
+      "target": "computer",
+      "decision": true,
+      "insight": "Callback phishing gets past every filter because there is nothing to scan. The attack only starts when you pick up the phone.",
+      "hint": { "text": "Do not call the number in the email. Search Seekly for Spendhawk to find their real help page and number, call that on the desk phone (dial 9 first), then report the email." },
+      "on": [
+        {
+          "when": { "event": "deskphone:choice", "match": { "choice": ["install", "install2"] } },
+          "outcome": {
+            "points": -38, "verdict": "unsafe", "label": "Let the caller connect to your computer",
+            "what": "The caller now has remote control of your computer and is asking for the card number. That is the attack: the receipt was only the bait.",
+            "ideal": "never lets a caller connect to their computer, and hangs up.",
+            "card": {
+              "title": "The number was the link",
+              "kicker": "Callback phishing",
+              "body": [
+                "The remote support tool gave the caller your screen, your mailbox and the ERP. The refund story was there to make you hand it over.",
+                "Spendhawk's real help page, one search away, says they never charge by receipt and never ask to connect. Their real number would have told you nothing was charged."
+              ],
+              "ideal": "looks up the vendor independently and never dials the number in the message.",
+              "rewindLabel": "Rewind to before the call"
+            }
+          },
+          "go": "wrap"
+        },
+        {
+          "when": { "event": "mail:reported", "match": { "genuine": false } },
+          "outcome": {
+            "points": 30, "verdict": "safe", "label": "Reported the fake receipt",
+            "what": "The lookalike domain and the phone number are blocked, and the service desk warns the team.",
+            "ideal": "reports callback phishing, including the phone number.",
+            "card": {
+              "title": "You did not pick up the bait",
+              "kicker": "Callback phishing",
+              "body": [
+                "You reported the receipt instead of ringing the number on it. The email had no link and no attachment, so no filter could stop it: only you could.",
+                "When a message gives you a number to call, treat it exactly like a link. Find the real number yourself."
+              ],
+              "ideal": "treats a phone number in a surprise message as a link."
+            }
+          },
+          "go": "done"
+        }
+      ]
+    },
+    "wrap": {
+      "auto": [{ "do": "objective", "text": "Report it straight away, so IT can cut the remote session." }],
+      "hint": { "text": "Raise a Helpdesk ticket (my account may be compromised), or report the email." },
+      "on": [
+        { "when": { "event": "ticket:raised" }, "go": "done" },
+        { "when": { "event": "mail:reported" }, "go": "done" }
+      ]
+    },
+    "done": { "end": true }
+  }
+}

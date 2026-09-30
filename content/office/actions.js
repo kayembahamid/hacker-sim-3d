@@ -1,4 +1,5 @@
 import { store } from '../../engine/core/store.js';
+import { bus } from '../../engine/core/bus.js';
 import { registerActions } from '../../engine/scenario/actions.js';
 import { DeskPhone } from './deskphone.js';
 import { OpsBoard } from './opsBoard.js';
@@ -103,6 +104,9 @@ registerActions({
   // browser shows the decoy there (and only there).
   'site.fake': (a, ctx) => ctx.sites.registerFake && ctx.sites.registerFake(a.brand, a.host, a.trick || 'extra-word', a.extra || {}),
 
+  // A page the scenario writes itself, as data, at a host for this run.
+  'site.page': (a, ctx) => ctx.sites.page && ctx.sites.page(a),
+
   // Point a real host at a brand template, or override its fields.
   'site.alias': (a, ctx) => ctx.sites.alias && ctx.sites.alias(a.host, a.siteId, a.extra || {}),
 
@@ -129,6 +133,31 @@ registerActions({
     t.net = { ...(t.net || {}), [a.host]: a.record };
   }, 'terminal-host'),
 
+  // One file for the terminal (a path can hold dots, so world.set cannot).
+  'terminal.file': (a, ctx) => ctx.store.update((s) => {
+    const t = s.office.terminal;
+    t.files = { ...(t.files || {}), [a.path]: [].concat(a.lines || []) };
+    if (a.suggest) t.suggest = a.suggest;
+  }, 'terminal-file'),
+
+  // Ransomware at work: the next few files in a folder get encrypted and
+  // renamed. The scenario decides the pace (after + if on a flag).
+  'files.encrypt': (a, ctx) => {
+    let done = 0; let total = 0;
+    ctx.store.update((s) => {
+      const list = s.desktop.files.filter((f) => f.folder === a.folder && !f.deleted && !f.note_ransom);
+      total = list.length;
+      let n = a.count || 2;
+      for (const f of list) {
+        if (f.encrypted) { done++; continue; }
+        if (n-- <= 0) continue;
+        f.encrypted = true; f.name = `${f.name}${a.ext || '.locked'}`; f.icon = 'text'; f.type = 'Encrypted file'; f.trueType = 'Encrypted by ransomware, unreadable'; f.opens = null;
+        done++;
+      }
+    }, 'files-encrypt');
+    bus.emit('ransom:progress', { folder: a.folder, encrypted: done, total, all: done >= total });
+  },
+
   // Tick an item off a clean desk: office.clean.<id> = true.
   'office.flag': (a, ctx) => ctx.store.update((s) => { s.office.clean[a.id] = a.value ?? true; }, 'office-flag')
 });
@@ -150,5 +179,15 @@ export const officeTrace = {
   'notebook:read': () => 'Checked the numbers in the notebook',
   'vpn:connected': () => 'Connected to the VPN',
   'endpoint:viewed': () => 'Opened endpoint security',
-  'bank:transactionChecked': (p) => `Checked a bank transaction: ${p.what}`
+  'bank:transactionChecked': (p) => `Checked a bank transaction: ${p.what}`,
+  'desktop:locked': () => 'Locked the computer',
+  'desktop:shutdown': () => 'Shut the computer down',
+  'network:disconnected': (p) => (p.how === 'cable' ? 'Unplugged the network cable' : p.how === 'wifi' ? 'Turned Wi-Fi off' : 'Took the computer off every network'),
+  'wifi:joined': (p) => `Joined a Wi-Fi network${p.open ? ' with no password' : ''}`,
+  'qr:scanned': (p) => `Scanned a QR code that opens ${p.url}`,
+  'qr:opened': (p) => `Opened the QR code link: ${p.url}`,
+  'recovery:removed': () => 'Removed a recovery option',
+  'recovery:viewed': () => 'Read the account recovery options',
+  'case:action': (p) => `Decided a request in the work queue (${p.action})`,
+  'doc:macroKept': () => 'Kept the macros switched off'
 };

@@ -1,0 +1,170 @@
+{
+  "id": "tailgating-side-door",
+  "order": 114,
+  "title": "Tailgating through the side door",
+  "kind": "Tailgating",
+  "track": "security-awareness",
+  "pool": false,
+  "level": "Foundational",
+  "minutes": 6,
+  "maxPoints": 42,
+  "startsAt": 1090,
+  "brief": "18:10. You are badging back in at the staff side door. A courier with an armful of boxes asks you to hold it.",
+  "insight": "Holding a door is good manners everywhere except a secure door. That is exactly what tailgating relies on.",
+  "teaches": [
+    "Let the door close behind you: everyone badges in on their own",
+    "Say no politely and point to the right way in, without arguing",
+    "Hand an unexpected visitor to security rather than deciding alone"
+  ],
+  "setup": [
+    {
+      "do": "object.card",
+      "id": "badge",
+      "card": {
+        "kicker": "The staff side door",
+        "title": "“Cheers, can you hold that?”",
+        "image": "assets/art/courier_cam.png",
+        "imageAlt": "A courier in a hi vis vest holding a stack of parcels",
+        "body": [
+          "18:10. You nipped out to the car park and you are badging back in at the side door, the staff only one.",
+          "A courier in a hi vis vest, arms full of boxes, jogs up behind you. “Cheers, can you hold that? Delivery for finance, my hands are full.”",
+          "No delivery is booked tonight, and reception closed at six."
+        ],
+        "event": "badge:checked",
+        "choices": [
+          { "id": "hold", "label": "Hold the door, their hands are full", "emit": "tailgate:held" },
+          { "id": "refuse", "label": "“Sorry, I cannot let you in this way. Security can help you at the front.”", "emit": "tailgate:refused" },
+          { "id": "ask", "label": "“Have you got a visitor badge or a booking?”", "emit": "tailgate:asked" }
+        ]
+      }
+    },
+    {
+      "do": "deskphone.line",
+      "number": "4999",
+      "line": {
+        "name": "Security",
+        "genuine": true,
+        "verifies": "security",
+        "voice": { "gender": "male", "tone": "calm" },
+        "script": [
+          { "say": "Security desk, Mo speaking." },
+          { "choices": [{ "id": "tell", "label": "A courier tried to follow me in the side door", "goto": "tell" }] },
+          { "id": "tell", "say": "Thanks for not letting them in. Nothing is booked tonight. I will check the camera and meet them outside.", "end": true }
+        ]
+      }
+    },
+    { "do": "room.banner", "title": "Side door", "body": "You are heading back in from the car park", "icon": "door", "object": "badge", "action": "Go" }
+  ],
+  "bonuses": [],
+  "guards": [],
+  "start": "door",
+  "stages": {
+    "door": {
+      "objective": "Get back in through the side door.",
+      "target": "badge",
+      "decision": true,
+      "insight": "“My hands are full” is a script. It works because refusing feels rude.",
+      "hint": { "text": "Pick up your badge to head back in. Do not hold the door for someone who has not badged." },
+      "on": [
+        {
+          "when": { "event": "tailgate:held" },
+          "outcome": {
+            "points": -30, "verdict": "unsafe", "label": "Held the door for the courier",
+            "what": "An unknown person is now inside, after hours, heading for the finance floor, and the badge system says nobody came in.",
+            "ideal": "lets a secure door close behind them, however full someone's hands are.",
+            "card": {
+              "title": "A stranger on the finance floor",
+              "kicker": "Tailgating",
+              "body": [
+                "You held the door and the courier walked in behind you. The badge log shows only you. The boxes were empty.",
+                "A few minutes on an empty floor is enough to plug a device into a spare port or photograph a desk. The polite answer was the right one: “Sorry, you will need to go round the front.”"
+              ],
+              "ideal": "lets the door close and sends visitors to the right entrance.",
+              "rewindLabel": "Rewind to the door"
+            }
+          },
+          "go": "report"
+        },
+        {
+          "when": { "event": "tailgate:refused" },
+          "outcome": { "points": 15, "verdict": "safe", "label": "Said no, politely", "what": "Polite, firm, and pointing to the right way in. Nobody needs to argue at a door.", "ideal": "refuses a tailgate politely and points to the proper entrance." },
+          "go": "push",
+          "instant": true
+        },
+        {
+          "when": { "event": "tailgate:asked" },
+          "outcome": { "points": 8, "verdict": "careful", "label": "Asked for a badge or a booking", "what": "A fair question, but anyone can say yes. The door still should not be held.", "ideal": "does not let the answer to a question open a secure door." },
+          "go": "push",
+          "instant": true
+        }
+      ]
+    },
+    "push": {
+      "objective": "The courier is not giving up.",
+      "target": "badge",
+      "decision": true,
+      "auto": [
+        {
+          "do": "choice",
+          "id": "tg-push",
+          "delayMs": 600,
+          "kicker": "Tailgating",
+          "title": "“Come on, two seconds”",
+          "image": "assets/art/courier_cam.png",
+          "imageAlt": "The courier, still holding the parcels",
+          "body": ["“Come on, I am here every day. Two seconds, I will leave it on the first desk. If this goes back I will get the blame.”", "The door is closing behind you."],
+          "choices": [
+            { "id": "firm", "label": "“Sorry, I really cannot. Security will sort it for you.” Let it close.", "emit": "tailgate:firm" },
+            { "id": "cave", "label": "Fine, just this once", "emit": "tailgate:caved" }
+          ]
+        }
+      ],
+      "hint": { "text": "Stay polite and let the door close." },
+      "on": [
+        {
+          "when": { "event": "tailgate:firm" },
+          "outcome": { "points": 15, "verdict": "safe", "label": "Held firm under pressure", "what": "Guilt and urgency are the tools. You did not have to win the argument, only let the door close.", "ideal": "stays polite and firm when pushed." },
+          "go": "report",
+          "instant": true
+        },
+        {
+          "when": { "event": "tailgate:caved" },
+          "outcome": {
+            "points": -25, "verdict": "unsafe", "label": "Gave in and let them through",
+            "what": "The courier is inside. Pushing a little harder was all it took.",
+            "ideal": "does not let pressure open a secure door.",
+            "card": {
+              "title": "Pressure opened the door",
+              "kicker": "Tailgating",
+              "body": [
+                "The second push worked. The guilt, the rush and “two seconds” are the script. Nobody gets the blame for a door closing.",
+                "Security was one phone call away and deals with deliveries every night."
+              ],
+              "ideal": "lets the door close and passes the visitor to security.",
+              "rewindLabel": "Rewind and hold firm"
+            }
+          },
+          "go": "report"
+        }
+      ]
+    },
+    "report": {
+      "objective": "Back at your desk: let security know.",
+      "target": "deskphone",
+      "hint": { "text": "Call security on 4999 from the desk phone, or raise a Helpdesk ticket (someone trying to get into the building)." },
+      "on": [
+        {
+          "when": { "event": "deskphone:connected", "match": { "verifies": "security" } },
+          "outcome": { "points": 12, "verdict": "safe", "label": "Told security", "what": "Mo checks the camera and deals with the courier. That is the job of security, not yours.", "ideal": "reports a tailgating attempt so security can act." },
+          "go": "done"
+        },
+        {
+          "when": { "event": "ticket:raised" },
+          "outcome": { "points": 10, "verdict": "safe", "label": "Logged it", "what": "There is a record of the attempt at the side door.", "ideal": "reports physical security attempts." },
+          "go": "done"
+        }
+      ]
+    },
+    "done": { "end": true }
+  }
+}

@@ -1,0 +1,106 @@
+{
+  "id": "https-safety",
+  "order": 117,
+  "title": "The lock icon is not enough",
+  "kind": "Lookalike site",
+  "track": "security-awareness",
+  "pool": false,
+  "level": "Foundational",
+  "minutes": 5,
+  "maxPoints": 64,
+  "startsAt": 1105,
+  "brief": "18:25. Dan asks you to check tonight's run reached the bank. The top search result has a padlock and says Secure Login.",
+  "insight": "The padlock means the connection is private. It says nothing about who is at the other end.",
+  "teaches": [
+    "A padlock only means encryption: scam sites have one too",
+    "Read the real domain in the address bar before typing a password",
+    "Use the bookmark or the address you already trust, not a search result or an ad"
+  ],
+  "vars": {
+    "fake": { "fake": "harbour-biz" }
+  },
+  "setup": [
+    { "do": "site.fake", "brand": "harbour-biz", "host": "{{fake.host}}", "trick": "{{fake.trick}}" },
+    { "do": "world.push", "path": "office.search", "value": { "q": "harbour", "title": "Harbour Bank Business | Secure Login", "url": "https://{{fake.host}}/", "text": "Log in to Harbour Bank Business online banking. Protected by 256 bit encryption.", "ad": true } },
+    { "do": "chat.append", "chatId": "dm-dan", "message": { "from": "dan", "fromName": "Dan Whitlock", "text": "Sam, can you check tonight's run has reached Harbour Bank Business? Just search for it, my bookmarks are a mess." } },
+    { "do": "room.banner", "title": "Chat", "body": "Dan Whitlock: can you check tonight's run reached the bank?", "icon": "chat", "object": "computer", "action": "Open" }
+  ],
+  "bonuses": [
+    {
+      "id": "b-cert",
+      "when": { "event": "cert:viewed", "match": { "host": "{{fake.host}}" } },
+      "outcome": { "points": 8, "verdict": "careful", "label": "Opened the padlock", "what": "The certificate is real, issued three days ago, to an address and not to Harbour Bank. The padlock only proves the connection is encrypted.", "ideal": "knows a padlock means private, not honest." }
+    },
+    {
+      "id": "b-owner",
+      "when": { "event": "domain:checked", "match": { "host": "{{fake.host}}" } },
+      "outcome": { "points": 10, "verdict": "careful", "label": "Read who owns the address", "what": "{{fake.label}}. The page is on {{fake.host}}, not business.harbourbank.co.uk.", "ideal": "reads the real domain in the address bar before typing anything." }
+    },
+    {
+      "id": "b-vault",
+      "when": { "event": "vault:refused", "match": { "host": "{{fake.host}}" } },
+      "outcome": { "points": 10, "verdict": "careful", "label": "Noticed Vault refused to fill in", "what": "Vault saved the bank login for business.harbourbank.co.uk, and will not type it anywhere else.", "ideal": "treats a password manager refusing to fill as a stop sign." }
+    },
+    {
+      "id": "b-real",
+      "when": { "event": "site:visited", "match": { "host": "business.harbourbank.co.uk" } },
+      "outcome": { "points": 6, "verdict": "careful", "label": "Went to the address you already trust", "what": "The bookmark goes straight to business.harbourbank.co.uk.", "ideal": "uses a bookmark or typed address for banking, not a search result." }
+    }
+  ],
+  "guards": [],
+  "start": "decide",
+  "stages": {
+    "decide": {
+      "objective": "Sign in to Harbour Bank Business to check the run, on the real site.",
+      "target": "computer",
+      "decision": true,
+      "insight": "Anyone can get a padlock in minutes, for free. The part of the address just before the first slash is what you check.",
+      "hint": { "text": "Search if you like, but before signing in click the padlock and “Who owns this?”. Try Fill from Vault: it only works on the real site. The Harbour Bank Business bookmark goes to the real address." },
+      "on": [
+        {
+          "when": { "event": "form:submitted", "match": { "site": ["harbour-biz-fake", "harbour-fake"] } },
+          "outcome": {
+            "points": -40, "verdict": "unsafe", "label": "Signed in on the lookalike bank",
+            "what": "The company's banking login went to the attacker, from a page with a perfectly real padlock.",
+            "ideal": "reads the domain, not the padlock, before typing a password.",
+            "card": {
+              "title": "Private, not honest",
+              "kicker": "Lookalike site",
+              "body": [
+                "The padlock was real. It meant nobody else could read what you typed, and what you typed went straight to the attacker, privately.",
+                "The address was {{fake.host}}, the certificate was three days old and issued to an address, and Vault refused to fill it in. The bookmark would have taken you to the real bank."
+              ],
+              "ideal": "checks the domain before signing in, and uses the bookmark for banking.",
+              "rewindLabel": "Rewind to before I signed in"
+            }
+          },
+          "go": "wrap"
+        },
+        {
+          "when": { "event": "form:submitted", "match": { "site": "harbour-biz" } },
+          "outcome": {
+            "points": 30, "verdict": "safe", "label": "Signed in on the real bank",
+            "what": "business.harbourbank.co.uk, with Vault filling in the login. The run is there.",
+            "ideal": "signs in only on the address they already trust.",
+            "card": {
+              "title": "The right address, the right bank",
+              "kicker": "Lookalike site",
+              "body": [
+                "You signed in on business.harbourbank.co.uk. The sponsored result above it had a padlock too, on {{fake.host}}.",
+                "A padlock means private. The domain tells you who. Report the ad so it can be taken down."
+              ],
+              "ideal": "reads the domain and uses the bookmark."
+            }
+          },
+          "go": "done"
+        }
+      ]
+    },
+    "wrap": {
+      "auto": [{ "do": "objective", "text": "Tell the bank and the service desk straight away." }],
+      "hint": { "text": "Raise a Helpdesk ticket under payment fraud so the bank login can be changed tonight." },
+      "on": [{ "when": { "event": "ticket:raised" }, "go": "done" }]
+    },
+    "done": { "end": true }
+  }
+}

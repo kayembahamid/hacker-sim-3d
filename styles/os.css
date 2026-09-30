@@ -349,14 +349,26 @@
 .dk-clock { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.15; }
 .dk-clock b { font-size: 13px; font-variant-numeric: tabular-nums; }
 .dk-clock small { font-size: 11px; opacity: 0.75; }
-.dk-start-menu { position: absolute; left: 8px; bottom: 56px; width: 420px; max-height: 70%; overflow: auto; z-index: 950; background: rgba(30, 33, 48, 0.97); color: #fff; border-radius: 14px; padding: 14px; box-shadow: 0 30px 70px rgba(0, 0, 0, 0.6); display: flex; flex-direction: column; gap: 12px; }
+.dk-start-menu { position: absolute; left: 8px; bottom: 56px; width: 420px; max-height: 70%; overflow: hidden; z-index: 950; background: rgba(30, 33, 48, 0.97); color: #fff; border-radius: 14px; padding: 14px; box-shadow: 0 30px 70px rgba(0, 0, 0, 0.6); display: flex; flex-direction: column; gap: 12px; }
 .dk-search { height: 38px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.15); background: rgba(255, 255, 255, 0.07); color: #fff; padding: 0 12px; }
-.dk-start-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.dk-start-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; flex: 1 1 auto; min-height: 0; overflow-y: auto; }
 .dk-start-app { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 8px 2px; border: 0; background: transparent; color: #fff; border-radius: 10px; font-size: 12px; }
 .dk-start-app:hover { background: rgba(255, 255, 255, 0.08); }
 .dk-start-app .dk-icon-glyph { width: 38px; height: 38px; }
 .dk-start-user { display: flex; align-items: center; gap: 10px; border-top: 1px solid rgba(255, 255, 255, 0.1); padding-top: 10px; }
 .dk-start-user small { opacity: 0.7; }
+.dk-start-who { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.dk-power { display: flex; gap: 6px; margin-left: auto; }
+.dk-power-btn { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 10px; border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 8px; background: rgba(255, 255, 255, 0.06); color: #fff; font-size: 12.5px; }
+.dk-power-btn:hover { background: rgba(255, 255, 255, 0.14); }
+.dk-power-btn .icon { width: 15px; height: 15px; }
+.dk-lock { position: absolute; inset: 0; z-index: 1000; display: grid; place-items: center; background: linear-gradient(160deg, rgba(10, 22, 30, 0.93), rgba(4, 10, 14, 0.97)); backdrop-filter: blur(22px); color: #fff; }
+.dk-lock.is-off { background: #020304; }
+.dk-lock-card { display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; }
+.dk-lock-time { font-size: 64px; font-weight: 300; line-height: 1; font-variant-numeric: tabular-nums; }
+.dk-lock-avatar { width: 64px; height: 64px; font-size: 26px; margin-top: 26px; }
+.dk-lock-sub { display: inline-flex; align-items: center; gap: 6px; opacity: 0.8; margin: 4px 0 10px; }
+.dk-lock-sub .icon { width: 15px; height: 15px; }
 .dk-avatar { width: 32px; height: 32px; border-radius: 50%; background: #6d5bd0; display: grid; place-items: center; font-weight: 700; }
 .dk-centre { position: absolute; right: 8px; bottom: 56px; width: 340px; max-height: 60%; overflow: auto; z-index: 950; background: rgba(30, 33, 48, 0.97); color: #fff; border-radius: 14px; padding: 14px; }
 .dk-centre h3 { margin: 0 0 8px; font-size: 14px; }
@@ -482,6 +494,10 @@
 .ml-body a.ml-button { display: inline-block; padding: 10px 18px; background: var(--dk-blue); color: #fff; border-radius: 8px; text-decoration: none; font-weight: 700; }
 .ml-sign { color: var(--dk-muted); white-space: pre-line; }
 .ml-small { color: var(--dk-muted); font-size: 12px; }
+.ml-qr { display: inline-flex; flex-direction: column; align-items: center; gap: 6px; margin: 6px 0 10px; padding: 10px; border: 1px solid var(--dk-line); border-radius: 10px; background: #fff; }
+.ml-qr figcaption { font-size: 12px; color: var(--dk-muted); max-width: 200px; text-align: center; }
+.qr-img { display: inline-block; line-height: 0; }
+.qr-img svg { display: block; }
 .ml-attachments { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .ml-attach { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 10px; border: 1px solid var(--dk-line); background: #f7f8fb; color: var(--dk-ink); }
 .ml-attach-name { font-family: var(--mono, monospace); font-size: 12.5px; }

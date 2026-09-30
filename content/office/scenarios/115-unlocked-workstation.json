@@ -1,0 +1,135 @@
+{
+  "id": "unlocked-workstation",
+  "order": 115,
+  "title": "The unlocked workstation",
+  "kind": "Physical security",
+  "track": "security-awareness",
+  "pool": false,
+  "level": "Foundational",
+  "minutes": 4,
+  "maxPoints": 45,
+  "startsAt": 1095,
+  "brief": "18:15. Dan calls you upstairs for five minutes. Your computer is open on the payment run.",
+  "insight": "An unlocked screen is a signed in session anyone can use, as you, with your approvals.",
+  "teaches": [
+    "Lock the screen every time you step away, even for a minute: Windows key and L",
+    "Whatever happens on an unlocked session happens in your name",
+    "Report it if something was done while you were away"
+  ],
+  "setup": [
+    {
+      "do": "object.card",
+      "id": "badge",
+      "card": {
+        "kicker": "Heading upstairs",
+        "title": "Five minutes in Dan's office",
+        "body": [
+          "The cleaning contractor is working along your row, and the auditor's temp is waiting by the printer.",
+          "Your computer is exactly as you left it."
+        ],
+        "event": "badge:checked",
+        "choices": [
+          { "id": "go", "label": "Head upstairs now", "emit": "desk:left" },
+          { "id": "wait", "label": "Not yet", "emit": "desk:wait" }
+        ]
+      }
+    },
+    {
+      "do": "deskphone.ring",
+      "id": "uw-dan",
+      "number": "4410",
+      "label": "Dan Whitlock",
+      "known": true,
+      "genuine": true,
+      "missAfterMs": 40000,
+      "voice": { "gender": "male", "tone": "calm" },
+      "script": [
+        { "say": "Sam, it is Dan. Can you pop up to my office for five minutes? The auditors want to walk through tonight's run. No need to bring anything." },
+        { "choices": [{ "id": "ok", "label": "On my way" }] },
+        { "say": "Thanks.", "end": true }
+      ]
+    },
+    { "do": "room.banner", "title": "Desk phone", "body": "Dan Whitlock is calling", "icon": "deskphone", "object": "deskphone", "action": "Answer" }
+  ],
+  "bonuses": [
+    {
+      "id": "b-lock",
+      "when": { "event": "desktop:locked" },
+      "outcome": { "points": 10, "verdict": "careful", "label": "Locked the screen", "what": "Everything stays open underneath, and only you can get back in.", "ideal": "locks the screen every time they step away." }
+    }
+  ],
+  "guards": [],
+  "start": "call",
+  "stages": {
+    "call": {
+      "objective": "Answer the desk phone.",
+      "target": "deskphone",
+      "hint": { "text": "Answer Dan's call on the desk phone." },
+      "on": [
+        { "when": { "event": ["deskphone:ended", "deskphone:missed"] }, "go": "leave", "instant": true }
+      ]
+    },
+    "leave": {
+      "objective": "Head up to Dan's office.",
+      "target": "badge",
+      "decision": true,
+      "insight": "Five minutes is plenty. The contractor and the temp are probably honest. You do not have to find out.",
+      "hint": { "text": "Lock the computer first: the padlock on the taskbar, or Start and Lock (Windows key and L on a real keyboard). Then pick up your badge and head upstairs." },
+      "on": [
+        {
+          "when": { "event": "desk:left", "flag": "desktop.locked" },
+          "outcome": {
+            "points": 35, "verdict": "safe", "label": "Locked it before you left",
+            "what": "Five minutes away, and nothing could be done as you.",
+            "ideal": "locks the screen every time, even for a minute.",
+            "card": {
+              "title": "Locked, then gone",
+              "kicker": "Physical security",
+              "body": [
+                "You locked the screen and went upstairs. The payment run stayed open underneath, and nobody but you could reach it.",
+                "It takes one key press. Make it a reflex: stand up, lock it."
+              ],
+              "ideal": "locks the screen whenever they step away."
+            }
+          },
+          "go": "done"
+        },
+        {
+          "when": { "event": "desk:left", "notFlag": "desktop.locked" },
+          "outcome": {
+            "points": -30, "verdict": "unsafe", "label": "Left the computer unlocked",
+            "what": "While you were upstairs, someone used your open session: an email went out from your account with the payment run attached.",
+            "ideal": "locks the screen before stepping away.",
+            "effects": [
+              { "do": "mail.deliver", "notify": false, "mail": { "id": "uw-sent", "folder": "sent", "genuine": true, "unread": false, "from": { "name": "Sam Rivera", "address": "s.rivera@veltrix-logistics.com" }, "to": "ap-backup@postvale-mail.net", "subject": "Fw: payment run 24 Sep", "body": ["(sent at 18:17 while you were upstairs)"], "attachments": [{ "name": "payment_run_24Sep.xlsx", "size": "48 KB" }] } }
+            ],
+            "card": {
+              "title": "Five minutes, one open screen",
+              "kicker": "Physical security",
+              "body": [
+                "When you came back, your Sent folder had an email you never wrote: tonight's payment run, sent to an outside address at 18:17.",
+                "Anything done on an unlocked session is done as you, with your access and your approvals. Locking takes one key press."
+              ],
+              "ideal": "locks the screen every time they leave the desk.",
+              "rewindLabel": "Rewind to before I left"
+            }
+          },
+          "go": "back"
+        }
+      ]
+    },
+    "back": {
+      "objective": "Back at your desk. Find out what happened, and report it.",
+      "target": "computer",
+      "hint": { "text": "Look in Mail, Sent: something went out while you were away. Raise a Helpdesk ticket about it (data exposed, shared or leaked)." },
+      "on": [
+        {
+          "when": { "event": "ticket:raised" },
+          "outcome": { "points": 10, "verdict": "safe", "label": "Reported what went out", "what": "IT can recall the email and check what else the session was used for.", "ideal": "reports misuse of their account straight away." },
+          "go": "done"
+        }
+      ]
+    },
+    "done": { "end": true }
+  }
+}

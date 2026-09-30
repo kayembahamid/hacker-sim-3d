@@ -1,0 +1,184 @@
+{
+  "id": "account-recovery",
+  "order": 112,
+  "title": "Account recovery, the back door",
+  "kind": "Account takeover",
+  "track": "security-awareness",
+  "pool": false,
+  "level": "Core",
+  "minutes": 7,
+  "maxPoints": 86,
+  "startsAt": 1080,
+  "brief": "18:00. A text arrives with a password reset code you never asked for. Someone is trying to reset your account.",
+  "insight": "An attacker does not need your password if they can reset it. The reset goes wherever your recovery options point.",
+  "teaches": [
+    "A reset code you did not ask for means someone is at your account's back door",
+    "Remove recovery emails, numbers and questions you no longer control",
+    "Never read a code out to anyone, even a caller who seems to be IT"
+  ],
+  "vars": {
+    "code": { "pick": ["551 209", "308 774", "962 145"] },
+    "place": { "pick": ["Sofia, BG", "Recife, BR", "Almaty, KZ"] }
+  },
+  "setup": [
+    {
+      "do": "world.set",
+      "path": "desktop.account.services.veltrix.recovery",
+      "value": [
+        { "id": "rc-work", "kind": "email", "label": "Recovery email", "value": "s.rivera@veltrix-logistics.com", "note": "Your work mailbox.", "locked": true },
+        { "id": "rc-auth", "kind": "app", "label": "Authenticator app", "value": "Phone, number matching", "note": "The strongest way back in.", "locked": true },
+        { "id": "rc-mail", "kind": "email", "label": "Old personal email", "value": "sam.rivera88@postvale-mail.net", "note": "You stopped using this in 2023, and its password was in a breach last year.", "stale": true },
+        { "id": "rc-phone", "kind": "phone", "label": "Recovery phone", "value": "07700 900112", "note": "Your old number. You switched phones and networks last spring.", "stale": true },
+        { "id": "rc-q", "kind": "questions", "label": "Security questions", "value": "Name of your first pet? Your mother's maiden name?", "note": "Both answers are on your public profile.", "stale": true }
+      ]
+    },
+    {
+      "do": "world.push",
+      "path": "desktop.account.services.veltrix.signins",
+      "front": true,
+      "value": { "at": "Today 17:59", "place": "{{place}}", "ip": "203.0.113.144", "result": "Password reset started", "method": "Recovery email: s*****88@postvale-mail.net", "suspicious": true }
+    },
+    {
+      "do": "sms.deliver",
+      "thread": {
+        "id": "t-reset",
+        "genuine": false,
+        "from": { "name": "Veltrix", "number": "VELTRIX", "known": false, "details": ["Veltrix's own sign in service sends reset codes from this sender."] },
+        "messages": [{ "id": "rs1", "dir": "in", "text": "Veltrix: your password reset code is {{code}}. If you did not ask for this, someone may be trying to reset your password. Never share this code." }]
+      }
+    },
+    { "do": "room.banner", "title": "Messages", "body": "Veltrix: your password reset code is...", "icon": "messages", "object": "phone", "action": "Read" }
+  ],
+  "bonuses": [
+    {
+      "id": "b-activity",
+      "when": { "event": "signins:viewed" },
+      "outcome": { "points": 6, "verdict": "careful", "label": "Read your sign in activity", "what": "A password reset was started from {{place}}, through your old personal email.", "ideal": "checks sign in activity when a reset code arrives unasked." }
+    },
+    {
+      "id": "b-viewed",
+      "when": { "event": "recovery:viewed" },
+      "outcome": { "points": 6, "verdict": "careful", "label": "Opened your recovery options", "what": "Three of them point at things you no longer control.", "ideal": "reviews recovery options, not just the password." }
+    },
+    {
+      "id": "b-mail",
+      "when": { "event": "recovery:removed", "match": { "id": "rc-mail" } },
+      "outcome": { "points": 8, "verdict": "safe", "label": "Removed the old personal email", "what": "That address was breached. Whoever controls it could reset your work account.", "ideal": "removes recovery emails it no longer uses.", "effects": [{ "do": "flag.set", "key": "rc.mail" }, { "do": "check", "all": ["rc.mail", "rc.phone", "rc.q"], "emit": "recovery:clean" }] }
+    },
+    {
+      "id": "b-phone",
+      "when": { "event": "recovery:removed", "match": { "id": "rc-phone" } },
+      "outcome": { "points": 8, "verdict": "safe", "label": "Removed the old phone number", "what": "Old numbers get recycled to strangers. A reset text would go to them.", "ideal": "keeps only numbers it still owns.", "effects": [{ "do": "flag.set", "key": "rc.phone" }, { "do": "check", "all": ["rc.mail", "rc.phone", "rc.q"], "emit": "recovery:clean" }] }
+    },
+    {
+      "id": "b-q",
+      "when": { "event": "recovery:removed", "match": { "id": "rc-q" } },
+      "outcome": { "points": 8, "verdict": "safe", "label": "Removed the security questions", "what": "Anyone can answer them from your public profile. They are a password written in public.", "ideal": "does not rely on security questions with public answers.", "effects": [{ "do": "flag.set", "key": "rc.q" }, { "do": "check", "all": ["rc.mail", "rc.phone", "rc.q"], "emit": "recovery:clean" }] }
+    },
+    {
+      "id": "b-refuse",
+      "when": { "event": "call:choice", "match": { "choice": "refuse" } },
+      "outcome": { "points": 10, "verdict": "safe", "label": "Would not read out the code", "what": "The caller ID said Priya, but caller ID can be faked. The code is the key to your account.", "ideal": "never shares a code with a caller, whoever the screen says they are." }
+    },
+    {
+      "id": "b-password",
+      "when": { "event": "password:changed" },
+      "outcome": { "points": 10, "verdict": "safe", "label": "Changed your password", "what": "Every other session is signed out, and the half finished reset is dead.", "ideal": "changes the password after a reset attempt." }
+    }
+  ],
+  "guards": [
+    {
+      "id": "g-give",
+      "when": { "event": "call:choice", "match": { "choice": "give" } },
+      "outcome": { "points": -10, "verdict": "risky", "label": "Read a reset code to a caller", "what": "Caller ID can be faked. A reset code is the key to the account.", "ideal": "never reads a code to anyone who calls." }
+    }
+  ],
+  "start": "decide",
+  "stages": {
+    "decide": {
+      "objective": "Someone is trying to reset your account. Shut the back door.",
+      "target": "computer",
+      "decision": true,
+      "insight": "Recovery options are a second set of keys. Old email, old numbers and guessable questions are keys other people may be holding.",
+      "hint": { "text": "Open Account security. Read Sign in activity, then open Recovery and remove the old email, the old phone number and the security questions. Do not read the code to anyone." },
+      "auto": [
+        {
+          "do": "after",
+          "ms": 20000,
+          "actions": [
+            {
+              "do": "call.incoming",
+              "id": "rc-call",
+              "number": "+44 7700 900404",
+              "label": "Priya Raman (IT)",
+              "known": true,
+              "genuine": false,
+              "missAfterMs": 40000,
+              "voice": { "gender": "female", "tone": "warm" },
+              "script": [
+                { "say": "Hi Sam, it is IT. We can see someone trying to reset your password. To block it, I need the code we just texted you. Can you read it out?" },
+                { "choices": [
+                  { "id": "give", "label": "Sure, it is {{code}}", "goto": "thanks" },
+                  { "id": "refuse", "label": "IT never needs my codes. I will call the service desk myself.", "goto": "fine" }
+                ] },
+                { "id": "thanks", "say": "Perfect, that is blocked now. Have a good evening.", "end": true },
+                { "id": "fine", "say": "OK, no problem.", "end": true }
+              ]
+            }
+          ]
+        }
+      ],
+      "on": [
+        {
+          "when": { "event": "call:choice", "match": { "choice": "give" } },
+          "outcome": {
+            "points": -30, "verdict": "unsafe", "label": "Read the reset code to the caller",
+            "what": "That code finished the reset. The attacker now owns your Veltrix account and has locked you out.",
+            "ideal": "never reads a code to a caller, whoever the caller ID says.",
+            "card": {
+              "title": "The code was the key",
+              "kicker": "Account takeover",
+              "body": [
+                "The caller was the attacker, with Priya's name spoofed onto the caller ID. The reset code you read out was the last thing they needed.",
+                "IT never needs your codes. And the reset only worked because an old, breached personal email was still listed as a recovery option."
+              ],
+              "ideal": "keeps codes to itself and removes recovery options it no longer controls.",
+              "rewindLabel": "Rewind to before I read it out"
+            }
+          },
+          "go": "wrap"
+        },
+        {
+          "when": { "event": "recovery:clean" },
+          "outcome": {
+            "points": 20, "verdict": "safe", "label": "Closed every stale recovery route",
+            "what": "Only your work mailbox and your authenticator can reset the account now.",
+            "ideal": "keeps recovery options to things it controls today.",
+            "card": {
+              "title": "The back door is shut",
+              "kicker": "Account takeover",
+              "body": [
+                "The reset was coming through your old personal email, breached last year. Your old phone number and your public security answers were two more ways in.",
+                "Now only your work mailbox and your authenticator can get into the account. Change the password and report the attempt."
+              ],
+              "ideal": "reviews recovery options the moment a reset code arrives unasked."
+            }
+          },
+          "go": "wrap"
+        }
+      ]
+    },
+    "wrap": {
+      "auto": [{ "do": "objective", "text": "Change your password, and report the reset attempt." }],
+      "hint": { "text": "In Account security change your password, then raise a Helpdesk ticket (my account may be compromised)." },
+      "on": [
+        {
+          "when": { "event": "ticket:raised" },
+          "outcome": { "points": 10, "verdict": "safe", "label": "Reported the reset attempt", "what": "IT can block the reset and check whether anyone else was targeted.", "ideal": "reports account takeover attempts." },
+          "go": "done"
+        }
+      ]
+    },
+    "done": { "end": true }
+  }
+}

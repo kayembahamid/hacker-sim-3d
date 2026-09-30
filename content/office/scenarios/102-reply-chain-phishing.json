@@ -1,0 +1,190 @@
+{
+  "id": "reply-chain-phishing",
+  "order": 102,
+  "title": "Double barrel: the call before the click",
+  "kind": "Callback primed phishing",
+  "track": "security-awareness",
+  "pool": false,
+  "level": "Core",
+  "minutes": 7,
+  "maxPoints": 72,
+  "startsAt": 1010,
+  "brief": "16:50. Your mobile rings. A friendly supplier wants to warn you that an email is on its way.",
+  "insight": "A phone call that vouches for an email is part of the attack. It is there to switch off the checks you would normally make.",
+  "teaches": [
+    "Treat a call announcing an email as a warning sign, not a reference",
+    "Judge the email on its own: the real sender address, the real link",
+    "Call the supplier back on the number you already hold"
+  ],
+  "vars": {
+    "nb": { "fake": "northbank" },
+    "dv": { "fake": "docuvane", "path": "/sign" }
+  },
+  "setup": [
+    { "do": "site.fake", "brand": "docuvane", "host": "{{dv.host}}", "trick": "{{dv.trick}}" },
+    {
+      "do": "deskphone.line",
+      "number": "02079460871",
+      "line": {
+        "name": "Northbank Packaging",
+        "genuine": true,
+        "verifies": "northbank",
+        "voice": { "gender": "male", "tone": "warm" },
+        "script": [
+          { "say": "Northbank Packaging, Owen speaking." },
+          { "choices": [
+            { "id": "ask", "label": "Did you just call me about a statement on Docuvane?", "goto": "ask" },
+            { "id": "wrong", "label": "Sorry, wrong number", "hangUp": true }
+          ] },
+          { "id": "ask", "say": "No. I have not called anyone today, and we do not use Docuvane. Our statements go through your supplier portal. Someone is using my name. Please do not sign anything.", "end": true }
+        ]
+      }
+    },
+    {
+      "do": "call.incoming",
+      "id": "rc-call",
+      "number": "+44 7700 900781",
+      "label": "+44 7700 900781",
+      "known": false,
+      "genuine": false,
+      "missAfterMs": 40000,
+      "voice": { "gender": "male", "tone": "warm" },
+      "script": [
+        { "say": "Hi, is that Sam in accounts? It is Owen from Northbank Packaging. Just a quick heads up: I am sending our revised Q3 statement through Docuvane in the next few minutes. Could you sign it off tonight, so we make the payment run?" },
+        { "choices": [
+          { "id": "trust", "label": "No problem, I will sign it as soon as it lands", "goto": "thanks" },
+          { "id": "check", "label": "Thanks. I will check it like any other email, and call you back on the number we hold", "goto": "hmm" }
+        ] },
+        { "id": "thanks", "say": "Brilliant, you are a star. Keep an eye out.", "end": true },
+        { "id": "hmm", "say": "Sure, sure. It is just a bit urgent, that is all. Speak soon.", "end": true }
+      ]
+    },
+    { "do": "room.banner", "title": "Incoming call", "body": "+44 7700 900781", "icon": "phone", "object": "phone", "action": "Answer" }
+  ],
+  "bonuses": [
+    {
+      "id": "b-callcheck",
+      "when": { "event": "call:choice", "match": { "choice": "check" } },
+      "outcome": { "points": 8, "verdict": "careful", "label": "Did not let the call vouch for the email", "what": "You told the caller you would check the email like any other. That is the whole defence against a double barrel.", "ideal": "treats a call announcing an email as a warning, not a reference." }
+    },
+    {
+      "id": "b-sender",
+      "when": { "event": "sender:checked", "match": { "id": "rc-mail" } },
+      "outcome": { "points": 6, "verdict": "careful", "label": "Checked the real sender address", "what": "The email came from {{nb.host}}. Northbank's real domain is northbankpackaging.co.uk.", "ideal": "reads the address, however friendly the call was." }
+    },
+    {
+      "id": "b-domain",
+      "when": { "event": "domain:checked", "match": { "host": "{{dv.host}}" } },
+      "outcome": { "points": 8, "verdict": "careful", "label": "Checked who owns the signing page", "what": "The page is on {{dv.host}}, not docuvane.app, and nothing to do with Northbank.", "ideal": "reads the address bar before signing in anywhere." }
+    },
+    {
+      "id": "b-callback",
+      "when": { "event": "deskphone:connected", "match": { "verifies": "northbank" } },
+      "outcome": { "points": 20, "verdict": "safe", "label": "Called Northbank back on the number on file", "what": "The real Owen never called and never sent it. The number in the vendor file beats the voice on your mobile.", "ideal": "verifies by calling a number they already hold." }
+    }
+  ],
+  "guards": [
+    {
+      "id": "g-trust",
+      "when": { "event": "call:choice", "match": { "choice": "trust" } },
+      "outcome": { "points": -4, "verdict": "risky", "label": "Promised to sign it as soon as it landed", "what": "The call was the first half of the attack. It is built to make the email feel expected.", "ideal": "does not let a call pre approve an email." }
+    }
+  ],
+  "start": "call",
+  "stages": {
+    "call": {
+      "objective": "Answer your mobile.",
+      "target": "phone",
+      "hint": { "text": "Answer the call on your mobile and listen to what the caller wants." },
+      "on": [
+        { "when": { "event": ["call:finished", "call:ended", "call:declined", "call:missed"] }, "go": "email", "instant": true }
+      ]
+    },
+    "email": {
+      "objective": "The statement has arrived. Decide what to do with it.",
+      "target": "computer",
+      "decision": true,
+      "insight": "Judge the email on its own. The call proves nothing: anyone can phone you and say a name.",
+      "hint": { "text": "Open the email and check the sender's real address. Open the link but read the address bar before typing. Take Northbank's number from the vendor file in the drawer, dial 9 then the number on the desk phone, and report the email." },
+      "auto": [
+        {
+          "do": "mail.deliver",
+          "delayMs": 1500,
+          "mail": {
+            "id": "rc-mail",
+            "genuine": false,
+            "external": true,
+            "from": { "name": "Owen Price", "address": "owen.price@{{nb.host}}" },
+            "subject": "RE: Q3 statement, as discussed",
+            "body": [
+              "Hi Sam,",
+              "As discussed on the phone just now, here is our revised Q3 statement for sign off before tonight's run.",
+              { "button": "Review and sign on Docuvane", "href": "https://{{dv.host}}/sign?doc=nb-q3" },
+              "Thanks for your help, much appreciated.",
+              { "sign": "Owen Price\nNorthbank Packaging\nAccounts" },
+              { "small": "From: Sam Rivera\nSent: 12 September\nSubject: Q3 statement\nThanks Owen, received with thanks." }
+            ],
+            "headers": {
+              "returnPath": "bounce@{{nb.host}}",
+              "spf": { "result": "pass", "explain": "Sent by {{nb.host}}, a lookalike the attacker registered. It proves nothing about Northbank." },
+              "dkim": { "result": "pass", "explain": "Signed by {{nb.host}}, not northbankpackaging.co.uk." },
+              "dmarc": { "result": "none", "explain": "No policy on the lookalike." },
+              "received": ["from mail.{{nb.host}} (203.0.113.58) by mx.veltrix-logistics.com"],
+              "messageId": "q3-statement@{{nb.host}}",
+              "summary": "The quoted earlier message is typed into the body, not a real thread. The address is a lookalike of northbankpackaging.co.uk, and the link goes to a lookalike of Docuvane."
+            }
+          }
+        }
+      ],
+      "on": [
+        {
+          "when": { "event": "form:submitted", "match": { "site": "docuvane-fake" } },
+          "outcome": {
+            "points": -40, "verdict": "unsafe", "label": "Signed in on the fake Docuvane page",
+            "what": "Your Veltrix password went to the attacker. The phone call made the email feel expected, which was its only job.",
+            "ideal": "checks every email on its own merits, however friendly the call before it.",
+            "card": {
+              "title": "The call did its job",
+              "kicker": "Double barrel phishing",
+              "body": [
+                "The page was not Docuvane and the email was not from Northbank. The friendly call five minutes earlier was there to make you skip the checks.",
+                "A call that announces an email is a reason to look harder, not less. The number in the vendor file would have reached the real Owen, who had never heard of it."
+              ],
+              "ideal": "treats the pre call as a red flag and verifies on a number they already hold.",
+              "rewindLabel": "Rewind to before I signed in"
+            }
+          },
+          "go": "wrap"
+        },
+        {
+          "when": { "event": "mail:reported", "match": { "genuine": false } },
+          "outcome": {
+            "points": 30, "verdict": "safe", "label": "Reported the email",
+            "what": "The lookalike domain is blocked for everyone, and the service desk knows someone is phoning ahead to prime staff.",
+            "ideal": "reports both halves of a double barrel: the call and the email.",
+            "card": {
+              "title": "Both barrels missed",
+              "kicker": "Double barrel phishing",
+              "body": [
+                "You judged the email on its own and reported it. The call was the setup: a friendly voice so the email would feel expected.",
+                "Anyone can phone you and say a supplier's name. The vendor file, the address bar and the sender's real domain cannot be faked the same way."
+              ],
+              "ideal": "treats the call as a red flag and checks the email on its merits."
+            }
+          },
+          "go": "done"
+        }
+      ]
+    },
+    "wrap": {
+      "auto": [{ "do": "objective", "text": "Report it, and change your password." }],
+      "hint": { "text": "Report the email, and change your Veltrix password in Account security." },
+      "on": [
+        { "when": { "event": "mail:reported" }, "go": "done" },
+        { "when": { "event": "ticket:raised" }, "go": "done" },
+        { "when": { "event": "password:changed" }, "go": "done" }
+      ]
+    },
+    "done": { "end": true }
+  }
+}

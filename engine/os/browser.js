@@ -77,6 +77,9 @@ export function createBrowser({ device, store, sites, vars, bar, product, bookma
   }
 
   function closeTab(i) {
+    const closing = bs().tabs[i];
+    const closingUrl = closing ? closing.history[closing.index] || null : null;
+    bus.emit('browser:tabClosed', { device, url: closingUrl, host: closingUrl ? safeHost(closingUrl) : '' });
     store.update((s) => {
       const b = s[device].browser;
       b.tabs.splice(i, 1);

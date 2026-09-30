@@ -276,6 +276,21 @@ export const ACTIONS = {
   insight: (a) => bus.emit('insight', { text: a.text, title: a.title }),
   beat: (a) => bus.emit('beat', { time: format(now()), text: a.text, tone: a.tone || 'neutral' }),
   card: (a) => bus.emit('overlay:card', a),
+  // A decision put to the player as a card: each choice raises its own event
+  // (and the card raises choice:made), so a stage rule can score it.
+  choice: (a, ctx) => {
+    if (!ctx.overlay) return;
+    ctx.overlay.showCard({
+      kicker: a.kicker, title: a.title, body: a.body, verdict: a.verdict || 'story', noEscape: true,
+      image: a.image ? `${import.meta.env.BASE_URL}${a.image}` : null, imageAlt: a.imageAlt, wide: !!a.image,
+      choices: (a.choices || []).map((c) => ({ id: c.id, label: c.label, icon: c.icon }))
+    }).then((picked) => {
+      const c = (a.choices || []).find((x) => x.id === picked);
+      bus.emit('choice:made', { id: a.id, choice: picked });
+      if (c && c.emit) bus.emit(c.emit, { id: a.id, choice: picked, ...(c.payload || {}) });
+      if (c && c.effects) runActions(c.effects, ctx);
+    });
+  },
   emit: (a) => bus.emit(a.event, a.payload || {}),
 
   // A to do list in the story panel, ticked by flags.
