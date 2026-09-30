@@ -94,3 +94,19 @@ test('a drill can be played from start to finish with taps on a phone', async ({
   expect(errs).toEqual([]);
   await ctx.close();
 });
+
+// iPad Safari sends no double click for a double tap, so the desktop has to
+// work with single taps: an icon opens on a tap, and so does a file.
+test('on a tablet held sideways, one tap opens a desktop icon and a file', async ({ browser }) => {
+  const { ctx, page } = await open(browser, 1133, 744, true, './?scenario=sql-injection');
+  await page.tap('.st-go .btn-ghost');
+  await page.waitForFunction(() => window.sim && sim.runner && sim.runner.active);
+  await fly(page, 'computer');
+  await wait(page, 500);
+  await page.evaluate(() => { for (const w of [...sim.desktopOS.world.desktop.windows]) sim.desktopOS.close(w.id); });
+  await wait(page, 300);
+  await page.tap('.desktop-os .dk-icon[data-app="terminal"]');
+  await wait(page, 500);
+  expect(await page.evaluate(() => sim.desktopOS.world.desktop.windows.map((w) => w.app))).toContain('terminal');
+  await ctx.close();
+});

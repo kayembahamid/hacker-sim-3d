@@ -47,6 +47,9 @@ export function makeFilesApp({ title = 'Files', folders = ['Downloads', 'Documen
       class: `fl-tr ${x.selected === f.id ? 'is-on' : ''}`, type: 'button', role: 'row', dataset: { file: f.id },
       onclick: () => { ctx.setExtra('files', { selected: f.id, props: false }); bus.emit('file:selected', { id: f.id, name: f.name }); },
       ondblclick: () => openFile(ctx, f),
+      // On a touch screen there is no double click: a second tap on the file that is
+      // already selected opens it.
+      onpointerup: (ev) => { if (ev.pointerType === 'touch' && x.selected === f.id) openFile(ctx, f); },
       oncontextmenu: (ev) => ctx.menu(ev, [
         { label: 'Open', icon: 'external', run: () => openFile(ctx, f) },
         { label: 'Properties', icon: 'info', run: () => showProps(ctx, f) },
