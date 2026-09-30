@@ -1,0 +1,401 @@
+{
+  "id": "bola",
+  "order": 601,
+  "title": "The id you can change",
+  "kind": "Broken object level authorization",
+  "track": "api-security",
+  "pool": false,
+  "level": "Core",
+  "minutes": 8,
+  "maxPoints": 79,
+  "startsAt": 1014,
+  "brief": "17:20. The mobile app calls the orders API. A partner reports that changing one number in a request returned somebody else's order.",
+  "role": "Platform engineer, reviewing a change on the Veltrix engineering team",
+  "insight": "The API checks that the caller has a valid token, and never that the order is theirs.",
+  "teaches": [
+    "Every endpoint that takes an object id must check the caller may access that object",
+    "Scope the data access itself, and test other people's ids in CI",
+    "Random ids and hidden fields are not authorization"
+  ],
+  "setup": [
+    {
+      "do": "world.set",
+      "path": "office.bench",
+      "value": {
+        "id": "bola",
+        "title": "Orders API",
+        "sub": "api.veltrix-logistics.com · staging",
+        "files": [
+          {
+            "path": "api/orders.js",
+            "lang": "JavaScript",
+            "lines": [
+              "router.get('/v1/orders/:id', requireToken, async (req, res) => {",
+              "  const order = await Orders.find(req.params.id);",
+              "  if (!order) return res.status(404).json({ error: 'not_found' });",
+              "  res.json(order);",
+              "});"
+            ],
+            "flaw": [
+              2,
+              4
+            ],
+            "vulnerable": true
+          },
+          {
+            "path": "api/README.md",
+            "lang": "Notes",
+            "lines": [
+              "Auth: bearer token, one per customer account.",
+              "Orders belong to a customer: order.customerId."
+            ],
+            "flaw": [],
+            "vulnerable": false
+          }
+        ],
+        "intro": "You hold a valid token for customer 88, who owns order 1002. Ask for your order, then for the next number along.",
+        "attempts": [
+          {
+            "id": "mine",
+            "label": "GET your own order, 1002",
+            "request": "GET /v1/orders/1002\nAuthorization: Bearer <token for customer 88>",
+            "response": "HTTP 200\n{ \"id\": 1002, \"customerId\": 88, \"total\": 214.50, \"address\": \"12 Kirk Lane, Leeds\" }",
+            "fixedResponse": "HTTP 200\n{ \"id\": 1002, \"customerId\": 88, \"total\": 214.50, \"address\": \"12 Kirk Lane, Leeds\" }",
+            "exploits": false
+          },
+          {
+            "id": "next",
+            "label": "GET order 1003",
+            "request": "GET /v1/orders/1003\nAuthorization: Bearer <token for customer 88>",
+            "response": "HTTP 200\n{ \"id\": 1003, \"customerId\": 91, \"total\": 1890.00, \"address\": \"Unit 4, Hartley Industrial Estate\", \"contact\": \"Daniel Okoro\" }\n\nA valid token, someone else's order.",
+            "fixedResponse": "HTTP 404\n{ \"error\": \"not_found\" }",
+            "exploits": true
+          },
+          {
+            "id": "loop",
+            "label": "Loop over 1000 to 1500",
+            "request": "for id in 1000..1500: GET /v1/orders/{id}",
+            "response": "501 requests, 501 x HTTP 200.\nEvery order in the range was returned: 47 customers' details.",
+            "fixedResponse": "501 requests: 1 x HTTP 200 (yours), 500 x HTTP 404.",
+            "exploits": true
+          }
+        ],
+        "fix": {
+          "prompt": "Pick every change that makes the API check ownership of the object, and keeps it checked as the API grows.",
+          "options": [
+            {
+              "id": "scope",
+              "label": "Scope the data access to the caller: look up by id and customer",
+              "code": [
+                "- const order = await Orders.find(req.params.id);",
+                "+ const order = await Orders.findOne({ id: req.params.id, customerId: req.auth.customerId });"
+              ],
+              "why": "The API only returns an object that belongs to the caller. Return not found for everything else so ids cannot be probed.",
+              "good": true
+            },
+            {
+              "id": "test",
+              "label": "Add a test that requests another customer's object and expects not found",
+              "code": [
+                "+ test('customer 88 cannot read order 1003', async () => expect(await get('/v1/orders/1003', as(88))).toBe(404));"
+              ],
+              "why": "The check becomes part of the build, so the next endpoint cannot quietly skip it.",
+              "good": true
+            },
+            {
+              "id": "uuid",
+              "label": "Switch to random UUIDs for order ids",
+              "code": [
+                "- /v1/orders/1003",
+                "+ /v1/orders/7f3a9c2e-51d4-4b0e-9a11-c2d05e8b4f62"
+              ],
+              "why": "Harder to guess, but ids leak in emails, logs and shared links, and whoever holds one can read the order.",
+              "good": false,
+              "bad": "weak"
+            },
+            {
+              "id": "role",
+              "label": "Only check that the token is valid, and that the caller has the customer role",
+              "code": [
+                "+ if (!req.auth.roles.includes('customer')) return res.status(403).end();"
+              ],
+              "why": "Every customer has that role, so it lets everyone in. The question is not what the caller is, but whose object this is.",
+              "good": false,
+              "bad": "weak"
+            },
+            {
+              "id": "rate",
+              "label": "Rate limit the orders endpoint",
+              "code": [
+                "+ limit: 60 requests / minute / token"
+              ],
+              "why": "Slows scraping, but one request is enough to read someone's order.",
+              "good": false,
+              "bad": "gap"
+            }
+          ]
+        },
+        "found": false,
+        "decided": false,
+        "fixed": false,
+        "picks": [],
+        "last": null
+      }
+    },
+    {
+      "do": "desktop.open",
+      "app": "bench"
+    },
+    {
+      "do": "room.banner",
+      "title": "Workbench",
+      "body": "Review the orders endpoint",
+      "icon": "code",
+      "object": "computer",
+      "action": "Open"
+    }
+  ],
+  "bonuses": [
+    {
+      "id": "b-read",
+      "when": {
+        "event": "bench:fileViewed",
+        "match": {
+          "vulnerable": true
+        }
+      },
+      "outcome": {
+        "points": 6,
+        "verdict": "careful",
+        "label": "Read the vulnerable code first",
+        "what": "Reading the code before attacking it tells you where to look, and why it fails.",
+        "ideal": "reads the code under review before trying to break it."
+      }
+    },
+    {
+      "id": "b-normal",
+      "when": {
+        "event": "bench:attempt",
+        "match": {
+          "exploited": false
+        }
+      },
+      "outcome": {
+        "points": 4,
+        "verdict": "careful",
+        "label": "Tried normal use first",
+        "what": "Knowing what a good request looks like is how you spot a bad one.",
+        "ideal": "establishes normal behaviour before testing the abnormal."
+      }
+    },
+    {
+      "id": "b-regress",
+      "when": {
+        "event": "bench:retest",
+        "match": {
+          "exploit": false,
+          "fixed": true
+        }
+      },
+      "outcome": {
+        "points": 4,
+        "verdict": "careful",
+        "label": "Checked normal use still works",
+        "what": "A fix that breaks real users gets reverted, and the bug comes back.",
+        "ideal": "tests that the fix did not break normal use."
+      }
+    }
+  ],
+  "guards": [],
+  "start": "exploit",
+  "stages": {
+    "exploit": {
+      "objective": "Reproduce the bug: read the Code tab, then use the Exploit tab on staging.",
+      "target": "computer",
+      "decision": true,
+      "insight": "The API checks that the caller has a valid token, and never that the order is theirs.",
+      "hint": {
+        "text": "Open the Workbench. Read the code, try normal use on the Exploit tab, then send the request that breaks it."
+      },
+      "on": [
+        {
+          "when": {
+            "event": "bench:attempt",
+            "match": {
+              "exploited": true
+            }
+          },
+          "outcome": {
+            "points": 15,
+            "verdict": "careful",
+            "label": "Reproduced the bug",
+            "what": "The API authenticated the caller and then returned whatever object the id named. Order 1003 belongs to another customer and came back complete, and a loop returned 47 customers' details in seconds.",
+            "ideal": "proves a bug is real before fixing it.",
+            "card": {
+              "title": "A valid token, someone else's order",
+              "kicker": "Broken object level authorization",
+              "body": [
+                "The API authenticated the caller and then returned whatever object the id named. Order 1003 belongs to another customer and came back complete, and a loop returned 47 customers' details in seconds.",
+                "This is number one on the API list because it is the easiest thing to forget."
+              ],
+              "ideal": "reproduces a bug first, so the fix can be proved to work."
+            }
+          },
+          "go": "fix"
+        }
+      ]
+    },
+    "fix": {
+      "objective": "Fix it: pick the changes on the Fix tab that close the hole for good, then apply the patch.",
+      "target": "computer",
+      "decision": true,
+      "hint": {
+        "text": "Pick every change that removes the cause. Avoid changes an attacker can walk around, and ones that do not touch the problem. Then Apply the patch."
+      },
+      "on": [
+        {
+          "when": {
+            "event": "bench:fixApplied",
+            "match": {
+              "ok": true
+            }
+          },
+          "outcome": {
+            "points": 35,
+            "verdict": "safe",
+            "label": "Applied a real fix",
+            "what": "Scoping the lookup by customer means the data layer only ever returns the caller's own objects. The test turns “someone else's id” into a build failure, so the next endpoint cannot skip the check.",
+            "ideal": "fixes the cause, not the symptom.",
+            "card": {
+              "title": "The object belongs to the caller, or it does not exist",
+              "kicker": "Broken object level authorization",
+              "body": [
+                "Scoping the lookup by customer means the data layer only ever returns the caller's own objects. The test turns “someone else's id” into a build failure, so the next endpoint cannot skip the check.",
+                "Check the object, not just the caller."
+              ],
+              "ideal": "fixes the cause with the standard control, and adds defence in depth."
+            }
+          },
+          "go": "verify"
+        },
+        {
+          "when": {
+            "event": "bench:fixApplied",
+            "match": {
+              "bad": {
+                "includes": "weak"
+              }
+            }
+          },
+          "outcome": {
+            "points": -25,
+            "verdict": "unsafe",
+            "label": "Applied a fix that can be bypassed",
+            "what": "UUIDs make ids hard to guess, but any id that ever leaks is still readable by anyone, because the server still does not check ownership. A role check lets every customer in, since they all have the role.",
+            "ideal": "fixes the cause instead of blocking one payload or hiding the symptom.",
+            "card": {
+              "title": "Guessing was never the problem",
+              "kicker": "Broken object level authorization",
+              "body": [
+                "UUIDs make ids hard to guess, but any id that ever leaks is still readable by anyone, because the server still does not check ownership. A role check lets every customer in, since they all have the role.",
+                "Ownership of the object is the check."
+              ],
+              "ideal": "fixes the cause, and knows why a blocklist or a hidden field is not a fix.",
+              "rewindLabel": "Rewind to the Fix tab"
+            }
+          },
+          "go": "verify"
+        },
+        {
+          "when": {
+            "event": "bench:fixApplied"
+          },
+          "outcome": {
+            "points": -5,
+            "verdict": "risky",
+            "label": "Applied a patch that was not enough",
+            "what": "The patch missed part of the fix, or added a change that does not address the problem.",
+            "ideal": "closes the hole completely.",
+            "card": {
+              "title": "Not enough",
+              "kicker": "Broken object level authorization",
+              "body": [
+                "The patch missed something that has to change, or included a change that does nothing for this bug. Open the Fix tab to see which options were right, missed, or wrong, and why.",
+                "A partial fix is the most dangerous kind: everyone assumes it is closed."
+              ],
+              "ideal": "closes the hole completely.",
+              "rewindLabel": "Rewind to the Fix tab"
+            }
+          },
+          "go": "verify"
+        }
+      ]
+    },
+    "verify": {
+      "objective": "Prove it: re-run the exploit on the Exploit tab, then check normal use still works.",
+      "target": "computer",
+      "decision": true,
+      "hint": {
+        "text": "On the Exploit tab, send the exploit again. It should be blocked. Then send the normal request to check nothing broke."
+      },
+      "on": [
+        {
+          "when": {
+            "event": "bench:retest",
+            "match": {
+              "blocked": true
+            }
+          },
+          "outcome": {
+            "points": 15,
+            "verdict": "safe",
+            "label": "Proved the exploit is blocked",
+            "what": "The same request that worked before now fails, and normal use still works.",
+            "ideal": "verifies a fix by re-running the exploit.",
+            "card": {
+              "title": "Fixed, and proved",
+              "kicker": "Broken object level authorization",
+              "body": [
+                "You re-ran the exact request that broke it, and it is blocked. A fix you have not tested against the exploit is a hope, not a fix.",
+                "Add the exploit as an automated test so nobody can quietly bring the bug back."
+              ],
+              "ideal": "turns the exploit into a regression test."
+            }
+          },
+          "go": "done"
+        },
+        {
+          "when": {
+            "event": "bench:retest",
+            "match": {
+              "exploit": true,
+              "blocked": false
+            }
+          },
+          "outcome": {
+            "points": 0,
+            "verdict": "risky",
+            "label": "The exploit still works",
+            "what": "The patch did not close the hole. The same kind of request still gets through.",
+            "ideal": "never ships a fix without re-running the exploit.",
+            "rewind": false,
+            "card": {
+              "title": "Still open",
+              "kicker": "Broken object level authorization",
+              "body": [
+                "The exploit still works after your patch. This is what happens when a fix blocks one payload, or hides a symptom, instead of removing the cause.",
+                "Go back over the Fix tab: it shows which options were right, and why the others fail."
+              ],
+              "ideal": "verifies with the exploit before calling it fixed.",
+              "rewind": false
+            }
+          },
+          "go": "done"
+        }
+      ]
+    },
+    "done": {
+      "end": true
+    }
+  }
+}

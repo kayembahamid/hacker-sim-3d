@@ -1,0 +1,412 @@
+{
+  "id": "over-privileged-key",
+  "order": 604,
+  "title": "The over-privileged key",
+  "kind": "Over privileged API key",
+  "track": "api-security",
+  "pool": false,
+  "level": "Core",
+  "minutes": 7,
+  "maxPoints": 79,
+  "startsAt": 1023,
+  "brief": "17:35. A researcher extracted a key from the mobile app package and used it against production. The key can do everything, for every customer.",
+  "role": "Platform engineer, reviewing a change on the Veltrix engineering team",
+  "insight": "One key, shipped to every phone, that is allowed to do anything to any tenant.",
+  "teaches": [
+    "A secret shipped in a client is public: assume everyone has it",
+    "Users get short lived, scoped tokens; the app gets no standing power",
+    "Rotate the leaked key, and grant only the scopes each caller needs"
+  ],
+  "setup": [
+    {
+      "do": "world.set",
+      "path": "office.bench",
+      "value": {
+        "id": "over-privileged-key",
+        "title": "Mobile app API access",
+        "sub": "api.veltrix-logistics.com · mobile",
+        "files": [
+          {
+            "path": "mobile/src/config.js",
+            "lang": "JavaScript",
+            "lines": [
+              "export const API_BASE = 'https://api.veltrix-logistics.com';",
+              "export const API_KEY  = 'vlx_live_admin_9f2c81ab77d0';   // scopes: *  tenants: *"
+            ],
+            "flaw": [
+              2
+            ],
+            "vulnerable": true
+          },
+          {
+            "path": "api/keys.yml",
+            "lang": "Config",
+            "lines": [
+              "vlx_live_admin_9f2c81ab77d0:",
+              "  scopes: [\"*\"]",
+              "  tenants: [\"*\"]",
+              "  expires: never"
+            ],
+            "flaw": [
+              2,
+              3,
+              4
+            ],
+            "vulnerable": true
+          }
+        ],
+        "intro": "The key is readable in the app package. See what it can do, then see what a properly scoped one would allow.",
+        "attempts": [
+          {
+            "id": "extract",
+            "label": "Extract the key from the app package",
+            "request": "strings VeltrixMobile.apk | grep vlx_live",
+            "response": "vlx_live_admin_9f2c81ab77d0\n\nEvery installed copy of the app contains it.",
+            "fixedResponse": "No long lived key in the package. The app signs users in and receives a short lived token.",
+            "exploits": true
+          },
+          {
+            "id": "cross",
+            "label": "Use the key to list another tenant's shipments",
+            "request": "GET /v1/tenants/kestrel-freight/shipments\nX-Api-Key: vlx_live_admin_9f2c81ab77d0",
+            "response": "HTTP 200\n[ ...4,812 shipments for another company... ]\n\nOne key, every tenant.",
+            "fixedResponse": "HTTP 403\n{ \"error\": \"token_not_valid_for_tenant\" }",
+            "exploits": true
+          },
+          {
+            "id": "delete",
+            "label": "Use the key to delete a shipment record",
+            "request": "DELETE /v1/tenants/veltrix/shipments/88213\nX-Api-Key: vlx_live_admin_9f2c81ab77d0",
+            "response": "HTTP 204\nDeleted. The key has write and delete on everything.",
+            "fixedResponse": "HTTP 403\n{ \"error\": \"scope_missing\", \"needed\": \"shipments:delete\" }",
+            "exploits": true
+          },
+          {
+            "id": "normal",
+            "label": "Track your own parcel in the app",
+            "request": "GET /v1/me/shipments/88213\nAuthorization: Bearer <your short lived token>",
+            "response": "HTTP 200\n{ \"status\": \"out for delivery\" }",
+            "fixedResponse": "HTTP 200\n{ \"status\": \"out for delivery\" }",
+            "exploits": false
+          }
+        ],
+        "fix": {
+          "prompt": "Pick every change that removes the standing power from the app, and deals with the key that already leaked.",
+          "options": [
+            {
+              "id": "token",
+              "label": "Have the app sign the user in and use a short lived, per user token",
+              "code": [
+                "- X-Api-Key: vlx_live_admin_9f2c81ab77d0",
+                "+ Authorization: Bearer <token issued at sign in, 15 minutes>"
+              ],
+              "why": "There is no secret in the package to steal, and a stolen token expires quickly and only reaches that user.",
+              "good": true
+            },
+            {
+              "id": "scope",
+              "label": "Issue keys and tokens with least privilege scopes, tied to one tenant",
+              "code": [
+                "+ scopes: [\"shipments:read\"]",
+                "+ tenant: \"veltrix\"",
+                "+ expires: 15m"
+              ],
+              "why": "Even a token that leaks can only read one tenant's own shipments.",
+              "good": true
+            },
+            {
+              "id": "rotate",
+              "label": "Revoke and rotate the leaked key now",
+              "code": [
+                "+ revoke vlx_live_admin_9f2c81ab77d0"
+              ],
+              "why": "The key is public, so only revoking it stops it working. Nothing else does.",
+              "good": true
+            },
+            {
+              "id": "obf",
+              "label": "Obfuscate the key inside the app",
+              "code": [
+                "- API_KEY = 'vlx_live_admin_9f2c81ab77d0'",
+                "+ API_KEY = decode('dmx4X2xpdmVf...')"
+              ],
+              "why": "The app has to decode it to use it, so anyone can too. Obfuscation slows a researcher by minutes.",
+              "good": false,
+              "bad": "weak"
+            },
+            {
+              "id": "ua",
+              "label": "Only accept the key from our app's User-Agent",
+              "code": [
+                "+ if (req.headers['user-agent'] !== 'VeltrixMobile/3') deny();"
+              ],
+              "why": "The User-Agent is a header the caller writes. Anyone can send it.",
+              "good": false,
+              "bad": "weak"
+            }
+          ]
+        },
+        "found": false,
+        "decided": false,
+        "fixed": false,
+        "picks": [],
+        "last": null
+      }
+    },
+    {
+      "do": "desktop.open",
+      "app": "bench"
+    },
+    {
+      "do": "room.banner",
+      "title": "Workbench",
+      "body": "Investigate the leaked mobile key",
+      "icon": "code",
+      "object": "computer",
+      "action": "Open"
+    }
+  ],
+  "bonuses": [
+    {
+      "id": "b-read",
+      "when": {
+        "event": "bench:fileViewed",
+        "match": {
+          "vulnerable": true
+        }
+      },
+      "outcome": {
+        "points": 6,
+        "verdict": "careful",
+        "label": "Read the vulnerable code first",
+        "what": "Reading the code before attacking it tells you where to look, and why it fails.",
+        "ideal": "reads the code under review before trying to break it."
+      }
+    },
+    {
+      "id": "b-normal",
+      "when": {
+        "event": "bench:attempt",
+        "match": {
+          "exploited": false
+        }
+      },
+      "outcome": {
+        "points": 4,
+        "verdict": "careful",
+        "label": "Tried normal use first",
+        "what": "Knowing what a good request looks like is how you spot a bad one.",
+        "ideal": "establishes normal behaviour before testing the abnormal."
+      }
+    },
+    {
+      "id": "b-regress",
+      "when": {
+        "event": "bench:retest",
+        "match": {
+          "exploit": false,
+          "fixed": true
+        }
+      },
+      "outcome": {
+        "points": 4,
+        "verdict": "careful",
+        "label": "Checked normal use still works",
+        "what": "A fix that breaks real users gets reverted, and the bug comes back.",
+        "ideal": "tests that the fix did not break normal use."
+      }
+    }
+  ],
+  "guards": [],
+  "start": "exploit",
+  "stages": {
+    "exploit": {
+      "objective": "Reproduce the bug: read the Code tab, then use the Exploit tab on staging.",
+      "target": "computer",
+      "decision": true,
+      "insight": "One key, shipped to every phone, that is allowed to do anything to any tenant.",
+      "hint": {
+        "text": "Open the Workbench. Read the code, try normal use on the Exploit tab, then send the request that breaks it."
+      },
+      "on": [
+        {
+          "when": {
+            "event": "bench:attempt",
+            "match": {
+              "exploited": true
+            }
+          },
+          "outcome": {
+            "points": 15,
+            "verdict": "careful",
+            "label": "Reproduced the bug",
+            "what": "The key sat in every copy of the app. With it, a researcher read another company's shipments and deleted records, because the key had every scope on every tenant and never expired.",
+            "ideal": "proves a bug is real before fixing it.",
+            "card": {
+              "title": "One key, every customer",
+              "kicker": "Over privileged API key",
+              "body": [
+                "The key sat in every copy of the app. With it, a researcher read another company's shipments and deleted records, because the key had every scope on every tenant and never expired.",
+                "Anything shipped inside an app is public."
+              ],
+              "ideal": "reproduces a bug first, so the fix can be proved to work."
+            }
+          },
+          "go": "fix"
+        }
+      ]
+    },
+    "fix": {
+      "objective": "Fix it: pick the changes on the Fix tab that close the hole for good, then apply the patch.",
+      "target": "computer",
+      "decision": true,
+      "hint": {
+        "text": "Pick every change that removes the cause. Avoid changes an attacker can walk around, and ones that do not touch the problem. Then Apply the patch."
+      },
+      "on": [
+        {
+          "when": {
+            "event": "bench:fixApplied",
+            "match": {
+              "ok": true
+            }
+          },
+          "outcome": {
+            "points": 35,
+            "verdict": "safe",
+            "label": "Applied a real fix",
+            "what": "Users sign in and receive short lived tokens tied to them and one tenant, so there is nothing in the package to extract. Scopes are the minimum each caller needs, and the leaked key is revoked so it opens nothing.",
+            "ideal": "fixes the cause, not the symptom.",
+            "card": {
+              "title": "No standing secret, and nothing broad to steal",
+              "kicker": "Over privileged API key",
+              "body": [
+                "Users sign in and receive short lived tokens tied to them and one tenant, so there is nothing in the package to extract. Scopes are the minimum each caller needs, and the leaked key is revoked so it opens nothing.",
+                "Least privilege is what limits the damage when something leaks."
+              ],
+              "ideal": "fixes the cause with the standard control, and adds defence in depth."
+            }
+          },
+          "go": "verify"
+        },
+        {
+          "when": {
+            "event": "bench:fixApplied",
+            "match": {
+              "bad": {
+                "includes": "weak"
+              }
+            }
+          },
+          "outcome": {
+            "points": -25,
+            "verdict": "unsafe",
+            "label": "Applied a fix that can be bypassed",
+            "what": "Obfuscating the key or checking a header slows nobody down: the app must be able to use the key, so anyone can, and headers are written by the caller. The leaked key is still live.",
+            "ideal": "fixes the cause instead of blocking one payload or hiding the symptom.",
+            "card": {
+              "title": "Hidden in plain sight",
+              "kicker": "Over privileged API key",
+              "body": [
+                "Obfuscating the key or checking a header slows nobody down: the app must be able to use the key, so anyone can, and headers are written by the caller. The leaked key is still live.",
+                "Take the secret out of the app, and revoke the one that is out."
+              ],
+              "ideal": "fixes the cause, and knows why a blocklist or a hidden field is not a fix.",
+              "rewindLabel": "Rewind to the Fix tab"
+            }
+          },
+          "go": "verify"
+        },
+        {
+          "when": {
+            "event": "bench:fixApplied"
+          },
+          "outcome": {
+            "points": -5,
+            "verdict": "risky",
+            "label": "Applied a patch that was not enough",
+            "what": "The patch missed part of the fix, or added a change that does not address the problem.",
+            "ideal": "closes the hole completely.",
+            "card": {
+              "title": "Not enough",
+              "kicker": "Over privileged API key",
+              "body": [
+                "The patch missed something that has to change, or included a change that does nothing for this bug. Open the Fix tab to see which options were right, missed, or wrong, and why.",
+                "A partial fix is the most dangerous kind: everyone assumes it is closed."
+              ],
+              "ideal": "closes the hole completely.",
+              "rewindLabel": "Rewind to the Fix tab"
+            }
+          },
+          "go": "verify"
+        }
+      ]
+    },
+    "verify": {
+      "objective": "Prove it: re-run the exploit on the Exploit tab, then check normal use still works.",
+      "target": "computer",
+      "decision": true,
+      "hint": {
+        "text": "On the Exploit tab, send the exploit again. It should be blocked. Then send the normal request to check nothing broke."
+      },
+      "on": [
+        {
+          "when": {
+            "event": "bench:retest",
+            "match": {
+              "blocked": true
+            }
+          },
+          "outcome": {
+            "points": 15,
+            "verdict": "safe",
+            "label": "Proved the exploit is blocked",
+            "what": "The same request that worked before now fails, and normal use still works.",
+            "ideal": "verifies a fix by re-running the exploit.",
+            "card": {
+              "title": "Fixed, and proved",
+              "kicker": "Over privileged API key",
+              "body": [
+                "You re-ran the exact request that broke it, and it is blocked. A fix you have not tested against the exploit is a hope, not a fix.",
+                "Add the exploit as an automated test so nobody can quietly bring the bug back."
+              ],
+              "ideal": "turns the exploit into a regression test."
+            }
+          },
+          "go": "done"
+        },
+        {
+          "when": {
+            "event": "bench:retest",
+            "match": {
+              "exploit": true,
+              "blocked": false
+            }
+          },
+          "outcome": {
+            "points": 0,
+            "verdict": "risky",
+            "label": "The exploit still works",
+            "what": "The patch did not close the hole. The same kind of request still gets through.",
+            "ideal": "never ships a fix without re-running the exploit.",
+            "rewind": false,
+            "card": {
+              "title": "Still open",
+              "kicker": "Over privileged API key",
+              "body": [
+                "The exploit still works after your patch. This is what happens when a fix blocks one payload, or hides a symptom, instead of removing the cause.",
+                "Go back over the Fix tab: it shows which options were right, and why the others fail."
+              ],
+              "ideal": "verifies with the exploit before calling it fixed.",
+              "rewind": false
+            }
+          },
+          "go": "done"
+        }
+      ]
+    },
+    "done": {
+      "end": true
+    }
+  }
+}

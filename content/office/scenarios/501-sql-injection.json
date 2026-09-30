@@ -1,0 +1,417 @@
+{
+  "id": "sql-injection",
+  "order": 501,
+  "title": "SQL injection in the login",
+  "kind": "SQL injection",
+  "track": "application-security",
+  "pool": false,
+  "level": "Core",
+  "minutes": 8,
+  "maxPoints": 79,
+  "startsAt": 990,
+  "brief": "16:40. A pull request changes the customer portal login. QA says it works. You are the reviewer, and staging is open for you to try it.",
+  "role": "Platform engineer, reviewing a change on the Veltrix engineering team",
+  "insight": "The query is built by gluing strings together, so the input can rewrite the query itself.",
+  "teaches": [
+    "Untrusted input glued into a query becomes part of the query",
+    "Parameterised queries keep data and code apart, for good",
+    "Escaping by hand and client checks are not fixes; least privilege limits the damage"
+  ],
+  "setup": [
+    {
+      "do": "world.set",
+      "path": "office.bench",
+      "value": {
+        "id": "sql-injection",
+        "title": "Customer portal: login change",
+        "sub": "portal-api · staging",
+        "files": [
+          {
+            "path": "portal/routes/login.js",
+            "lang": "JavaScript",
+            "lines": [
+              "app.post('/login', async (req, res) => {",
+              "  const { email, password } = req.body;",
+              "  const sql = \"SELECT id, role FROM users WHERE email = '\" + email +",
+              "              \"' AND pw_hash = '\" + hash(password) + \"'\";",
+              "  const rows = await db.query(sql);",
+              "  if (rows.length > 0) return res.json({ token: sign(rows[0]) });",
+              "  res.status(401).json({ error: 'bad login' });",
+              "});"
+            ],
+            "flaw": [
+              3,
+              4
+            ],
+            "vulnerable": true
+          },
+          {
+            "path": "portal/db/schema.sql",
+            "lang": "SQL",
+            "lines": [
+              "CREATE TABLE users (",
+              "  id       INTEGER PRIMARY KEY,",
+              "  email    TEXT UNIQUE,",
+              "  pw_hash  TEXT,",
+              "  role     TEXT DEFAULT 'customer'",
+              ");"
+            ],
+            "flaw": [],
+            "vulnerable": false
+          }
+        ],
+        "intro": "Staging runs the branch. Send it a normal sign in first, then try to break it. The email field goes straight into the query.",
+        "attempts": [
+          {
+            "id": "normal",
+            "label": "Sign in as a normal customer",
+            "request": "POST /login\n{ \"email\": \"megan@customer.test\", \"password\": \"correct horse\" }",
+            "response": "HTTP 200\n{ \"token\": \"eyJhbGciOi...customer\" }",
+            "fixedResponse": "HTTP 200\n{ \"token\": \"eyJhbGciOi...customer\" }",
+            "exploits": false
+          },
+          {
+            "id": "wrong",
+            "label": "Sign in with a wrong password",
+            "request": "POST /login\n{ \"email\": \"megan@customer.test\", \"password\": \"nope\" }",
+            "response": "HTTP 401\n{ \"error\": \"bad login\" }",
+            "fixedResponse": "HTTP 401\n{ \"error\": \"bad login\" }",
+            "exploits": false
+          },
+          {
+            "id": "inject",
+            "label": "Email: admin@veltrix-logistics.com' --  (any password)",
+            "request": "POST /login\n{ \"email\": \"admin@veltrix-logistics.com' --\", \"password\": \"x\" }\n\nQuery run:\nSELECT id, role FROM users WHERE email = 'admin@veltrix-logistics.com' --' AND pw_hash = '...'",
+            "response": "HTTP 200\n{ \"token\": \"eyJhbGciOi...admin\" }\n\nThe password check was commented out.",
+            "fixedResponse": "HTTP 401\n{ \"error\": \"bad login\" }\n\nThe whole string was treated as an email address, and no such user exists.",
+            "exploits": true
+          },
+          {
+            "id": "or",
+            "label": "Email: ' OR '1'='1' --",
+            "request": "POST /login\n{ \"email\": \"' OR '1'='1' --\", \"password\": \"x\" }",
+            "response": "HTTP 200\n{ \"token\": \"eyJhbGciOi...first-user\" }\n\nEvery row matched. You are signed in as the first user.",
+            "fixedResponse": "HTTP 401\n{ \"error\": \"bad login\" }",
+            "exploits": true
+          }
+        ],
+        "fix": {
+          "prompt": "The cause is that data can change the query. Pick every change that removes that, and any that limits the damage if something else goes wrong.",
+          "options": [
+            {
+              "id": "param",
+              "label": "Use a parameterised query, with the values passed separately",
+              "code": [
+                "- const sql = \"SELECT ... WHERE email = '\" + email + \"' AND ...\"",
+                "+ const rows = await db.query(",
+                "+   'SELECT id, role FROM users WHERE email = $1 AND pw_hash = $2',",
+                "+   [email, hash(password)]",
+                "+ );"
+              ],
+              "why": "The database receives the query and the values separately, so a value can never become part of the query. This is the fix.",
+              "good": true
+            },
+            {
+              "id": "lp",
+              "label": "Run the portal with a database account that can only read and write what it needs",
+              "code": [
+                "+ -- portal_app: SELECT, INSERT, UPDATE on customer tables only",
+                "+ -- no DROP, no access to the admin schema"
+              ],
+              "why": "Defence in depth: if another injection slips in, it cannot drop tables or read the admin schema.",
+              "good": true
+            },
+            {
+              "id": "esc",
+              "label": "Escape single quotes in the email with a replace",
+              "code": [
+                "+ const safe = email.replace(/'/g, \"''\");"
+              ],
+              "why": "Hand written escaping misses other characters, encodings and other parts of the query. Attackers have been getting round these for twenty years.",
+              "good": false,
+              "bad": "weak"
+            },
+            {
+              "id": "client",
+              "label": "Validate the email format in the browser form",
+              "code": [
+                "+ <input type=\"email\" required pattern=\"[^'\\s]+@[^'\\s]+\">"
+              ],
+              "why": "The attacker does not use your form. They send the request directly, so nothing in the browser stops them.",
+              "good": false,
+              "bad": "weak"
+            },
+            {
+              "id": "rate",
+              "label": "Rate limit the login endpoint",
+              "code": [],
+              "why": "Worth doing, but it slows the attack down. It does not stop it.",
+              "good": false,
+              "bad": "gap"
+            }
+          ]
+        },
+        "found": false,
+        "decided": false,
+        "fixed": false,
+        "picks": [],
+        "last": null
+      }
+    },
+    {
+      "do": "desktop.open",
+      "app": "bench"
+    },
+    {
+      "do": "room.banner",
+      "title": "Workbench",
+      "body": "Review the login change on staging",
+      "icon": "code",
+      "object": "computer",
+      "action": "Open"
+    }
+  ],
+  "bonuses": [
+    {
+      "id": "b-read",
+      "when": {
+        "event": "bench:fileViewed",
+        "match": {
+          "vulnerable": true
+        }
+      },
+      "outcome": {
+        "points": 6,
+        "verdict": "careful",
+        "label": "Read the vulnerable code first",
+        "what": "Reading the code before attacking it tells you where to look, and why it fails.",
+        "ideal": "reads the code under review before trying to break it."
+      }
+    },
+    {
+      "id": "b-normal",
+      "when": {
+        "event": "bench:attempt",
+        "match": {
+          "exploited": false
+        }
+      },
+      "outcome": {
+        "points": 4,
+        "verdict": "careful",
+        "label": "Tried normal use first",
+        "what": "Knowing what a good request looks like is how you spot a bad one.",
+        "ideal": "establishes normal behaviour before testing the abnormal."
+      }
+    },
+    {
+      "id": "b-regress",
+      "when": {
+        "event": "bench:retest",
+        "match": {
+          "exploit": false,
+          "fixed": true
+        }
+      },
+      "outcome": {
+        "points": 4,
+        "verdict": "careful",
+        "label": "Checked normal use still works",
+        "what": "A fix that breaks real users gets reverted, and the bug comes back.",
+        "ideal": "tests that the fix did not break normal use."
+      }
+    }
+  ],
+  "guards": [],
+  "start": "exploit",
+  "stages": {
+    "exploit": {
+      "objective": "Reproduce the bug: read the Code tab, then use the Exploit tab on staging.",
+      "target": "computer",
+      "decision": true,
+      "insight": "The query is built by gluing strings together, so the input can rewrite the query itself.",
+      "hint": {
+        "text": "Open the Workbench. Read the code, try normal use on the Exploit tab, then send the request that breaks it."
+      },
+      "on": [
+        {
+          "when": {
+            "event": "bench:attempt",
+            "match": {
+              "exploited": true
+            }
+          },
+          "outcome": {
+            "points": 15,
+            "verdict": "careful",
+            "label": "Reproduced the bug",
+            "what": "Everything after the two dashes was treated as a comment, so the query never checked the password. You are signed in as an admin with no password at all.",
+            "ideal": "proves a bug is real before fixing it.",
+            "card": {
+              "title": "The password check disappeared",
+              "kicker": "SQL injection",
+              "body": [
+                "Everything after the two dashes was treated as a comment, so the query never checked the password. You are signed in as an admin with no password at all.",
+                "Look at lines 3 and 4: the email is glued straight into the query. Whatever the user types becomes part of the code."
+              ],
+              "ideal": "reproduces a bug first, so the fix can be proved to work."
+            }
+          },
+          "go": "fix"
+        }
+      ]
+    },
+    "fix": {
+      "objective": "Fix it: pick the changes on the Fix tab that close the hole for good, then apply the patch.",
+      "target": "computer",
+      "decision": true,
+      "hint": {
+        "text": "Pick every change that removes the cause. Avoid changes an attacker can walk around, and ones that do not touch the problem. Then Apply the patch."
+      },
+      "on": [
+        {
+          "when": {
+            "event": "bench:fixApplied",
+            "match": {
+              "ok": true
+            }
+          },
+          "outcome": {
+            "points": 35,
+            "verdict": "safe",
+            "label": "Applied a real fix",
+            "what": "With a parameterised query the database gets the query and the values separately. The email can contain quotes, dashes and SQL, and it is only ever a value to compare.",
+            "ideal": "fixes the cause, not the symptom.",
+            "card": {
+              "title": "Data can no longer become code",
+              "kicker": "SQL injection",
+              "body": [
+                "With a parameterised query the database gets the query and the values separately. The email can contain quotes, dashes and SQL, and it is only ever a value to compare.",
+                "A restricted database account means that even a future injection somewhere cannot drop tables or read the admin schema."
+              ],
+              "ideal": "fixes the cause with the standard control, and adds defence in depth."
+            }
+          },
+          "go": "verify"
+        },
+        {
+          "when": {
+            "event": "bench:fixApplied",
+            "match": {
+              "bad": {
+                "includes": "weak"
+              }
+            }
+          },
+          "outcome": {
+            "points": -25,
+            "verdict": "unsafe",
+            "label": "Applied a fix that can be bypassed",
+            "what": "Escaping quotes or checking the form in the browser stops the attack you just tried. It does not stop the next one: other characters, other encodings, other fields.",
+            "ideal": "fixes the cause instead of blocking one payload or hiding the symptom.",
+            "card": {
+              "title": "You blocked one payload, not the bug",
+              "kicker": "SQL injection",
+              "body": [
+                "Escaping quotes or checking the form in the browser stops the attack you just tried. It does not stop the next one: other characters, other encodings, other fields.",
+                "Injection is fixed at the cause. Keep data and code apart with parameters."
+              ],
+              "ideal": "fixes the cause, and knows why a blocklist or a hidden field is not a fix.",
+              "rewindLabel": "Rewind to the Fix tab"
+            }
+          },
+          "go": "verify"
+        },
+        {
+          "when": {
+            "event": "bench:fixApplied"
+          },
+          "outcome": {
+            "points": -5,
+            "verdict": "risky",
+            "label": "Applied a patch that was not enough",
+            "what": "The patch missed part of the fix, or added a change that does not address the problem.",
+            "ideal": "closes the hole completely.",
+            "card": {
+              "title": "Not enough",
+              "kicker": "SQL injection",
+              "body": [
+                "The patch missed something that has to change, or included a change that does nothing for this bug. Open the Fix tab to see which options were right, missed, or wrong, and why.",
+                "A partial fix is the most dangerous kind: everyone assumes it is closed."
+              ],
+              "ideal": "closes the hole completely.",
+              "rewindLabel": "Rewind to the Fix tab"
+            }
+          },
+          "go": "verify"
+        }
+      ]
+    },
+    "verify": {
+      "objective": "Prove it: re-run the exploit on the Exploit tab, then check normal use still works.",
+      "target": "computer",
+      "decision": true,
+      "hint": {
+        "text": "On the Exploit tab, send the exploit again. It should be blocked. Then send the normal request to check nothing broke."
+      },
+      "on": [
+        {
+          "when": {
+            "event": "bench:retest",
+            "match": {
+              "blocked": true
+            }
+          },
+          "outcome": {
+            "points": 15,
+            "verdict": "safe",
+            "label": "Proved the exploit is blocked",
+            "what": "The same request that worked before now fails, and normal use still works.",
+            "ideal": "verifies a fix by re-running the exploit.",
+            "card": {
+              "title": "Fixed, and proved",
+              "kicker": "SQL injection",
+              "body": [
+                "You re-ran the exact request that broke it, and it is blocked. A fix you have not tested against the exploit is a hope, not a fix.",
+                "Add the exploit as an automated test so nobody can quietly bring the bug back."
+              ],
+              "ideal": "turns the exploit into a regression test."
+            }
+          },
+          "go": "done"
+        },
+        {
+          "when": {
+            "event": "bench:retest",
+            "match": {
+              "exploit": true,
+              "blocked": false
+            }
+          },
+          "outcome": {
+            "points": 0,
+            "verdict": "risky",
+            "label": "The exploit still works",
+            "what": "The patch did not close the hole. The same kind of request still gets through.",
+            "ideal": "never ships a fix without re-running the exploit.",
+            "rewind": false,
+            "card": {
+              "title": "Still open",
+              "kicker": "SQL injection",
+              "body": [
+                "The exploit still works after your patch. This is what happens when a fix blocks one payload, or hides a symptom, instead of removing the cause.",
+                "Go back over the Fix tab: it shows which options were right, and why the others fail."
+              ],
+              "ideal": "verifies with the exploit before calling it fixed.",
+              "rewind": false
+            }
+          },
+          "go": "done"
+        }
+      ]
+    },
+    "done": {
+      "end": true
+    }
+  }
+}

@@ -1,0 +1,422 @@
+{
+  "id": "branch-protection",
+  "order": 703,
+  "title": "Branch protection that means it",
+  "kind": "Missing branch protection",
+  "track": "git-security",
+  "pool": false,
+  "level": "Foundational",
+  "minutes": 6,
+  "maxPoints": 79,
+  "startsAt": 1038,
+  "brief": "18:00. An audit finds that anyone with write access can push straight to main, and main deploys to production. Yesterday it happened.",
+  "role": "Platform engineer, reviewing a change on the Veltrix engineering team",
+  "insight": "The review process exists, but the settings let anyone skip it.",
+  "teaches": [
+    "Protect main: reviews, status checks, no force pushes, and no admin bypass",
+    "A rule people can switch off for themselves is a guideline",
+    "Asking people to be careful is not a control"
+  ],
+  "setup": [
+    {
+      "do": "world.set",
+      "path": "office.bench",
+      "value": {
+        "id": "branch-protection",
+        "title": "Repository settings review",
+        "sub": "portal-api · settings",
+        "files": [
+          {
+            "path": "settings/branches/main.json",
+            "lang": "Config",
+            "lines": [
+              "{",
+              "  \"required_reviews\": 0,",
+              "  \"required_status_checks\": [],",
+              "  \"allow_force_push\": true,",
+              "  \"allow_deletion\": true,",
+              "  \"admins_can_bypass\": true,",
+              "  \"deploys_to\": \"production\"",
+              "}"
+            ],
+            "flaw": [
+              2,
+              3,
+              4,
+              5,
+              6
+            ],
+            "vulnerable": true
+          },
+          {
+            "path": "CONTRIBUTING.md",
+            "lang": "Notes",
+            "lines": [
+              "Please open a pull request and ask for a review.",
+              "Please be careful when pushing to main."
+            ],
+            "flaw": [
+              1,
+              2
+            ],
+            "vulnerable": true
+          }
+        ],
+        "intro": "Act like an ordinary contributor with write access. Try the normal route, then try skipping it.",
+        "attempts": [
+          {
+            "id": "pr",
+            "label": "Open a pull request the normal way",
+            "request": "git push origin feature/tracking-fix && open pull request",
+            "response": "Pull request 219 opened.\nReviewers: none required.",
+            "fixedResponse": "Pull request 219 opened.\nRequires: 1 approval from a code owner, and passing tests.",
+            "exploits": false
+          },
+          {
+            "id": "direct",
+            "label": "Push a change straight to main",
+            "request": "git push origin main",
+            "response": "main updated. No review, no checks.\nDeploy started: production.\n\nAn unreviewed change is live.",
+            "fixedResponse": "remote: error: protected branch. Changes must be made through a pull request with 1 approval and passing checks.",
+            "exploits": true
+          },
+          {
+            "id": "force",
+            "label": "Force push over main, erasing a commit",
+            "request": "git push --force origin main",
+            "response": "main rewritten. Commit 5d02be9 is gone from main.\n\nHistory was changed on the branch that deploys to production.",
+            "fixedResponse": "remote: error: force pushes to main are not allowed.",
+            "exploits": true
+          }
+        ],
+        "fix": {
+          "prompt": "Pick every rule that makes a risky change need a second pair of eyes, and cannot be switched off by the person making it.",
+          "options": [
+            {
+              "id": "rev",
+              "label": "Require an approving review from a code owner before merging",
+              "code": [
+                "- \"required_reviews\": 0",
+                "+ \"required_reviews\": 1, \"require_code_owner_review\": true"
+              ],
+              "why": "A second person has to read every change before it can reach main.",
+              "good": true
+            },
+            {
+              "id": "checks",
+              "label": "Require passing status checks, on an up to date branch",
+              "code": [
+                "- \"required_status_checks\": []",
+                "+ \"required_status_checks\": [\"tests\", \"lint\", \"audit\"], \"strict\": true"
+              ],
+              "why": "Broken or unscanned code cannot merge, and a stale branch has to catch up first.",
+              "good": true
+            },
+            {
+              "id": "force",
+              "label": "Block force pushes and deleting main",
+              "code": [
+                "- \"allow_force_push\": true",
+                "+ \"allow_force_push\": false",
+                "- \"allow_deletion\": true",
+                "+ \"allow_deletion\": false"
+              ],
+              "why": "History on the deploying branch cannot be rewritten or erased.",
+              "good": true
+            },
+            {
+              "id": "admin",
+              "label": "Apply the rules to administrators too",
+              "code": [
+                "- \"admins_can_bypass\": true",
+                "+ \"admins_can_bypass\": false"
+              ],
+              "why": "A rule that whoever wants to can skip is a suggestion. Administrators' accounts are the ones attackers want most.",
+              "good": true
+            },
+            {
+              "id": "ask",
+              "label": "Add another line to the contributing guide asking people to be careful",
+              "code": [
+                "+ Please be VERY careful when pushing to main."
+              ],
+              "why": "A request is not a control. The guide already asked, and yesterday it happened anyway.",
+              "good": false,
+              "bad": "weak"
+            },
+            {
+              "id": "bypass",
+              "label": "Turn protection on, but leave “admins can bypass” enabled for emergencies",
+              "code": [
+                "+ \"admins_can_bypass\": true   # for emergencies"
+              ],
+              "why": "Every emergency, and every compromised admin account, becomes a route round the rules.",
+              "good": false,
+              "bad": "weak"
+            }
+          ]
+        },
+        "found": false,
+        "decided": false,
+        "fixed": false,
+        "picks": [],
+        "last": null
+      }
+    },
+    {
+      "do": "desktop.open",
+      "app": "bench"
+    },
+    {
+      "do": "room.banner",
+      "title": "Workbench",
+      "body": "Check the main branch rules",
+      "icon": "code",
+      "object": "computer",
+      "action": "Open"
+    }
+  ],
+  "bonuses": [
+    {
+      "id": "b-read",
+      "when": {
+        "event": "bench:fileViewed",
+        "match": {
+          "vulnerable": true
+        }
+      },
+      "outcome": {
+        "points": 6,
+        "verdict": "careful",
+        "label": "Read the vulnerable code first",
+        "what": "Reading the code before attacking it tells you where to look, and why it fails.",
+        "ideal": "reads the code under review before trying to break it."
+      }
+    },
+    {
+      "id": "b-normal",
+      "when": {
+        "event": "bench:attempt",
+        "match": {
+          "exploited": false
+        }
+      },
+      "outcome": {
+        "points": 4,
+        "verdict": "careful",
+        "label": "Tried normal use first",
+        "what": "Knowing what a good request looks like is how you spot a bad one.",
+        "ideal": "establishes normal behaviour before testing the abnormal."
+      }
+    },
+    {
+      "id": "b-regress",
+      "when": {
+        "event": "bench:retest",
+        "match": {
+          "exploit": false,
+          "fixed": true
+        }
+      },
+      "outcome": {
+        "points": 4,
+        "verdict": "careful",
+        "label": "Checked normal use still works",
+        "what": "A fix that breaks real users gets reverted, and the bug comes back.",
+        "ideal": "tests that the fix did not break normal use."
+      }
+    }
+  ],
+  "guards": [],
+  "start": "exploit",
+  "stages": {
+    "exploit": {
+      "objective": "Reproduce the bug: read the Code tab, then use the Exploit tab on staging.",
+      "target": "computer",
+      "decision": true,
+      "insight": "The review process exists, but the settings let anyone skip it.",
+      "hint": {
+        "text": "Open the Workbench. Read the code, try normal use on the Exploit tab, then send the request that breaks it."
+      },
+      "on": [
+        {
+          "when": {
+            "event": "bench:attempt",
+            "match": {
+              "exploited": true
+            }
+          },
+          "outcome": {
+            "points": 15,
+            "verdict": "careful",
+            "label": "Reproduced the bug",
+            "what": "With no rules at all, a push to main went straight to production, and a force push rewrote history on the branch that deploys. The contributing guide asked people to be careful, and yesterday that was not enough.",
+            "ideal": "proves a bug is real before fixing it.",
+            "card": {
+              "title": "Unreviewed, unchecked, and in production",
+              "kicker": "Missing branch protection",
+              "body": [
+                "With no rules at all, a push to main went straight to production, and a force push rewrote history on the branch that deploys. The contributing guide asked people to be careful, and yesterday that was not enough.",
+                "The process existed. The settings did not enforce it."
+              ],
+              "ideal": "reproduces a bug first, so the fix can be proved to work."
+            }
+          },
+          "go": "fix"
+        }
+      ]
+    },
+    "fix": {
+      "objective": "Fix it: pick the changes on the Fix tab that close the hole for good, then apply the patch.",
+      "target": "computer",
+      "decision": true,
+      "hint": {
+        "text": "Pick every change that removes the cause. Avoid changes an attacker can walk around, and ones that do not touch the problem. Then Apply the patch."
+      },
+      "on": [
+        {
+          "when": {
+            "event": "bench:fixApplied",
+            "match": {
+              "ok": true
+            }
+          },
+          "outcome": {
+            "points": 35,
+            "verdict": "safe",
+            "label": "Applied a real fix",
+            "what": "A code owner has to approve, the tests and the audit have to pass on an up to date branch, force pushes and deletion are blocked, and the rules apply to administrators too. Now the risky change has to be seen by another person.",
+            "ideal": "fixes the cause, not the symptom.",
+            "card": {
+              "title": "A second pair of eyes, for everyone",
+              "kicker": "Missing branch protection",
+              "body": [
+                "A code owner has to approve, the tests and the audit have to pass on an up to date branch, force pushes and deletion are blocked, and the rules apply to administrators too. Now the risky change has to be seen by another person.",
+                "Rules that bind everyone are the only ones that hold."
+              ],
+              "ideal": "fixes the cause with the standard control, and adds defence in depth."
+            }
+          },
+          "go": "verify"
+        },
+        {
+          "when": {
+            "event": "bench:fixApplied",
+            "match": {
+              "bad": {
+                "includes": "weak"
+              }
+            }
+          },
+          "outcome": {
+            "points": -25,
+            "verdict": "unsafe",
+            "label": "Applied a fix that can be bypassed",
+            "what": "Another line in the guide changes nothing the settings allow. And protection with an admin bypass means the rule can be walked round by anyone who can claim an emergency, or steal an admin account.",
+            "ideal": "fixes the cause instead of blocking one payload or hiding the symptom.",
+            "card": {
+              "title": "A wish is not a rule",
+              "kicker": "Missing branch protection",
+              "body": [
+                "Another line in the guide changes nothing the settings allow. And protection with an admin bypass means the rule can be walked round by anyone who can claim an emergency, or steal an admin account.",
+                "Make the platform enforce it, for everyone."
+              ],
+              "ideal": "fixes the cause, and knows why a blocklist or a hidden field is not a fix.",
+              "rewindLabel": "Rewind to the Fix tab"
+            }
+          },
+          "go": "verify"
+        },
+        {
+          "when": {
+            "event": "bench:fixApplied"
+          },
+          "outcome": {
+            "points": -5,
+            "verdict": "risky",
+            "label": "Applied a patch that was not enough",
+            "what": "The patch missed part of the fix, or added a change that does not address the problem.",
+            "ideal": "closes the hole completely.",
+            "card": {
+              "title": "Not enough",
+              "kicker": "Missing branch protection",
+              "body": [
+                "The patch missed something that has to change, or included a change that does nothing for this bug. Open the Fix tab to see which options were right, missed, or wrong, and why.",
+                "A partial fix is the most dangerous kind: everyone assumes it is closed."
+              ],
+              "ideal": "closes the hole completely.",
+              "rewindLabel": "Rewind to the Fix tab"
+            }
+          },
+          "go": "verify"
+        }
+      ]
+    },
+    "verify": {
+      "objective": "Prove it: re-run the exploit on the Exploit tab, then check normal use still works.",
+      "target": "computer",
+      "decision": true,
+      "hint": {
+        "text": "On the Exploit tab, send the exploit again. It should be blocked. Then send the normal request to check nothing broke."
+      },
+      "on": [
+        {
+          "when": {
+            "event": "bench:retest",
+            "match": {
+              "blocked": true
+            }
+          },
+          "outcome": {
+            "points": 15,
+            "verdict": "safe",
+            "label": "Proved the exploit is blocked",
+            "what": "The same request that worked before now fails, and normal use still works.",
+            "ideal": "verifies a fix by re-running the exploit.",
+            "card": {
+              "title": "Fixed, and proved",
+              "kicker": "Missing branch protection",
+              "body": [
+                "You re-ran the exact request that broke it, and it is blocked. A fix you have not tested against the exploit is a hope, not a fix.",
+                "Add the exploit as an automated test so nobody can quietly bring the bug back."
+              ],
+              "ideal": "turns the exploit into a regression test."
+            }
+          },
+          "go": "done"
+        },
+        {
+          "when": {
+            "event": "bench:retest",
+            "match": {
+              "exploit": true,
+              "blocked": false
+            }
+          },
+          "outcome": {
+            "points": 0,
+            "verdict": "risky",
+            "label": "The exploit still works",
+            "what": "The patch did not close the hole. The same kind of request still gets through.",
+            "ideal": "never ships a fix without re-running the exploit.",
+            "rewind": false,
+            "card": {
+              "title": "Still open",
+              "kicker": "Missing branch protection",
+              "body": [
+                "The exploit still works after your patch. This is what happens when a fix blocks one payload, or hides a symptom, instead of removing the cause.",
+                "Go back over the Fix tab: it shows which options were right, and why the others fail."
+              ],
+              "ideal": "verifies with the exploit before calling it fixed.",
+              "rewind": false
+            }
+          },
+          "go": "done"
+        }
+      ]
+    },
+    "done": {
+      "end": true
+    }
+  }
+}

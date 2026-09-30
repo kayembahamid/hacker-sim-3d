@@ -1,0 +1,401 @@
+{
+  "id": "stored-xss",
+  "order": 502,
+  "title": "Stored cross-site scripting",
+  "kind": "Cross-site scripting",
+  "track": "application-security",
+  "pool": false,
+  "level": "Core",
+  "minutes": 8,
+  "maxPoints": 79,
+  "startsAt": 993,
+  "brief": "16:45. Customers can now comment on their orders, and support agents read the comments in the back office. The change is on staging for review.",
+  "role": "Platform engineer, reviewing a change on the Veltrix engineering team",
+  "insight": "What one user types is shown to another user as page code. It runs in the other person's session.",
+  "teaches": [
+    "Stored input rendered as raw HTML runs as script in the next visitor's browser",
+    "Encode output for where it lands; a Content Security Policy and HttpOnly cookies limit the damage",
+    "Stripping script tags is a blocklist, and blocklists lose"
+  ],
+  "setup": [
+    {
+      "do": "world.set",
+      "path": "office.bench",
+      "value": {
+        "id": "stored-xss",
+        "title": "Order comments: back office",
+        "sub": "portal-web · staging",
+        "files": [
+          {
+            "path": "portal/routes/comments.js",
+            "lang": "JavaScript",
+            "lines": [
+              "app.post('/orders/:id/comments', requireLogin, async (req, res) => {",
+              "  await db.insert('comments', { order: req.params.id, body: req.body.body, by: req.user.id });",
+              "  res.redirect(`/orders/${req.params.id}`);",
+              "});"
+            ],
+            "flaw": [],
+            "vulnerable": false
+          },
+          {
+            "path": "portal/views/order.html",
+            "lang": "Template",
+            "lines": [
+              "<h2>Order {{order.ref}}</h2>",
+              "<ul class=\"comments\">",
+              "  {{#each comments}}",
+              "    <li class=\"comment\">{{{body}}}</li>",
+              "  {{/each}}",
+              "</ul>"
+            ],
+            "flaw": [
+              4
+            ],
+            "vulnerable": true
+          }
+        ],
+        "intro": "A customer posts a comment on their order. A support agent opens the order in the back office and reads it. Post a normal comment, then post one that is not just text.",
+        "attempts": [
+          {
+            "id": "normal",
+            "label": "Post a normal comment",
+            "request": "POST /orders/1002/comments\nbody = \"Please deliver before 5pm\"",
+            "response": "Comment saved.\nAgent view shows:  Please deliver before 5pm",
+            "fixedResponse": "Comment saved.\nAgent view shows:  Please deliver before 5pm",
+            "exploits": false
+          },
+          {
+            "id": "script",
+            "label": "Post a comment containing a script tag",
+            "request": "POST /orders/1002/comments\nbody = \"<script>send(document.cookie)</script>\"",
+            "response": "Comment saved.\n\nA support agent opens the order. Their browser runs the script:\n  sent session cookie to attacker.test\n\nThe attacker now holds the agent's session.",
+            "fixedResponse": "Comment saved.\nAgent view shows the text:  <script>send(document.cookie)</script>\n\nIt is displayed, not run.",
+            "exploits": true
+          },
+          {
+            "id": "bold",
+            "label": "Post a comment with bold text",
+            "request": "POST /orders/1002/comments\nbody = \"<b>URGENT</b>\"",
+            "response": "Comment saved.\nAgent view shows:  URGENT  (in bold: the HTML was interpreted)",
+            "fixedResponse": "Comment saved.\nAgent view shows the text:  <b>URGENT</b>",
+            "exploits": false
+          }
+        ],
+        "fix": {
+          "prompt": "Pick every change that stops user text running as page code, and any that limits what a script could do if one slips through.",
+          "options": [
+            {
+              "id": "enc",
+              "label": "Encode the comment when it is written into the page",
+              "code": [
+                "- <li class=\"comment\">{{{body}}}</li>",
+                "+ <li class=\"comment\">{{body}}</li>   <!-- escaped by default -->"
+              ],
+              "why": "The double braces escape angle brackets, so the comment is text, not markup. This is the fix.",
+              "good": true
+            },
+            {
+              "id": "csp",
+              "label": "Send a Content Security Policy that only allows scripts from our own site",
+              "code": [
+                "+ Content-Security-Policy: default-src 'self'; script-src 'self'"
+              ],
+              "why": "If an injection ever gets through, the browser refuses to run inline scripts.",
+              "good": true
+            },
+            {
+              "id": "http",
+              "label": "Mark the session cookie HttpOnly and SameSite",
+              "code": [
+                "+ Set-Cookie: sid=...; HttpOnly; Secure; SameSite=Lax"
+              ],
+              "why": "Scripts cannot read an HttpOnly cookie, so even a running script cannot steal the session.",
+              "good": true
+            },
+            {
+              "id": "strip",
+              "label": "Remove <script> tags from comments with a regular expression",
+              "code": [
+                "+ body = body.replace(/<script.*?>.*?<\\/script>/gi, '');"
+              ],
+              "why": "Attackers use <img onerror=...>, event handlers and odd spellings. A blocklist of tags never ends.",
+              "good": false,
+              "bad": "weak"
+            },
+            {
+              "id": "client",
+              "label": "Sanitise the comment in the browser before it is sent",
+              "code": [
+                "+ form.onsubmit = () => (box.value = clean(box.value));"
+              ],
+              "why": "The attacker posts directly to the endpoint and never runs your browser code.",
+              "good": false,
+              "bad": "weak"
+            }
+          ]
+        },
+        "found": false,
+        "decided": false,
+        "fixed": false,
+        "picks": [],
+        "last": null
+      }
+    },
+    {
+      "do": "desktop.open",
+      "app": "bench"
+    },
+    {
+      "do": "room.banner",
+      "title": "Workbench",
+      "body": "Review the order comments change",
+      "icon": "code",
+      "object": "computer",
+      "action": "Open"
+    }
+  ],
+  "bonuses": [
+    {
+      "id": "b-read",
+      "when": {
+        "event": "bench:fileViewed",
+        "match": {
+          "vulnerable": true
+        }
+      },
+      "outcome": {
+        "points": 6,
+        "verdict": "careful",
+        "label": "Read the vulnerable code first",
+        "what": "Reading the code before attacking it tells you where to look, and why it fails.",
+        "ideal": "reads the code under review before trying to break it."
+      }
+    },
+    {
+      "id": "b-normal",
+      "when": {
+        "event": "bench:attempt",
+        "match": {
+          "exploited": false
+        }
+      },
+      "outcome": {
+        "points": 4,
+        "verdict": "careful",
+        "label": "Tried normal use first",
+        "what": "Knowing what a good request looks like is how you spot a bad one.",
+        "ideal": "establishes normal behaviour before testing the abnormal."
+      }
+    },
+    {
+      "id": "b-regress",
+      "when": {
+        "event": "bench:retest",
+        "match": {
+          "exploit": false,
+          "fixed": true
+        }
+      },
+      "outcome": {
+        "points": 4,
+        "verdict": "careful",
+        "label": "Checked normal use still works",
+        "what": "A fix that breaks real users gets reverted, and the bug comes back.",
+        "ideal": "tests that the fix did not break normal use."
+      }
+    }
+  ],
+  "guards": [],
+  "start": "exploit",
+  "stages": {
+    "exploit": {
+      "objective": "Reproduce the bug: read the Code tab, then use the Exploit tab on staging.",
+      "target": "computer",
+      "decision": true,
+      "insight": "What one user types is shown to another user as page code. It runs in the other person's session.",
+      "hint": {
+        "text": "Open the Workbench. Read the code, try normal use on the Exploit tab, then send the request that breaks it."
+      },
+      "on": [
+        {
+          "when": {
+            "event": "bench:attempt",
+            "match": {
+              "exploited": true
+            }
+          },
+          "outcome": {
+            "points": 15,
+            "verdict": "careful",
+            "label": "Reproduced the bug",
+            "what": "The comment was stored, then written into the page as raw HTML. When the agent opened the order, the browser treated it as part of the page and ran it, in the agent's session.",
+            "ideal": "proves a bug is real before fixing it.",
+            "card": {
+              "title": "A comment ran as code in the agent's browser",
+              "kicker": "Cross-site scripting",
+              "body": [
+                "The comment was stored, then written into the page as raw HTML. When the agent opened the order, the browser treated it as part of the page and ran it, in the agent's session.",
+                "Line 4 of the template: the triple braces mean “do not escape”."
+              ],
+              "ideal": "reproduces a bug first, so the fix can be proved to work."
+            }
+          },
+          "go": "fix"
+        }
+      ]
+    },
+    "fix": {
+      "objective": "Fix it: pick the changes on the Fix tab that close the hole for good, then apply the patch.",
+      "target": "computer",
+      "decision": true,
+      "hint": {
+        "text": "Pick every change that removes the cause. Avoid changes an attacker can walk around, and ones that do not touch the problem. Then Apply the patch."
+      },
+      "on": [
+        {
+          "when": {
+            "event": "bench:fixApplied",
+            "match": {
+              "ok": true
+            }
+          },
+          "outcome": {
+            "points": 35,
+            "verdict": "safe",
+            "label": "Applied a real fix",
+            "what": "Output encoding turns angle brackets into harmless text, so a comment can never become markup. The policy and the HttpOnly cookie are the second and third lines: if one gets through, it still cannot run, and it cannot read the session.",
+            "ideal": "fixes the cause, not the symptom.",
+            "card": {
+              "title": "Text stays text",
+              "kicker": "Cross-site scripting",
+              "body": [
+                "Output encoding turns angle brackets into harmless text, so a comment can never become markup. The policy and the HttpOnly cookie are the second and third lines: if one gets through, it still cannot run, and it cannot read the session.",
+                "Encode on output, for the place it lands."
+              ],
+              "ideal": "fixes the cause with the standard control, and adds defence in depth."
+            }
+          },
+          "go": "verify"
+        },
+        {
+          "when": {
+            "event": "bench:fixApplied",
+            "match": {
+              "bad": {
+                "includes": "weak"
+              }
+            }
+          },
+          "outcome": {
+            "points": -25,
+            "verdict": "unsafe",
+            "label": "Applied a fix that can be bypassed",
+            "what": "Removing script tags stops the tag you tried. It does not stop an image with an error handler, or a slightly different spelling. Client side cleaning does not run for an attacker at all.",
+            "ideal": "fixes the cause instead of blocking one payload or hiding the symptom.",
+            "card": {
+              "title": "A blocklist, and an attacker with time",
+              "kicker": "Cross-site scripting",
+              "body": [
+                "Removing script tags stops the tag you tried. It does not stop an image with an error handler, or a slightly different spelling. Client side cleaning does not run for an attacker at all.",
+                "Encode on output. Everything else is an extra layer."
+              ],
+              "ideal": "fixes the cause, and knows why a blocklist or a hidden field is not a fix.",
+              "rewindLabel": "Rewind to the Fix tab"
+            }
+          },
+          "go": "verify"
+        },
+        {
+          "when": {
+            "event": "bench:fixApplied"
+          },
+          "outcome": {
+            "points": -5,
+            "verdict": "risky",
+            "label": "Applied a patch that was not enough",
+            "what": "The patch missed part of the fix, or added a change that does not address the problem.",
+            "ideal": "closes the hole completely.",
+            "card": {
+              "title": "Not enough",
+              "kicker": "Cross-site scripting",
+              "body": [
+                "The patch missed something that has to change, or included a change that does nothing for this bug. Open the Fix tab to see which options were right, missed, or wrong, and why.",
+                "A partial fix is the most dangerous kind: everyone assumes it is closed."
+              ],
+              "ideal": "closes the hole completely.",
+              "rewindLabel": "Rewind to the Fix tab"
+            }
+          },
+          "go": "verify"
+        }
+      ]
+    },
+    "verify": {
+      "objective": "Prove it: re-run the exploit on the Exploit tab, then check normal use still works.",
+      "target": "computer",
+      "decision": true,
+      "hint": {
+        "text": "On the Exploit tab, send the exploit again. It should be blocked. Then send the normal request to check nothing broke."
+      },
+      "on": [
+        {
+          "when": {
+            "event": "bench:retest",
+            "match": {
+              "blocked": true
+            }
+          },
+          "outcome": {
+            "points": 15,
+            "verdict": "safe",
+            "label": "Proved the exploit is blocked",
+            "what": "The same request that worked before now fails, and normal use still works.",
+            "ideal": "verifies a fix by re-running the exploit.",
+            "card": {
+              "title": "Fixed, and proved",
+              "kicker": "Cross-site scripting",
+              "body": [
+                "You re-ran the exact request that broke it, and it is blocked. A fix you have not tested against the exploit is a hope, not a fix.",
+                "Add the exploit as an automated test so nobody can quietly bring the bug back."
+              ],
+              "ideal": "turns the exploit into a regression test."
+            }
+          },
+          "go": "done"
+        },
+        {
+          "when": {
+            "event": "bench:retest",
+            "match": {
+              "exploit": true,
+              "blocked": false
+            }
+          },
+          "outcome": {
+            "points": 0,
+            "verdict": "risky",
+            "label": "The exploit still works",
+            "what": "The patch did not close the hole. The same kind of request still gets through.",
+            "ideal": "never ships a fix without re-running the exploit.",
+            "rewind": false,
+            "card": {
+              "title": "Still open",
+              "kicker": "Cross-site scripting",
+              "body": [
+                "The exploit still works after your patch. This is what happens when a fix blocks one payload, or hides a symptom, instead of removing the cause.",
+                "Go back over the Fix tab: it shows which options were right, and why the others fail."
+              ],
+              "ideal": "verifies with the exploit before calling it fixed.",
+              "rewind": false
+            }
+          },
+          "go": "done"
+        }
+      ]
+    },
+    "done": {
+      "end": true
+    }
+  }
+}

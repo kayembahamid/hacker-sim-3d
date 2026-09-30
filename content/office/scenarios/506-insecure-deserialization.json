@@ -1,0 +1,401 @@
+{
+  "id": "insecure-deserialization",
+  "order": 506,
+  "title": "Insecure deserialization",
+  "kind": "Insecure deserialization",
+  "track": "application-security",
+  "pool": false,
+  "level": "Advanced",
+  "minutes": 9,
+  "maxPoints": 79,
+  "startsAt": 1005,
+  "brief": "17:05. The portal stores each customer's preferences in a cookie, so the server does not need a database lookup. The server reads that cookie back into an object.",
+  "role": "Platform engineer, reviewing a change on the Veltrix engineering team",
+  "insight": "The cookie is chosen by the customer, and the server rebuilds whatever it says.",
+  "teaches": [
+    "Never rebuild objects from data the user controls: the data decides what code runs",
+    "Parse plain data (JSON) and validate every field, or keep the state on the server",
+    "Blocking one class name is a blocklist; signing the cookie means the client cannot change it"
+  ],
+  "setup": [
+    {
+      "do": "world.set",
+      "path": "office.bench",
+      "value": {
+        "id": "insecure-deserialization",
+        "title": "Customer preferences cookie",
+        "sub": "portal-web · staging",
+        "files": [
+          {
+            "path": "portal/middleware/prefs.js",
+            "lang": "JavaScript",
+            "lines": [
+              "app.use((req, res, next) => {",
+              "  const raw = Buffer.from(req.cookies.prefs || '', 'base64').toString();",
+              "  req.prefs = objpack.load(raw);     // rebuilds whatever objects the data names",
+              "  next();",
+              "});"
+            ],
+            "flaw": [
+              3
+            ],
+            "vulnerable": true
+          },
+          {
+            "path": "portal/lib/tasks.js",
+            "lang": "JavaScript",
+            "lines": [
+              "class ShellTask {",
+              "  constructor({ cmd }) { this.cmd = cmd; }",
+              "  run() { return execSync(this.cmd); }   // used by the admin tools",
+              "}"
+            ],
+            "flaw": [],
+            "vulnerable": false
+          }
+        ],
+        "intro": "The cookie is a base64 blob. Decode it, change it, and send it back. Nothing here is a real exploit: it is a made up serialisation format on a made up server.",
+        "attempts": [
+          {
+            "id": "normal",
+            "label": "Send the normal cookie",
+            "request": "Cookie: prefs=eyIkY2xhc3MiOiJQcmVmcyIsInRoZW1lIjoiZGFyayJ9\n(decodes to { \"$class\": \"Prefs\", \"theme\": \"dark\" })",
+            "response": "HTTP 200\nPage rendered with the dark theme.",
+            "fixedResponse": "HTTP 200\nPage rendered with the dark theme.",
+            "exploits": false
+          },
+          {
+            "id": "swap",
+            "label": "Change the class named in the cookie to ShellTask",
+            "request": "Cookie: prefs=<base64 of { \"$class\": \"ShellTask\", \"cmd\": \"id\" }>",
+            "response": "HTTP 200\nServer log: ShellTask.run() executed \"id\"\nuid=1001(portal) gid=1001(portal)\n\nThe cookie chose which code ran on the server.",
+            "fixedResponse": "HTTP 400\nInvalid preferences.",
+            "exploits": true
+          },
+          {
+            "id": "extra",
+            "label": "Add an extra field, isAdmin: true",
+            "request": "Cookie: prefs=<base64 of { \"$class\": \"Prefs\", \"theme\": \"dark\", \"isAdmin\": true }>",
+            "response": "HTTP 200\nAdmin menu shown. The server trusted a field it should never accept from the client.",
+            "fixedResponse": "HTTP 400\nInvalid preferences.",
+            "exploits": true
+          }
+        ],
+        "fix": {
+          "prompt": "Pick every change that stops the cookie choosing what the server builds, and that stops it being changed at all.",
+          "options": [
+            {
+              "id": "json",
+              "label": "Parse the cookie as plain JSON and validate every field against a schema",
+              "code": [
+                "- req.prefs = objpack.load(raw);",
+                "+ req.prefs = validate(PREFS_SCHEMA, JSON.parse(raw));   // only theme, language; nothing else"
+              ],
+              "why": "Plain data cannot name a class. Anything not in the schema is rejected, including isAdmin.",
+              "good": true
+            },
+            {
+              "id": "sign",
+              "label": "Sign the cookie and reject it if the signature does not verify",
+              "code": [
+                "+ const { value, ok } = verifySignature(req.cookies.prefs, SECRET);",
+                "+ if (!ok) return res.status(400).end('Invalid preferences.');"
+              ],
+              "why": "The customer can still read it, but cannot change a byte without the server noticing.",
+              "good": true
+            },
+            {
+              "id": "server",
+              "label": "Keep anything that matters on the server, keyed by the session id",
+              "code": [
+                "+ req.prefs = await sessionStore.get(req.session.id);"
+              ],
+              "why": "A cookie should hold an id, not the state. Roles and permissions never belong in it.",
+              "good": true
+            },
+            {
+              "id": "block",
+              "label": "Refuse cookies that mention ShellTask",
+              "code": [
+                "+ if (raw.includes('ShellTask')) return res.status(400).end();"
+              ],
+              "why": "There are other classes to abuse, and other ways to write the name. A blocklist of class names is never finished.",
+              "good": false,
+              "bad": "weak"
+            },
+            {
+              "id": "b2",
+              "label": "Encode the cookie twice so it is harder to read",
+              "code": [
+                "+ const raw = atob(atob(req.cookies.prefs));"
+              ],
+              "why": "Encoding is not integrity. Anyone can decode it, change it and encode it back.",
+              "good": false,
+              "bad": "weak"
+            }
+          ]
+        },
+        "found": false,
+        "decided": false,
+        "fixed": false,
+        "picks": [],
+        "last": null
+      }
+    },
+    {
+      "do": "desktop.open",
+      "app": "bench"
+    },
+    {
+      "do": "room.banner",
+      "title": "Workbench",
+      "body": "Review the preferences cookie change",
+      "icon": "code",
+      "object": "computer",
+      "action": "Open"
+    }
+  ],
+  "bonuses": [
+    {
+      "id": "b-read",
+      "when": {
+        "event": "bench:fileViewed",
+        "match": {
+          "vulnerable": true
+        }
+      },
+      "outcome": {
+        "points": 6,
+        "verdict": "careful",
+        "label": "Read the vulnerable code first",
+        "what": "Reading the code before attacking it tells you where to look, and why it fails.",
+        "ideal": "reads the code under review before trying to break it."
+      }
+    },
+    {
+      "id": "b-normal",
+      "when": {
+        "event": "bench:attempt",
+        "match": {
+          "exploited": false
+        }
+      },
+      "outcome": {
+        "points": 4,
+        "verdict": "careful",
+        "label": "Tried normal use first",
+        "what": "Knowing what a good request looks like is how you spot a bad one.",
+        "ideal": "establishes normal behaviour before testing the abnormal."
+      }
+    },
+    {
+      "id": "b-regress",
+      "when": {
+        "event": "bench:retest",
+        "match": {
+          "exploit": false,
+          "fixed": true
+        }
+      },
+      "outcome": {
+        "points": 4,
+        "verdict": "careful",
+        "label": "Checked normal use still works",
+        "what": "A fix that breaks real users gets reverted, and the bug comes back.",
+        "ideal": "tests that the fix did not break normal use."
+      }
+    }
+  ],
+  "guards": [],
+  "start": "exploit",
+  "stages": {
+    "exploit": {
+      "objective": "Reproduce the bug: read the Code tab, then use the Exploit tab on staging.",
+      "target": "computer",
+      "decision": true,
+      "insight": "The cookie is chosen by the customer, and the server rebuilds whatever it says.",
+      "hint": {
+        "text": "Open the Workbench. Read the code, try normal use on the Exploit tab, then send the request that breaks it."
+      },
+      "on": [
+        {
+          "when": {
+            "event": "bench:attempt",
+            "match": {
+              "exploited": true
+            }
+          },
+          "outcome": {
+            "points": 15,
+            "verdict": "careful",
+            "label": "Reproduced the bug",
+            "what": "The server rebuilt whatever object the cookie named, so a customer changed “Prefs” to “ShellTask” and the server ran a command for them. Another edit added a field the server never should have believed.",
+            "ideal": "proves a bug is real before fixing it.",
+            "card": {
+              "title": "The cookie picked the code",
+              "kicker": "Insecure deserialization",
+              "body": [
+                "The server rebuilt whatever object the cookie named, so a customer changed “Prefs” to “ShellTask” and the server ran a command for them. Another edit added a field the server never should have believed.",
+                "Deserialising data the user controls hands them a way to choose your code."
+              ],
+              "ideal": "reproduces a bug first, so the fix can be proved to work."
+            }
+          },
+          "go": "fix"
+        }
+      ]
+    },
+    "fix": {
+      "objective": "Fix it: pick the changes on the Fix tab that close the hole for good, then apply the patch.",
+      "target": "computer",
+      "decision": true,
+      "hint": {
+        "text": "Pick every change that removes the cause. Avoid changes an attacker can walk around, and ones that do not touch the problem. Then Apply the patch."
+      },
+      "on": [
+        {
+          "when": {
+            "event": "bench:fixApplied",
+            "match": {
+              "ok": true
+            }
+          },
+          "outcome": {
+            "points": 35,
+            "verdict": "safe",
+            "label": "Applied a real fix",
+            "what": "Parsing plain JSON against a schema means the cookie can only ever say a theme and a language. Signing means the customer cannot change it, and holding the important state on the server means there is nothing valuable in the cookie at all.",
+            "ideal": "fixes the cause, not the symptom.",
+            "card": {
+              "title": "Data is data, and it cannot be tampered with",
+              "kicker": "Insecure deserialization",
+              "body": [
+                "Parsing plain JSON against a schema means the cookie can only ever say a theme and a language. Signing means the customer cannot change it, and holding the important state on the server means there is nothing valuable in the cookie at all.",
+                "Never deserialise untrusted data into objects."
+              ],
+              "ideal": "fixes the cause with the standard control, and adds defence in depth."
+            }
+          },
+          "go": "verify"
+        },
+        {
+          "when": {
+            "event": "bench:fixApplied",
+            "match": {
+              "bad": {
+                "includes": "weak"
+              }
+            }
+          },
+          "outcome": {
+            "points": -25,
+            "verdict": "unsafe",
+            "label": "Applied a fix that can be bypassed",
+            "what": "Refusing ShellTask stops that class. The format still lets a cookie choose what to build, so the next dangerous class, or the next spelling, works. Encoding twice protects nothing.",
+            "ideal": "fixes the cause instead of blocking one payload or hiding the symptom.",
+            "card": {
+              "title": "One name blocked, the rest open",
+              "kicker": "Insecure deserialization",
+              "body": [
+                "Refusing ShellTask stops that class. The format still lets a cookie choose what to build, so the next dangerous class, or the next spelling, works. Encoding twice protects nothing.",
+                "Use a format that cannot name code, and make it tamper proof."
+              ],
+              "ideal": "fixes the cause, and knows why a blocklist or a hidden field is not a fix.",
+              "rewindLabel": "Rewind to the Fix tab"
+            }
+          },
+          "go": "verify"
+        },
+        {
+          "when": {
+            "event": "bench:fixApplied"
+          },
+          "outcome": {
+            "points": -5,
+            "verdict": "risky",
+            "label": "Applied a patch that was not enough",
+            "what": "The patch missed part of the fix, or added a change that does not address the problem.",
+            "ideal": "closes the hole completely.",
+            "card": {
+              "title": "Not enough",
+              "kicker": "Insecure deserialization",
+              "body": [
+                "The patch missed something that has to change, or included a change that does nothing for this bug. Open the Fix tab to see which options were right, missed, or wrong, and why.",
+                "A partial fix is the most dangerous kind: everyone assumes it is closed."
+              ],
+              "ideal": "closes the hole completely.",
+              "rewindLabel": "Rewind to the Fix tab"
+            }
+          },
+          "go": "verify"
+        }
+      ]
+    },
+    "verify": {
+      "objective": "Prove it: re-run the exploit on the Exploit tab, then check normal use still works.",
+      "target": "computer",
+      "decision": true,
+      "hint": {
+        "text": "On the Exploit tab, send the exploit again. It should be blocked. Then send the normal request to check nothing broke."
+      },
+      "on": [
+        {
+          "when": {
+            "event": "bench:retest",
+            "match": {
+              "blocked": true
+            }
+          },
+          "outcome": {
+            "points": 15,
+            "verdict": "safe",
+            "label": "Proved the exploit is blocked",
+            "what": "The same request that worked before now fails, and normal use still works.",
+            "ideal": "verifies a fix by re-running the exploit.",
+            "card": {
+              "title": "Fixed, and proved",
+              "kicker": "Insecure deserialization",
+              "body": [
+                "You re-ran the exact request that broke it, and it is blocked. A fix you have not tested against the exploit is a hope, not a fix.",
+                "Add the exploit as an automated test so nobody can quietly bring the bug back."
+              ],
+              "ideal": "turns the exploit into a regression test."
+            }
+          },
+          "go": "done"
+        },
+        {
+          "when": {
+            "event": "bench:retest",
+            "match": {
+              "exploit": true,
+              "blocked": false
+            }
+          },
+          "outcome": {
+            "points": 0,
+            "verdict": "risky",
+            "label": "The exploit still works",
+            "what": "The patch did not close the hole. The same kind of request still gets through.",
+            "ideal": "never ships a fix without re-running the exploit.",
+            "rewind": false,
+            "card": {
+              "title": "Still open",
+              "kicker": "Insecure deserialization",
+              "body": [
+                "The exploit still works after your patch. This is what happens when a fix blocks one payload, or hides a symptom, instead of removing the cause.",
+                "Go back over the Fix tab: it shows which options were right, and why the others fail."
+              ],
+              "ideal": "verifies with the exploit before calling it fixed.",
+              "rewind": false
+            }
+          },
+          "go": "done"
+        }
+      ]
+    },
+    "done": {
+      "end": true
+    }
+  }
+}

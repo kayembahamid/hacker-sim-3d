@@ -1,0 +1,403 @@
+{
+  "id": "broken-access-control",
+  "order": 504,
+  "title": "Broken access control",
+  "kind": "Broken access control",
+  "track": "application-security",
+  "pool": false,
+  "level": "Core",
+  "minutes": 8,
+  "maxPoints": 79,
+  "startsAt": 999,
+  "brief": "16:55. A customer reports seeing another company's order in the portal. The order page takes the number straight from the address.",
+  "role": "Platform engineer, reviewing a change on the Veltrix engineering team",
+  "insight": "The page only checked that you were signed in, not whose order it is.",
+  "teaches": [
+    "Authentication is not authorisation: check the owner on every request, on the server",
+    "Deny by default, in one place every route goes through",
+    "Unguessable ids and hidden links are obscurity, not access control"
+  ],
+  "setup": [
+    {
+      "do": "world.set",
+      "path": "office.bench",
+      "value": {
+        "id": "broken-access-control",
+        "title": "Customer portal: orders",
+        "sub": "portal-web · staging",
+        "files": [
+          {
+            "path": "portal/routes/orders.js",
+            "lang": "JavaScript",
+            "lines": [
+              "app.get('/orders/:id', requireLogin, async (req, res) => {",
+              "  const order = await db.one('SELECT * FROM orders WHERE id = $1', [req.params.id]);",
+              "  if (!order) return res.status(404).end();",
+              "  res.render('order', { order });",
+              "});"
+            ],
+            "flaw": [
+              2,
+              3
+            ],
+            "vulnerable": true
+          },
+          {
+            "path": "portal/views/order.html",
+            "lang": "Template",
+            "lines": [
+              "<h2>Order {{order.id}}</h2>",
+              "<p>Deliver to: {{order.address}}</p>",
+              "<p>Contact: {{order.contact}} {{order.phone}}</p>"
+            ],
+            "flaw": [],
+            "vulnerable": false
+          }
+        ],
+        "intro": "You are signed in as Megan, who owns order 1002. Open your own order, then change the number in the address.",
+        "attempts": [
+          {
+            "id": "own",
+            "label": "Open your own order, 1002",
+            "request": "GET /orders/1002   (signed in as Megan)",
+            "response": "HTTP 200\nOrder 1002\nDeliver to: 12 Kirk Lane, Leeds",
+            "fixedResponse": "HTTP 200\nOrder 1002\nDeliver to: 12 Kirk Lane, Leeds",
+            "exploits": false
+          },
+          {
+            "id": "other",
+            "label": "Change the number to 1003",
+            "request": "GET /orders/1003   (signed in as Megan)",
+            "response": "HTTP 200\nOrder 1003\nDeliver to: Unit 4, Hartley Industrial Estate\nContact: Daniel Okoro 07700 900524\n\nAnother customer's order, address and phone number.",
+            "fixedResponse": "HTTP 404\nNot found",
+            "exploits": true
+          },
+          {
+            "id": "walk",
+            "label": "Try 1004, 1005, 1006...",
+            "request": "GET /orders/1004  ...  /orders/1099   (signed in as Megan)",
+            "response": "HTTP 200 for all 96 requests.\nEvery customer's order is readable, one number at a time.",
+            "fixedResponse": "HTTP 404 for all 96 requests.",
+            "exploits": true
+          }
+        ],
+        "fix": {
+          "prompt": "Pick every change that makes the server check ownership, and any that makes sure it is checked every time.",
+          "options": [
+            {
+              "id": "owner",
+              "label": "Scope the query to the signed in customer",
+              "code": [
+                "- const order = await db.one('SELECT * FROM orders WHERE id = $1', [req.params.id]);",
+                "+ const order = await db.oneOrNone('SELECT * FROM orders WHERE id = $1 AND customer_id = $2', [req.params.id, req.user.id]);"
+              ],
+              "why": "The server only ever returns an order that belongs to the person asking. Return not found for everyone else.",
+              "good": true
+            },
+            {
+              "id": "deny",
+              "label": "Deny by default: one shared authorise() that every route must pass",
+              "code": [
+                "+ app.use(authorise({ default: 'deny' }));",
+                "+ app.get('/orders/:id', allow('order:read', ownerOf), handler);"
+              ],
+              "why": "Access control that depends on each developer remembering will be forgotten somewhere. A shared default fails closed.",
+              "good": true
+            },
+            {
+              "id": "uuid",
+              "label": "Use random UUIDs instead of counting order numbers",
+              "code": [
+                "- order id: 1003",
+                "+ order id: 7f3a9c2e-51d4-4b0e-9a11-c2d05e8b4f62"
+              ],
+              "why": "Harder to guess, but anyone who ever sees one (a shared link, an email, a log) can still read that order. That is obscurity, not access control.",
+              "good": false,
+              "bad": "weak"
+            },
+            {
+              "id": "hide",
+              "label": "Only show links to your own orders in the interface",
+              "code": [
+                "+ orders.filter((o) => o.customerId === me.id).map(showLink)"
+              ],
+              "why": "The attacker types the address. The interface does not enforce anything.",
+              "good": false,
+              "bad": "weak"
+            },
+            {
+              "id": "log",
+              "label": "Log every order page view",
+              "code": [
+                "+ audit.log(\"order.view\", { order: order.id, by: req.user.id });"
+              ],
+              "why": "Useful for spotting abuse afterwards, but it does not stop it.",
+              "good": false,
+              "bad": "gap"
+            }
+          ]
+        },
+        "found": false,
+        "decided": false,
+        "fixed": false,
+        "picks": [],
+        "last": null
+      }
+    },
+    {
+      "do": "desktop.open",
+      "app": "bench"
+    },
+    {
+      "do": "room.banner",
+      "title": "Workbench",
+      "body": "Review the order page access bug",
+      "icon": "code",
+      "object": "computer",
+      "action": "Open"
+    }
+  ],
+  "bonuses": [
+    {
+      "id": "b-read",
+      "when": {
+        "event": "bench:fileViewed",
+        "match": {
+          "vulnerable": true
+        }
+      },
+      "outcome": {
+        "points": 6,
+        "verdict": "careful",
+        "label": "Read the vulnerable code first",
+        "what": "Reading the code before attacking it tells you where to look, and why it fails.",
+        "ideal": "reads the code under review before trying to break it."
+      }
+    },
+    {
+      "id": "b-normal",
+      "when": {
+        "event": "bench:attempt",
+        "match": {
+          "exploited": false
+        }
+      },
+      "outcome": {
+        "points": 4,
+        "verdict": "careful",
+        "label": "Tried normal use first",
+        "what": "Knowing what a good request looks like is how you spot a bad one.",
+        "ideal": "establishes normal behaviour before testing the abnormal."
+      }
+    },
+    {
+      "id": "b-regress",
+      "when": {
+        "event": "bench:retest",
+        "match": {
+          "exploit": false,
+          "fixed": true
+        }
+      },
+      "outcome": {
+        "points": 4,
+        "verdict": "careful",
+        "label": "Checked normal use still works",
+        "what": "A fix that breaks real users gets reverted, and the bug comes back.",
+        "ideal": "tests that the fix did not break normal use."
+      }
+    }
+  ],
+  "guards": [],
+  "start": "exploit",
+  "stages": {
+    "exploit": {
+      "objective": "Reproduce the bug: read the Code tab, then use the Exploit tab on staging.",
+      "target": "computer",
+      "decision": true,
+      "insight": "The page only checked that you were signed in, not whose order it is.",
+      "hint": {
+        "text": "Open the Workbench. Read the code, try normal use on the Exploit tab, then send the request that breaks it."
+      },
+      "on": [
+        {
+          "when": {
+            "event": "bench:attempt",
+            "match": {
+              "exploited": true
+            }
+          },
+          "outcome": {
+            "points": 15,
+            "verdict": "careful",
+            "label": "Reproduced the bug",
+            "what": "The page checked that you were signed in, and never asked whose order it was. Changing 1002 to 1003 showed another customer's address and phone number, and counting upwards showed all of them.",
+            "ideal": "proves a bug is real before fixing it.",
+            "card": {
+              "title": "One number, someone else's data",
+              "kicker": "Broken access control",
+              "body": [
+                "The page checked that you were signed in, and never asked whose order it was. Changing 1002 to 1003 showed another customer's address and phone number, and counting upwards showed all of them.",
+                "This is the number one web risk for a reason: it is easy to write and hard to see in a demo."
+              ],
+              "ideal": "reproduces a bug first, so the fix can be proved to work."
+            }
+          },
+          "go": "fix"
+        }
+      ]
+    },
+    "fix": {
+      "objective": "Fix it: pick the changes on the Fix tab that close the hole for good, then apply the patch.",
+      "target": "computer",
+      "decision": true,
+      "hint": {
+        "text": "Pick every change that removes the cause. Avoid changes an attacker can walk around, and ones that do not touch the problem. Then Apply the patch."
+      },
+      "on": [
+        {
+          "when": {
+            "event": "bench:fixApplied",
+            "match": {
+              "ok": true
+            }
+          },
+          "outcome": {
+            "points": 35,
+            "verdict": "safe",
+            "label": "Applied a real fix",
+            "what": "The query itself now includes the owner, so another customer's order simply is not found. And a shared default deny means a new route that forgets access control fails closed instead of open.",
+            "ideal": "fixes the cause, not the symptom.",
+            "card": {
+              "title": "The server decides, every time",
+              "kicker": "Broken access control",
+              "body": [
+                "The query itself now includes the owner, so another customer's order simply is not found. And a shared default deny means a new route that forgets access control fails closed instead of open.",
+                "Check on the server, on every request, in one place."
+              ],
+              "ideal": "fixes the cause with the standard control, and adds defence in depth."
+            }
+          },
+          "go": "verify"
+        },
+        {
+          "when": {
+            "event": "bench:fixApplied",
+            "match": {
+              "bad": {
+                "includes": "weak"
+              }
+            }
+          },
+          "outcome": {
+            "points": -25,
+            "verdict": "unsafe",
+            "label": "Applied a fix that can be bypassed",
+            "what": "Random ids and hidden links make the attack harder to stumble on. They do not make it forbidden: the moment one id leaks, anyone holding it can read that order, because the server still never checks.",
+            "ideal": "fixes the cause instead of blocking one payload or hiding the symptom.",
+            "card": {
+              "title": "Hard to guess is not the same as forbidden",
+              "kicker": "Broken access control",
+              "body": [
+                "Random ids and hidden links make the attack harder to stumble on. They do not make it forbidden: the moment one id leaks, anyone holding it can read that order, because the server still never checks.",
+                "The check belongs on the server, against the signed in user."
+              ],
+              "ideal": "fixes the cause, and knows why a blocklist or a hidden field is not a fix.",
+              "rewindLabel": "Rewind to the Fix tab"
+            }
+          },
+          "go": "verify"
+        },
+        {
+          "when": {
+            "event": "bench:fixApplied"
+          },
+          "outcome": {
+            "points": -5,
+            "verdict": "risky",
+            "label": "Applied a patch that was not enough",
+            "what": "The patch missed part of the fix, or added a change that does not address the problem.",
+            "ideal": "closes the hole completely.",
+            "card": {
+              "title": "Not enough",
+              "kicker": "Broken access control",
+              "body": [
+                "The patch missed something that has to change, or included a change that does nothing for this bug. Open the Fix tab to see which options were right, missed, or wrong, and why.",
+                "A partial fix is the most dangerous kind: everyone assumes it is closed."
+              ],
+              "ideal": "closes the hole completely.",
+              "rewindLabel": "Rewind to the Fix tab"
+            }
+          },
+          "go": "verify"
+        }
+      ]
+    },
+    "verify": {
+      "objective": "Prove it: re-run the exploit on the Exploit tab, then check normal use still works.",
+      "target": "computer",
+      "decision": true,
+      "hint": {
+        "text": "On the Exploit tab, send the exploit again. It should be blocked. Then send the normal request to check nothing broke."
+      },
+      "on": [
+        {
+          "when": {
+            "event": "bench:retest",
+            "match": {
+              "blocked": true
+            }
+          },
+          "outcome": {
+            "points": 15,
+            "verdict": "safe",
+            "label": "Proved the exploit is blocked",
+            "what": "The same request that worked before now fails, and normal use still works.",
+            "ideal": "verifies a fix by re-running the exploit.",
+            "card": {
+              "title": "Fixed, and proved",
+              "kicker": "Broken access control",
+              "body": [
+                "You re-ran the exact request that broke it, and it is blocked. A fix you have not tested against the exploit is a hope, not a fix.",
+                "Add the exploit as an automated test so nobody can quietly bring the bug back."
+              ],
+              "ideal": "turns the exploit into a regression test."
+            }
+          },
+          "go": "done"
+        },
+        {
+          "when": {
+            "event": "bench:retest",
+            "match": {
+              "exploit": true,
+              "blocked": false
+            }
+          },
+          "outcome": {
+            "points": 0,
+            "verdict": "risky",
+            "label": "The exploit still works",
+            "what": "The patch did not close the hole. The same kind of request still gets through.",
+            "ideal": "never ships a fix without re-running the exploit.",
+            "rewind": false,
+            "card": {
+              "title": "Still open",
+              "kicker": "Broken access control",
+              "body": [
+                "The exploit still works after your patch. This is what happens when a fix blocks one payload, or hides a symptom, instead of removing the cause.",
+                "Go back over the Fix tab: it shows which options were right, and why the others fail."
+              ],
+              "ideal": "verifies with the exploit before calling it fixed.",
+              "rewind": false
+            }
+          },
+          "go": "done"
+        }
+      ]
+    },
+    "done": {
+      "end": true
+    }
+  }
+}

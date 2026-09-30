@@ -1,0 +1,400 @@
+{
+  "id": "mass-assignment",
+  "order": 602,
+  "title": "Mass assignment",
+  "kind": "Mass assignment",
+  "track": "api-security",
+  "pool": false,
+  "level": "Core",
+  "minutes": 7,
+  "maxPoints": 79,
+  "startsAt": 1017,
+  "brief": "17:25. The profile update endpoint was written to be flexible: it saves whatever fields it is sent. A tester says it saved something it should not.",
+  "role": "Platform engineer, reviewing a change on the Veltrix engineering team",
+  "insight": "The endpoint copies every field the client sends onto the user record, including ones the client should never touch.",
+  "teaches": [
+    "Bind only an allowlist of fields the caller is allowed to change",
+    "Validate the shape of the request, and reject unknown fields",
+    "Sensitive fields change through their own, separately authorised route"
+  ],
+  "setup": [
+    {
+      "do": "world.set",
+      "path": "office.bench",
+      "value": {
+        "id": "mass-assignment",
+        "title": "Profile API",
+        "sub": "api.veltrix-logistics.com · staging",
+        "files": [
+          {
+            "path": "api/profile.js",
+            "lang": "JavaScript",
+            "lines": [
+              "router.patch('/v1/me', requireToken, async (req, res) => {",
+              "  const user = await Users.find(req.auth.userId);",
+              "  Object.assign(user, req.body);       // save whatever was sent",
+              "  await user.save();",
+              "  res.json(user);",
+              "});"
+            ],
+            "flaw": [
+              3
+            ],
+            "vulnerable": true
+          },
+          {
+            "path": "api/models/user.js",
+            "lang": "JavaScript",
+            "lines": [
+              "// fields: id, displayName, email, phone,",
+              "//         role, creditLimit, isVerified"
+            ],
+            "flaw": [],
+            "vulnerable": false
+          }
+        ],
+        "intro": "The app sends { \"displayName\": ... }. See what else the endpoint is willing to save.",
+        "attempts": [
+          {
+            "id": "name",
+            "label": "Change your display name",
+            "request": "PATCH /v1/me\n{ \"displayName\": \"Sam R\" }",
+            "response": "HTTP 200\n{ \"id\": 88, \"displayName\": \"Sam R\", \"role\": \"customer\", \"creditLimit\": 500 }",
+            "fixedResponse": "HTTP 200\n{ \"id\": 88, \"displayName\": \"Sam R\" }",
+            "exploits": false
+          },
+          {
+            "id": "role",
+            "label": "Add \"role\": \"admin\" to the request",
+            "request": "PATCH /v1/me\n{ \"displayName\": \"Sam R\", \"role\": \"admin\" }",
+            "response": "HTTP 200\n{ \"id\": 88, \"displayName\": \"Sam R\", \"role\": \"admin\", \"creditLimit\": 500 }\n\nA customer just made themselves an administrator.",
+            "fixedResponse": "HTTP 400\n{ \"error\": \"unknown_field\", \"field\": \"role\" }",
+            "exploits": true
+          },
+          {
+            "id": "credit",
+            "label": "Add \"creditLimit\": 99999",
+            "request": "PATCH /v1/me\n{ \"creditLimit\": 99999 }",
+            "response": "HTTP 200\n{ \"id\": 88, \"creditLimit\": 99999 }\n\nThe customer raised their own credit limit.",
+            "fixedResponse": "HTTP 400\n{ \"error\": \"unknown_field\", \"field\": \"creditLimit\" }",
+            "exploits": true
+          }
+        ],
+        "fix": {
+          "prompt": "Pick every change that decides which fields the caller may set, and keeps sensitive fields on a route of their own.",
+          "options": [
+            {
+              "id": "allow",
+              "label": "Copy only an allowlist of writable fields",
+              "code": [
+                "- Object.assign(user, req.body);",
+                "+ const { displayName, phone } = req.body;",
+                "+ Object.assign(user, { displayName, phone });"
+              ],
+              "why": "The endpoint can only change what you named. New fields on the model are safe by default.",
+              "good": true
+            },
+            {
+              "id": "schema",
+              "label": "Validate the request against a schema and reject unknown fields",
+              "code": [
+                "+ const body = validate({ displayName: 'string?', phone: 'string?' }, req.body, { additional: false });"
+              ],
+              "why": "A clear, failing response for extra fields catches mistakes and probing early.",
+              "good": true
+            },
+            {
+              "id": "admin",
+              "label": "Change role and credit only through separate admin routes with their own authorization",
+              "code": [
+                "+ router.patch('/v1/admin/users/:id/role', requireRole('admin'), setRole);"
+              ],
+              "why": "Sensitive fields have their own, stricter route, so they can never ride along on an ordinary update.",
+              "good": true
+            },
+            {
+              "id": "docs",
+              "label": "Leave the field out of the public API documentation",
+              "code": [
+                "- role (string) The user's role"
+              ],
+              "why": "Attackers do not read your documentation. They read your responses, and the field is right there.",
+              "good": false,
+              "bad": "weak"
+            },
+            {
+              "id": "ui",
+              "label": "Only send role and credit from the admin screen of the app",
+              "code": [
+                "+ if (!isAdminScreen) delete payload.role;"
+              ],
+              "why": "The attacker sends the request themselves. What the app happens to send is not a control.",
+              "good": false,
+              "bad": "weak"
+            }
+          ]
+        },
+        "found": false,
+        "decided": false,
+        "fixed": false,
+        "picks": [],
+        "last": null
+      }
+    },
+    {
+      "do": "desktop.open",
+      "app": "bench"
+    },
+    {
+      "do": "room.banner",
+      "title": "Workbench",
+      "body": "Review the profile update endpoint",
+      "icon": "code",
+      "object": "computer",
+      "action": "Open"
+    }
+  ],
+  "bonuses": [
+    {
+      "id": "b-read",
+      "when": {
+        "event": "bench:fileViewed",
+        "match": {
+          "vulnerable": true
+        }
+      },
+      "outcome": {
+        "points": 6,
+        "verdict": "careful",
+        "label": "Read the vulnerable code first",
+        "what": "Reading the code before attacking it tells you where to look, and why it fails.",
+        "ideal": "reads the code under review before trying to break it."
+      }
+    },
+    {
+      "id": "b-normal",
+      "when": {
+        "event": "bench:attempt",
+        "match": {
+          "exploited": false
+        }
+      },
+      "outcome": {
+        "points": 4,
+        "verdict": "careful",
+        "label": "Tried normal use first",
+        "what": "Knowing what a good request looks like is how you spot a bad one.",
+        "ideal": "establishes normal behaviour before testing the abnormal."
+      }
+    },
+    {
+      "id": "b-regress",
+      "when": {
+        "event": "bench:retest",
+        "match": {
+          "exploit": false,
+          "fixed": true
+        }
+      },
+      "outcome": {
+        "points": 4,
+        "verdict": "careful",
+        "label": "Checked normal use still works",
+        "what": "A fix that breaks real users gets reverted, and the bug comes back.",
+        "ideal": "tests that the fix did not break normal use."
+      }
+    }
+  ],
+  "guards": [],
+  "start": "exploit",
+  "stages": {
+    "exploit": {
+      "objective": "Reproduce the bug: read the Code tab, then use the Exploit tab on staging.",
+      "target": "computer",
+      "decision": true,
+      "insight": "The endpoint copies every field the client sends onto the user record, including ones the client should never touch.",
+      "hint": {
+        "text": "Open the Workbench. Read the code, try normal use on the Exploit tab, then send the request that breaks it."
+      },
+      "on": [
+        {
+          "when": {
+            "event": "bench:attempt",
+            "match": {
+              "exploited": true
+            }
+          },
+          "outcome": {
+            "points": 15,
+            "verdict": "careful",
+            "label": "Reproduced the bug",
+            "what": "The endpoint copied every field in the request onto the user record. One extra line in the request set the role to admin, and another raised the credit limit.",
+            "ideal": "proves a bug is real before fixing it.",
+            "card": {
+              "title": "An ordinary customer, now an administrator",
+              "kicker": "Mass assignment",
+              "body": [
+                "The endpoint copied every field in the request onto the user record. One extra line in the request set the role to admin, and another raised the credit limit.",
+                "The model has fields the API never meant a customer to touch."
+              ],
+              "ideal": "reproduces a bug first, so the fix can be proved to work."
+            }
+          },
+          "go": "fix"
+        }
+      ]
+    },
+    "fix": {
+      "objective": "Fix it: pick the changes on the Fix tab that close the hole for good, then apply the patch.",
+      "target": "computer",
+      "decision": true,
+      "hint": {
+        "text": "Pick every change that removes the cause. Avoid changes an attacker can walk around, and ones that do not touch the problem. Then Apply the patch."
+      },
+      "on": [
+        {
+          "when": {
+            "event": "bench:fixApplied",
+            "match": {
+              "ok": true
+            }
+          },
+          "outcome": {
+            "points": 35,
+            "verdict": "safe",
+            "label": "Applied a real fix",
+            "what": "An allowlist decides which fields are writable, a schema rejects everything else with a clear error, and the sensitive fields live on separate, separately authorised routes.",
+            "ideal": "fixes the cause, not the symptom.",
+            "card": {
+              "title": "The caller can only change what you named",
+              "kicker": "Mass assignment",
+              "body": [
+                "An allowlist decides which fields are writable, a schema rejects everything else with a clear error, and the sensitive fields live on separate, separately authorised routes.",
+                "Never bind a request straight to a model."
+              ],
+              "ideal": "fixes the cause with the standard control, and adds defence in depth."
+            }
+          },
+          "go": "verify"
+        },
+        {
+          "when": {
+            "event": "bench:fixApplied",
+            "match": {
+              "bad": {
+                "includes": "weak"
+              }
+            }
+          },
+          "outcome": {
+            "points": -25,
+            "verdict": "unsafe",
+            "label": "Applied a fix that can be bypassed",
+            "what": "Removing the field from the documentation or the app screen only changes what honest users see. The request still works, because the server still saves whatever it is sent.",
+            "ideal": "fixes the cause instead of blocking one payload or hiding the symptom.",
+            "card": {
+              "title": "Hiding it did not stop it",
+              "kicker": "Mass assignment",
+              "body": [
+                "Removing the field from the documentation or the app screen only changes what honest users see. The request still works, because the server still saves whatever it is sent.",
+                "The server has to decide which fields are allowed."
+              ],
+              "ideal": "fixes the cause, and knows why a blocklist or a hidden field is not a fix.",
+              "rewindLabel": "Rewind to the Fix tab"
+            }
+          },
+          "go": "verify"
+        },
+        {
+          "when": {
+            "event": "bench:fixApplied"
+          },
+          "outcome": {
+            "points": -5,
+            "verdict": "risky",
+            "label": "Applied a patch that was not enough",
+            "what": "The patch missed part of the fix, or added a change that does not address the problem.",
+            "ideal": "closes the hole completely.",
+            "card": {
+              "title": "Not enough",
+              "kicker": "Mass assignment",
+              "body": [
+                "The patch missed something that has to change, or included a change that does nothing for this bug. Open the Fix tab to see which options were right, missed, or wrong, and why.",
+                "A partial fix is the most dangerous kind: everyone assumes it is closed."
+              ],
+              "ideal": "closes the hole completely.",
+              "rewindLabel": "Rewind to the Fix tab"
+            }
+          },
+          "go": "verify"
+        }
+      ]
+    },
+    "verify": {
+      "objective": "Prove it: re-run the exploit on the Exploit tab, then check normal use still works.",
+      "target": "computer",
+      "decision": true,
+      "hint": {
+        "text": "On the Exploit tab, send the exploit again. It should be blocked. Then send the normal request to check nothing broke."
+      },
+      "on": [
+        {
+          "when": {
+            "event": "bench:retest",
+            "match": {
+              "blocked": true
+            }
+          },
+          "outcome": {
+            "points": 15,
+            "verdict": "safe",
+            "label": "Proved the exploit is blocked",
+            "what": "The same request that worked before now fails, and normal use still works.",
+            "ideal": "verifies a fix by re-running the exploit.",
+            "card": {
+              "title": "Fixed, and proved",
+              "kicker": "Mass assignment",
+              "body": [
+                "You re-ran the exact request that broke it, and it is blocked. A fix you have not tested against the exploit is a hope, not a fix.",
+                "Add the exploit as an automated test so nobody can quietly bring the bug back."
+              ],
+              "ideal": "turns the exploit into a regression test."
+            }
+          },
+          "go": "done"
+        },
+        {
+          "when": {
+            "event": "bench:retest",
+            "match": {
+              "exploit": true,
+              "blocked": false
+            }
+          },
+          "outcome": {
+            "points": 0,
+            "verdict": "risky",
+            "label": "The exploit still works",
+            "what": "The patch did not close the hole. The same kind of request still gets through.",
+            "ideal": "never ships a fix without re-running the exploit.",
+            "rewind": false,
+            "card": {
+              "title": "Still open",
+              "kicker": "Mass assignment",
+              "body": [
+                "The exploit still works after your patch. This is what happens when a fix blocks one payload, or hides a symptom, instead of removing the cause.",
+                "Go back over the Fix tab: it shows which options were right, and why the others fail."
+              ],
+              "ideal": "verifies with the exploit before calling it fixed.",
+              "rewind": false
+            }
+          },
+          "go": "done"
+        }
+      ]
+    },
+    "done": {
+      "end": true
+    }
+  }
+}

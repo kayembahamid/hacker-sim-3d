@@ -1,0 +1,406 @@
+{
+  "id": "improper-inventory",
+  "order": 606,
+  "title": "The forgotten v1 endpoint",
+  "kind": "Improper inventory management",
+  "track": "api-security",
+  "pool": false,
+  "level": "Advanced",
+  "minutes": 8,
+  "maxPoints": 79,
+  "startsAt": 1029,
+  "brief": "17:45. Version 2 of the orders API was fixed last month, after the id bug. A scan shows someone still pulling orders through a URL that starts /v1.",
+  "role": "Platform engineer, reviewing a change on the Veltrix engineering team",
+  "insight": "The fix went into v2. Nobody remembered v1 was still running.",
+  "teaches": [
+    "Every endpoint and version that is live is part of your attack surface",
+    "Keep an owned inventory with sunset dates, and scan the gateway against it",
+    "Retire old versions properly: a clear error, not a quiet hiding place"
+  ],
+  "setup": [
+    {
+      "do": "world.set",
+      "path": "office.bench",
+      "value": {
+        "id": "improper-inventory",
+        "title": "API gateway review",
+        "sub": "api.veltrix-logistics.com · gateway",
+        "files": [
+          {
+            "path": "gateway/routes.yml",
+            "lang": "Config",
+            "lines": [
+              "routes:",
+              "  /v2/orders:   { upstream: orders-service:v2,  auth: object_level, rate_limit: 60/m }",
+              "  /v1/orders:   { upstream: orders-service:v1,  auth: token_only,   rate_limit: none }",
+              "  /v1/export:   { upstream: legacy-export,     auth: token_only,   rate_limit: none }"
+            ],
+            "flaw": [
+              3,
+              4
+            ],
+            "vulnerable": true
+          },
+          {
+            "path": "docs/api-inventory.md",
+            "lang": "Notes",
+            "lines": [
+              "# API inventory",
+              "| path       | owner          | status |",
+              "| /v2/orders | orders team    | live   |",
+              "",
+              "(v1 is not listed anywhere)"
+            ],
+            "flaw": [
+              5
+            ],
+            "vulnerable": true
+          }
+        ],
+        "intro": "The current version refuses another customer's order. Try the same request against the older one.",
+        "attempts": [
+          {
+            "id": "v2",
+            "label": "Ask v2 for another customer's order",
+            "request": "GET /v2/orders/1003   (signed in as customer 88)",
+            "response": "HTTP 404\n{ \"error\": \"not_found\" }\n\nv2 checks ownership. This is the fixed version.",
+            "fixedResponse": "HTTP 404\n{ \"error\": \"not_found\" }",
+            "exploits": false
+          },
+          {
+            "id": "v1",
+            "label": "Ask v1 for the same order",
+            "request": "GET /v1/orders/1003   (signed in as customer 88)",
+            "response": "HTTP 200\n{ \"id\": 1003, \"customerId\": 91, \"address\": \"Unit 4, Hartley Industrial Estate\" }\n\nThe old version is live, unpatched, and has no rate limit.",
+            "fixedResponse": "HTTP 410 Gone\n{ \"error\": \"v1 was retired on 30 June. Use /v2.\" }",
+            "exploits": true
+          },
+          {
+            "id": "export",
+            "label": "Try the forgotten export route",
+            "request": "GET /v1/export?since=2020-01-01",
+            "response": "HTTP 200\n38,412 customer rows (CSV)\n\nA legacy export nobody remembered, open to any valid token.",
+            "fixedResponse": "HTTP 410 Gone",
+            "exploits": true
+          }
+        ],
+        "fix": {
+          "prompt": "Pick every change that closes the old version for good, and makes sure the next forgotten endpoint is found.",
+          "options": [
+            {
+              "id": "retire",
+              "label": "Retire v1: return 410 Gone, then remove the route and the old service",
+              "code": [
+                "- /v1/orders:  { upstream: orders-service:v1 ... }",
+                "- /v1/export:  { upstream: legacy-export ... }",
+                "+ /v1/*:       { respond: 410 }"
+              ],
+              "why": "A clear, final answer. The unpatched code stops receiving traffic and then stops existing.",
+              "good": true
+            },
+            {
+              "id": "inv",
+              "label": "Keep an owned inventory of every route, with a status and a sunset date, and check the gateway against it",
+              "code": [
+                "+ docs/api-inventory.md: every route, owner, status, sunset",
+                "+ ci: fail if gateway has a route not in the inventory"
+              ],
+              "why": "The next forgotten endpoint fails the build instead of waiting to be found by someone else.",
+              "good": true
+            },
+            {
+              "id": "scan",
+              "label": "Scan the gateway for undocumented routes on a schedule",
+              "code": [
+                "+ weekly: discover-routes api.veltrix-logistics.com --compare inventory"
+              ],
+              "why": "Finds what has been added outside the process, including by other teams.",
+              "good": true
+            },
+            {
+              "id": "hide",
+              "label": "Move v1 to an unlisted path",
+              "code": [
+                "- /v1/orders",
+                "+ /internal-old-8f3k/orders"
+              ],
+              "why": "Security through a secret address. It shows up in traffic logs and scans, and it is still unpatched.",
+              "good": false,
+              "bad": "weak"
+            },
+            {
+              "id": "hdr",
+              "label": "Add a deprecation warning header to v1 responses",
+              "code": [
+                "+ Deprecation: true"
+              ],
+              "why": "A header is a note, not a control. The data is still returned to anyone who asks.",
+              "good": false,
+              "bad": "weak"
+            }
+          ]
+        },
+        "found": false,
+        "decided": false,
+        "fixed": false,
+        "picks": [],
+        "last": null
+      }
+    },
+    {
+      "do": "desktop.open",
+      "app": "bench"
+    },
+    {
+      "do": "room.banner",
+      "title": "Workbench",
+      "body": "Find the endpoint nobody owns",
+      "icon": "code",
+      "object": "computer",
+      "action": "Open"
+    }
+  ],
+  "bonuses": [
+    {
+      "id": "b-read",
+      "when": {
+        "event": "bench:fileViewed",
+        "match": {
+          "vulnerable": true
+        }
+      },
+      "outcome": {
+        "points": 6,
+        "verdict": "careful",
+        "label": "Read the vulnerable code first",
+        "what": "Reading the code before attacking it tells you where to look, and why it fails.",
+        "ideal": "reads the code under review before trying to break it."
+      }
+    },
+    {
+      "id": "b-normal",
+      "when": {
+        "event": "bench:attempt",
+        "match": {
+          "exploited": false
+        }
+      },
+      "outcome": {
+        "points": 4,
+        "verdict": "careful",
+        "label": "Tried normal use first",
+        "what": "Knowing what a good request looks like is how you spot a bad one.",
+        "ideal": "establishes normal behaviour before testing the abnormal."
+      }
+    },
+    {
+      "id": "b-regress",
+      "when": {
+        "event": "bench:retest",
+        "match": {
+          "exploit": false,
+          "fixed": true
+        }
+      },
+      "outcome": {
+        "points": 4,
+        "verdict": "careful",
+        "label": "Checked normal use still works",
+        "what": "A fix that breaks real users gets reverted, and the bug comes back.",
+        "ideal": "tests that the fix did not break normal use."
+      }
+    }
+  ],
+  "guards": [],
+  "start": "exploit",
+  "stages": {
+    "exploit": {
+      "objective": "Reproduce the bug: read the Code tab, then use the Exploit tab on staging.",
+      "target": "computer",
+      "decision": true,
+      "insight": "The fix went into v2. Nobody remembered v1 was still running.",
+      "hint": {
+        "text": "Open the Workbench. Read the code, try normal use on the Exploit tab, then send the request that breaks it."
+      },
+      "on": [
+        {
+          "when": {
+            "event": "bench:attempt",
+            "match": {
+              "exploited": true
+            }
+          },
+          "outcome": {
+            "points": 15,
+            "verdict": "careful",
+            "label": "Reproduced the bug",
+            "what": "v2 checks ownership. v1, still running with no rate limit, does not, and a legacy export route returns the entire customer table. Both were absent from every list the team kept.",
+            "ideal": "proves a bug is real before fixing it.",
+            "card": {
+              "title": "The bug was fixed, in the version nobody used",
+              "kicker": "Improper inventory management",
+              "body": [
+                "v2 checks ownership. v1, still running with no rate limit, does not, and a legacy export route returns the entire customer table. Both were absent from every list the team kept.",
+                "You cannot patch what you do not know you run."
+              ],
+              "ideal": "reproduces a bug first, so the fix can be proved to work."
+            }
+          },
+          "go": "fix"
+        }
+      ]
+    },
+    "fix": {
+      "objective": "Fix it: pick the changes on the Fix tab that close the hole for good, then apply the patch.",
+      "target": "computer",
+      "decision": true,
+      "hint": {
+        "text": "Pick every change that removes the cause. Avoid changes an attacker can walk around, and ones that do not touch the problem. Then Apply the patch."
+      },
+      "on": [
+        {
+          "when": {
+            "event": "bench:fixApplied",
+            "match": {
+              "ok": true
+            }
+          },
+          "outcome": {
+            "points": 35,
+            "verdict": "safe",
+            "label": "Applied a real fix",
+            "what": "Retiring v1 with a clear error removes the vulnerable code from the road. The inventory, with owners and sunset dates, and the scan that compares it to the gateway, make the next forgotten route show up as a failed build.",
+            "ideal": "fixes the cause, not the symptom.",
+            "card": {
+              "title": "Nothing is live that nobody owns",
+              "kicker": "Improper inventory management",
+              "body": [
+                "Retiring v1 with a clear error removes the vulnerable code from the road. The inventory, with owners and sunset dates, and the scan that compares it to the gateway, make the next forgotten route show up as a failed build.",
+                "An inventory of your endpoints is a security control."
+              ],
+              "ideal": "fixes the cause with the standard control, and adds defence in depth."
+            }
+          },
+          "go": "verify"
+        },
+        {
+          "when": {
+            "event": "bench:fixApplied",
+            "match": {
+              "bad": {
+                "includes": "weak"
+              }
+            }
+          },
+          "outcome": {
+            "points": -25,
+            "verdict": "unsafe",
+            "label": "Applied a fix that can be bypassed",
+            "what": "Moving v1 to an odd path or adding a header leaves the same unpatched code answering requests. Odd paths turn up in logs and scans, and a header stops nobody.",
+            "ideal": "fixes the cause instead of blocking one payload or hiding the symptom.",
+            "card": {
+              "title": "Hidden is not gone",
+              "kicker": "Improper inventory management",
+              "body": [
+                "Moving v1 to an odd path or adding a header leaves the same unpatched code answering requests. Odd paths turn up in logs and scans, and a header stops nobody.",
+                "Retire it, and keep the inventory honest."
+              ],
+              "ideal": "fixes the cause, and knows why a blocklist or a hidden field is not a fix.",
+              "rewindLabel": "Rewind to the Fix tab"
+            }
+          },
+          "go": "verify"
+        },
+        {
+          "when": {
+            "event": "bench:fixApplied"
+          },
+          "outcome": {
+            "points": -5,
+            "verdict": "risky",
+            "label": "Applied a patch that was not enough",
+            "what": "The patch missed part of the fix, or added a change that does not address the problem.",
+            "ideal": "closes the hole completely.",
+            "card": {
+              "title": "Not enough",
+              "kicker": "Improper inventory management",
+              "body": [
+                "The patch missed something that has to change, or included a change that does nothing for this bug. Open the Fix tab to see which options were right, missed, or wrong, and why.",
+                "A partial fix is the most dangerous kind: everyone assumes it is closed."
+              ],
+              "ideal": "closes the hole completely.",
+              "rewindLabel": "Rewind to the Fix tab"
+            }
+          },
+          "go": "verify"
+        }
+      ]
+    },
+    "verify": {
+      "objective": "Prove it: re-run the exploit on the Exploit tab, then check normal use still works.",
+      "target": "computer",
+      "decision": true,
+      "hint": {
+        "text": "On the Exploit tab, send the exploit again. It should be blocked. Then send the normal request to check nothing broke."
+      },
+      "on": [
+        {
+          "when": {
+            "event": "bench:retest",
+            "match": {
+              "blocked": true
+            }
+          },
+          "outcome": {
+            "points": 15,
+            "verdict": "safe",
+            "label": "Proved the exploit is blocked",
+            "what": "The same request that worked before now fails, and normal use still works.",
+            "ideal": "verifies a fix by re-running the exploit.",
+            "card": {
+              "title": "Fixed, and proved",
+              "kicker": "Improper inventory management",
+              "body": [
+                "You re-ran the exact request that broke it, and it is blocked. A fix you have not tested against the exploit is a hope, not a fix.",
+                "Add the exploit as an automated test so nobody can quietly bring the bug back."
+              ],
+              "ideal": "turns the exploit into a regression test."
+            }
+          },
+          "go": "done"
+        },
+        {
+          "when": {
+            "event": "bench:retest",
+            "match": {
+              "exploit": true,
+              "blocked": false
+            }
+          },
+          "outcome": {
+            "points": 0,
+            "verdict": "risky",
+            "label": "The exploit still works",
+            "what": "The patch did not close the hole. The same kind of request still gets through.",
+            "ideal": "never ships a fix without re-running the exploit.",
+            "rewind": false,
+            "card": {
+              "title": "Still open",
+              "kicker": "Improper inventory management",
+              "body": [
+                "The exploit still works after your patch. This is what happens when a fix blocks one payload, or hides a symptom, instead of removing the cause.",
+                "Go back over the Fix tab: it shows which options were right, and why the others fail."
+              ],
+              "ideal": "verifies with the exploit before calling it fixed.",
+              "rewind": false
+            }
+          },
+          "go": "done"
+        }
+      ]
+    },
+    "done": {
+      "end": true
+    }
+  }
+}

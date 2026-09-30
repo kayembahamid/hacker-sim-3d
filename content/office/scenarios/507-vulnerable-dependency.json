@@ -1,0 +1,418 @@
+{
+  "id": "vulnerable-dependency",
+  "order": 507,
+  "title": "The dependency you did not read",
+  "kind": "Vulnerable dependency",
+  "track": "application-security",
+  "pool": false,
+  "level": "Core",
+  "minutes": 7,
+  "maxPoints": 79,
+  "startsAt": 1008,
+  "brief": "17:10. A pull request adds a small date formatting package. The build passes. You are asked whether it is safe to ship tonight.",
+  "role": "Platform engineer, reviewing a change on the Veltrix engineering team",
+  "insight": "You added one package. It brought a second one with it, and the second one has a known hole.",
+  "teaches": [
+    "Every dependency is code you run, including the ones you never chose",
+    "Software composition analysis in CI fails the build on known vulnerable versions",
+    "Update and pin, rather than ignore, and do not switch the check off"
+  ],
+  "setup": [
+    {
+      "do": "world.set",
+      "path": "office.bench",
+      "value": {
+        "id": "vulnerable-dependency",
+        "title": "Dependency review: pull request 412",
+        "sub": "portal-api · pull request",
+        "files": [
+          {
+            "path": "portal/package.json",
+            "lang": "JSON",
+            "lines": [
+              "{",
+              "  \"dependencies\": {",
+              "    \"tiny-date-format\": \"^1.2.0\",",
+              "    \"router-kit\": \"^4.1.0\"",
+              "  }",
+              "}"
+            ],
+            "flaw": [
+              3
+            ],
+            "vulnerable": true
+          },
+          {
+            "path": "portal/package-lock.json",
+            "lang": "JSON",
+            "lines": [
+              "tiny-date-format 1.2.0",
+              "  requires yaml-lite ~0.4.1",
+              "yaml-lite 0.4.1          <-- pulled in, never chosen",
+              "router-kit 4.1.3"
+            ],
+            "flaw": [],
+            "vulnerable": false
+          },
+          {
+            "path": ".ci/pipeline.yml",
+            "lang": "CI",
+            "lines": [
+              "steps:",
+              "  - install",
+              "  - lint",
+              "  - test",
+              "  - deploy      # no dependency audit step"
+            ],
+            "flaw": [
+              5
+            ],
+            "vulnerable": true
+          }
+        ],
+        "intro": "The pipeline never checks the packages themselves. Run the audit, then see whether the hole in the package you did not choose can be reached.",
+        "attempts": [
+          {
+            "id": "tests",
+            "label": "Run the build and the tests",
+            "request": "npm ci && npm test",
+            "response": "PASS  41 tests\nBuild succeeded.",
+            "fixedResponse": "PASS  41 tests\nBuild succeeded.",
+            "exploits": false
+          },
+          {
+            "id": "audit",
+            "label": "Run a dependency audit",
+            "request": "npm audit",
+            "response": "CRITICAL  yaml-lite < 0.4.3  prototype pollution\n  path: tiny-date-format > yaml-lite\n  advisory: attacker controlled input can set properties on every object\n\n1 critical vulnerability.",
+            "fixedResponse": "found 0 vulnerabilities",
+            "exploits": true
+          },
+          {
+            "id": "reach",
+            "label": "Send a crafted document to the import page",
+            "request": "POST /import   (a document with a \"__proto__\" key)",
+            "response": "HTTP 200\nServer state: every object now has isAdmin = true\n\nThe hole in the package you did not choose is reachable from the internet.",
+            "fixedResponse": "HTTP 200\nDocument imported. Nothing else changed.",
+            "exploits": true
+          }
+        ],
+        "fix": {
+          "prompt": "Pick every change that closes this hole and makes sure the next one is caught before it ships.",
+          "options": [
+            {
+              "id": "upd",
+              "label": "Update to a patched version and commit the lock file",
+              "code": [
+                "- yaml-lite 0.4.1",
+                "+ yaml-lite 0.4.5   # patched"
+              ],
+              "why": "The vulnerable code is gone from what ships.",
+              "good": true
+            },
+            {
+              "id": "sca",
+              "label": "Add a dependency audit step that fails the build on high severity findings",
+              "code": [
+                "+ steps:",
+                "+   - audit --fail-on high      # before deploy"
+              ],
+              "why": "Catches the next known bad version automatically, instead of relying on someone remembering to look.",
+              "good": true
+            },
+            {
+              "id": "pin",
+              "label": "Pin exact versions, and take updates through reviewed automated pull requests",
+              "code": [
+                "- \"tiny-date-format\": \"^1.2.0\"",
+                "+ \"tiny-date-format\": \"1.2.4\""
+              ],
+              "why": "You control when new code arrives, and every change is a diff a person can read.",
+              "good": true
+            },
+            {
+              "id": "ign",
+              "label": "Add the advisory to an ignore list, it is only a transitive dependency",
+              "code": [
+                "+ audit-ignore: yaml-lite"
+              ],
+              "why": "The hole is just as reachable. Transitive means you did not choose it, not that it is safe.",
+              "good": false,
+              "bad": "weak"
+            },
+            {
+              "id": "drop",
+              "label": "Delete the package-lock file so the build always takes the latest",
+              "code": [
+                "- package-lock.json"
+              ],
+              "why": "Unpinned installs make builds unrepeatable, and let a bad new version in without review.",
+              "good": false,
+              "bad": "gap"
+            }
+          ]
+        },
+        "found": false,
+        "decided": false,
+        "fixed": false,
+        "picks": [],
+        "last": null
+      }
+    },
+    {
+      "do": "desktop.open",
+      "app": "bench"
+    },
+    {
+      "do": "room.banner",
+      "title": "Workbench",
+      "body": "Review the new dependency",
+      "icon": "code",
+      "object": "computer",
+      "action": "Open"
+    }
+  ],
+  "bonuses": [
+    {
+      "id": "b-read",
+      "when": {
+        "event": "bench:fileViewed",
+        "match": {
+          "vulnerable": true
+        }
+      },
+      "outcome": {
+        "points": 6,
+        "verdict": "careful",
+        "label": "Read the vulnerable code first",
+        "what": "Reading the code before attacking it tells you where to look, and why it fails.",
+        "ideal": "reads the code under review before trying to break it."
+      }
+    },
+    {
+      "id": "b-normal",
+      "when": {
+        "event": "bench:attempt",
+        "match": {
+          "exploited": false
+        }
+      },
+      "outcome": {
+        "points": 4,
+        "verdict": "careful",
+        "label": "Tried normal use first",
+        "what": "Knowing what a good request looks like is how you spot a bad one.",
+        "ideal": "establishes normal behaviour before testing the abnormal."
+      }
+    },
+    {
+      "id": "b-regress",
+      "when": {
+        "event": "bench:retest",
+        "match": {
+          "exploit": false,
+          "fixed": true
+        }
+      },
+      "outcome": {
+        "points": 4,
+        "verdict": "careful",
+        "label": "Checked normal use still works",
+        "what": "A fix that breaks real users gets reverted, and the bug comes back.",
+        "ideal": "tests that the fix did not break normal use."
+      }
+    }
+  ],
+  "guards": [],
+  "start": "exploit",
+  "stages": {
+    "exploit": {
+      "objective": "Reproduce the bug: read the Code tab, then use the Exploit tab on staging.",
+      "target": "computer",
+      "decision": true,
+      "insight": "You added one package. It brought a second one with it, and the second one has a known hole.",
+      "hint": {
+        "text": "Open the Workbench. Read the code, try normal use on the Exploit tab, then send the request that breaks it."
+      },
+      "on": [
+        {
+          "when": {
+            "event": "bench:attempt",
+            "match": {
+              "exploited": true
+            }
+          },
+          "outcome": {
+            "points": 15,
+            "verdict": "careful",
+            "label": "Reproduced the bug",
+            "what": "The date package pulled in a YAML library with a known critical flaw, and the import page fed it attacker controlled input. Every test passed, because nothing tests for this.",
+            "ideal": "proves a bug is real before fixing it.",
+            "card": {
+              "title": "A hole in a package nobody chose",
+              "kicker": "Vulnerable dependency",
+              "body": [
+                "The date package pulled in a YAML library with a known critical flaw, and the import page fed it attacker controlled input. Every test passed, because nothing tests for this.",
+                "The pipeline had no audit step, so nothing was ever going to notice."
+              ],
+              "ideal": "reproduces a bug first, so the fix can be proved to work."
+            }
+          },
+          "go": "fix"
+        }
+      ]
+    },
+    "fix": {
+      "objective": "Fix it: pick the changes on the Fix tab that close the hole for good, then apply the patch.",
+      "target": "computer",
+      "decision": true,
+      "hint": {
+        "text": "Pick every change that removes the cause. Avoid changes an attacker can walk around, and ones that do not touch the problem. Then Apply the patch."
+      },
+      "on": [
+        {
+          "when": {
+            "event": "bench:fixApplied",
+            "match": {
+              "ok": true
+            }
+          },
+          "outcome": {
+            "points": 35,
+            "verdict": "safe",
+            "label": "Applied a real fix",
+            "what": "The patched version removes the flaw. The audit step means the next vulnerable version fails the build instead of shipping, and pinning with reviewed updates means new code does not arrive unseen.",
+            "ideal": "fixes the cause, not the symptom.",
+            "card": {
+              "title": "Patched, pinned, and watched",
+              "kicker": "Vulnerable dependency",
+              "body": [
+                "The patched version removes the flaw. The audit step means the next vulnerable version fails the build instead of shipping, and pinning with reviewed updates means new code does not arrive unseen.",
+                "Trust in a package is a decision, not a default."
+              ],
+              "ideal": "fixes the cause with the standard control, and adds defence in depth."
+            }
+          },
+          "go": "verify"
+        },
+        {
+          "when": {
+            "event": "bench:fixApplied",
+            "match": {
+              "bad": {
+                "includes": "weak"
+              }
+            }
+          },
+          "outcome": {
+            "points": -25,
+            "verdict": "unsafe",
+            "label": "Applied a fix that can be bypassed",
+            "what": "Adding the advisory to an ignore list, or deleting the lock file, hides the warning and leaves the hole open, and the second option makes it worse. “It is only a transitive dependency” is exactly how these get exploited.",
+            "ideal": "fixes the cause instead of blocking one payload or hiding the symptom.",
+            "card": {
+              "title": "Ignoring it does not make it safe",
+              "kicker": "Vulnerable dependency",
+              "body": [
+                "Adding the advisory to an ignore list, or deleting the lock file, hides the warning and leaves the hole open, and the second option makes it worse. “It is only a transitive dependency” is exactly how these get exploited.",
+                "Fix or replace, and let the pipeline check."
+              ],
+              "ideal": "fixes the cause, and knows why a blocklist or a hidden field is not a fix.",
+              "rewindLabel": "Rewind to the Fix tab"
+            }
+          },
+          "go": "verify"
+        },
+        {
+          "when": {
+            "event": "bench:fixApplied"
+          },
+          "outcome": {
+            "points": -5,
+            "verdict": "risky",
+            "label": "Applied a patch that was not enough",
+            "what": "The patch missed part of the fix, or added a change that does not address the problem.",
+            "ideal": "closes the hole completely.",
+            "card": {
+              "title": "Not enough",
+              "kicker": "Vulnerable dependency",
+              "body": [
+                "The patch missed something that has to change, or included a change that does nothing for this bug. Open the Fix tab to see which options were right, missed, or wrong, and why.",
+                "A partial fix is the most dangerous kind: everyone assumes it is closed."
+              ],
+              "ideal": "closes the hole completely.",
+              "rewindLabel": "Rewind to the Fix tab"
+            }
+          },
+          "go": "verify"
+        }
+      ]
+    },
+    "verify": {
+      "objective": "Prove it: re-run the exploit on the Exploit tab, then check normal use still works.",
+      "target": "computer",
+      "decision": true,
+      "hint": {
+        "text": "On the Exploit tab, send the exploit again. It should be blocked. Then send the normal request to check nothing broke."
+      },
+      "on": [
+        {
+          "when": {
+            "event": "bench:retest",
+            "match": {
+              "blocked": true
+            }
+          },
+          "outcome": {
+            "points": 15,
+            "verdict": "safe",
+            "label": "Proved the exploit is blocked",
+            "what": "The same request that worked before now fails, and normal use still works.",
+            "ideal": "verifies a fix by re-running the exploit.",
+            "card": {
+              "title": "Fixed, and proved",
+              "kicker": "Vulnerable dependency",
+              "body": [
+                "You re-ran the exact request that broke it, and it is blocked. A fix you have not tested against the exploit is a hope, not a fix.",
+                "Add the exploit as an automated test so nobody can quietly bring the bug back."
+              ],
+              "ideal": "turns the exploit into a regression test."
+            }
+          },
+          "go": "done"
+        },
+        {
+          "when": {
+            "event": "bench:retest",
+            "match": {
+              "exploit": true,
+              "blocked": false
+            }
+          },
+          "outcome": {
+            "points": 0,
+            "verdict": "risky",
+            "label": "The exploit still works",
+            "what": "The patch did not close the hole. The same kind of request still gets through.",
+            "ideal": "never ships a fix without re-running the exploit.",
+            "rewind": false,
+            "card": {
+              "title": "Still open",
+              "kicker": "Vulnerable dependency",
+              "body": [
+                "The exploit still works after your patch. This is what happens when a fix blocks one payload, or hides a symptom, instead of removing the cause.",
+                "Go back over the Fix tab: it shows which options were right, and why the others fail."
+              ],
+              "ideal": "verifies with the exploit before calling it fixed.",
+              "rewind": false
+            }
+          },
+          "go": "done"
+        }
+      ]
+    },
+    "done": {
+      "end": true
+    }
+  }
+}

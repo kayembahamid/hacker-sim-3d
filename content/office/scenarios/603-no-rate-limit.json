@@ -1,0 +1,406 @@
+{
+  "id": "no-rate-limit",
+  "order": 603,
+  "title": "No rate limit, no mercy",
+  "kind": "Unrestricted resource consumption",
+  "track": "api-security",
+  "pool": false,
+  "level": "Foundational",
+  "minutes": 6,
+  "maxPoints": 79,
+  "startsAt": 1020,
+  "brief": "17:30. Monitoring shows the sign in endpoint doing forty thousand requests in ten minutes, from a handful of addresses. Nothing is slowing them down.",
+  "role": "Platform engineer, reviewing a change on the Veltrix engineering team",
+  "insight": "The endpoint answers as fast as it is asked, forever, so guessing is free.",
+  "teaches": [
+    "Limit attempts per account and per source, and back off or lock after failures",
+    "Alert on spikes of failed sign ins so a person notices",
+    "A vaguer error message helps, but it is not a limit; a CAPTCHA on one client is not a limit either"
+  ],
+  "setup": [
+    {
+      "do": "world.set",
+      "path": "office.bench",
+      "value": {
+        "id": "no-rate-limit",
+        "title": "Sign in endpoint",
+        "sub": "api.veltrix-logistics.com · production logs",
+        "files": [
+          {
+            "path": "api/auth.js",
+            "lang": "JavaScript",
+            "lines": [
+              "router.post('/v1/login', async (req, res) => {",
+              "  const user = await Users.byEmail(req.body.email);",
+              "  if (!user || !verify(req.body.password, user.hash)) return res.status(401).json({ error: 'bad_credentials' });",
+              "  res.json({ token: sign(user) });",
+              "});"
+            ],
+            "flaw": [
+              1
+            ],
+            "vulnerable": true
+          },
+          {
+            "path": "api/gateway.yml",
+            "lang": "Config",
+            "lines": [
+              "routes:",
+              "  /v1/login:",
+              "    rate_limit: none",
+              "    lockout: none",
+              "    alerts: none"
+            ],
+            "flaw": [
+              3,
+              4,
+              5
+            ],
+            "vulnerable": true
+          }
+        ],
+        "intro": "Replay what the attacker did, against staging. Start with one careful guess, then a burst.",
+        "attempts": [
+          {
+            "id": "one",
+            "label": "Sign in once, with a wrong password",
+            "request": "POST /v1/login\n{ \"email\": \"megan@customer.test\", \"password\": \"hunter2\" }",
+            "response": "HTTP 401\n{ \"error\": \"bad_credentials\" }",
+            "fixedResponse": "HTTP 401\n{ \"error\": \"bad_credentials\" }",
+            "exploits": false
+          },
+          {
+            "id": "burst",
+            "label": "Try 5,000 passwords on one account in a minute",
+            "request": "for pw in wordlist[0..5000]: POST /v1/login  email=megan@customer.test",
+            "response": "4,999 x HTTP 401\n1 x HTTP 200  (password: \"Summer2026!\")\n\nSigned in as Megan after 96 seconds. Nothing slowed down, locked, or alerted.",
+            "fixedResponse": "3 x HTTP 401\n47 x HTTP 429  Too many attempts. Try again in 15 minutes.\nAccount locked for 15 minutes. Alert raised: \"1,200 failed sign ins for one account\".",
+            "exploits": true
+          },
+          {
+            "id": "stuff",
+            "label": "Try one leaked password across 2,000 accounts",
+            "request": "for email in leaked_list[0..2000]: POST /v1/login  password=\"Summer2026!\"",
+            "response": "2,000 requests, 31 x HTTP 200\n\n31 accounts opened with one password. Nothing counted them.",
+            "fixedResponse": "60 x HTTP 401, then HTTP 429 for that source address.\nAlert raised: \"1 address, 60 different accounts\".",
+            "exploits": true
+          }
+        ],
+        "fix": {
+          "prompt": "Pick every change that limits the guessing, and makes sure a person is told when it happens.",
+          "options": [
+            {
+              "id": "limit",
+              "label": "Rate limit per account and per source address",
+              "code": [
+                "+ /v1/login:",
+                "+   rate_limit: 5 per minute per account, 30 per minute per address"
+              ],
+              "why": "Guessing at speed stops working, both against one account and across many.",
+              "good": true
+            },
+            {
+              "id": "lock",
+              "label": "Back off and temporarily lock after repeated failures, and add a second factor for risky sign ins",
+              "code": [
+                "+   lockout: 5 failures -> 15 minutes, doubling",
+                "+   step_up: mfa when new device or country"
+              ],
+              "why": "A guessed password alone is no longer enough to get in.",
+              "good": true
+            },
+            {
+              "id": "alert",
+              "label": "Alert on spikes of failed sign ins, per account and per address",
+              "code": [
+                "+   alerts: failed_login_rate > 100 / 5 min -> page security"
+              ],
+              "why": "A person finds out in minutes, not after the customers complain.",
+              "good": true
+            },
+            {
+              "id": "vague",
+              "label": "Make the error message vaguer",
+              "code": [
+                "+ res.status(401).json({ error: 'try again' });"
+              ],
+              "why": "Helps a little against knowing which emails exist. It does nothing to the speed of guessing.",
+              "good": false,
+              "bad": "weak"
+            },
+            {
+              "id": "captcha",
+              "label": "Add a CAPTCHA to the website login form",
+              "code": [
+                "+ <div class=\"captcha\"></div>"
+              ],
+              "why": "The attacker uses the API directly and never sees the form.",
+              "good": false,
+              "bad": "weak"
+            }
+          ]
+        },
+        "found": false,
+        "decided": false,
+        "fixed": false,
+        "picks": [],
+        "last": null
+      }
+    },
+    {
+      "do": "desktop.open",
+      "app": "bench"
+    },
+    {
+      "do": "room.banner",
+      "title": "Workbench",
+      "body": "Investigate the sign in traffic",
+      "icon": "code",
+      "object": "computer",
+      "action": "Open"
+    }
+  ],
+  "bonuses": [
+    {
+      "id": "b-read",
+      "when": {
+        "event": "bench:fileViewed",
+        "match": {
+          "vulnerable": true
+        }
+      },
+      "outcome": {
+        "points": 6,
+        "verdict": "careful",
+        "label": "Read the vulnerable code first",
+        "what": "Reading the code before attacking it tells you where to look, and why it fails.",
+        "ideal": "reads the code under review before trying to break it."
+      }
+    },
+    {
+      "id": "b-normal",
+      "when": {
+        "event": "bench:attempt",
+        "match": {
+          "exploited": false
+        }
+      },
+      "outcome": {
+        "points": 4,
+        "verdict": "careful",
+        "label": "Tried normal use first",
+        "what": "Knowing what a good request looks like is how you spot a bad one.",
+        "ideal": "establishes normal behaviour before testing the abnormal."
+      }
+    },
+    {
+      "id": "b-regress",
+      "when": {
+        "event": "bench:retest",
+        "match": {
+          "exploit": false,
+          "fixed": true
+        }
+      },
+      "outcome": {
+        "points": 4,
+        "verdict": "careful",
+        "label": "Checked normal use still works",
+        "what": "A fix that breaks real users gets reverted, and the bug comes back.",
+        "ideal": "tests that the fix did not break normal use."
+      }
+    }
+  ],
+  "guards": [],
+  "start": "exploit",
+  "stages": {
+    "exploit": {
+      "objective": "Reproduce the bug: read the Code tab, then use the Exploit tab on staging.",
+      "target": "computer",
+      "decision": true,
+      "insight": "The endpoint answers as fast as it is asked, forever, so guessing is free.",
+      "hint": {
+        "text": "Open the Workbench. Read the code, try normal use on the Exploit tab, then send the request that breaks it."
+      },
+      "on": [
+        {
+          "when": {
+            "event": "bench:attempt",
+            "match": {
+              "exploited": true
+            }
+          },
+          "outcome": {
+            "points": 15,
+            "verdict": "careful",
+            "label": "Reproduced the bug",
+            "what": "With no limit, no lockout and no alert, one account fell to a wordlist in 96 seconds, and a single leaked password opened 31 accounts. Nothing noticed either.",
+            "ideal": "proves a bug is real before fixing it.",
+            "card": {
+              "title": "Guessing was free",
+              "kicker": "Unrestricted resource consumption",
+              "body": [
+                "With no limit, no lockout and no alert, one account fell to a wordlist in 96 seconds, and a single leaked password opened 31 accounts. Nothing noticed either.",
+                "This is credential stuffing: not clever, just unmetered."
+              ],
+              "ideal": "reproduces a bug first, so the fix can be proved to work."
+            }
+          },
+          "go": "fix"
+        }
+      ]
+    },
+    "fix": {
+      "objective": "Fix it: pick the changes on the Fix tab that close the hole for good, then apply the patch.",
+      "target": "computer",
+      "decision": true,
+      "hint": {
+        "text": "Pick every change that removes the cause. Avoid changes an attacker can walk around, and ones that do not touch the problem. Then Apply the patch."
+      },
+      "on": [
+        {
+          "when": {
+            "event": "bench:fixApplied",
+            "match": {
+              "ok": true
+            }
+          },
+          "outcome": {
+            "points": 35,
+            "verdict": "safe",
+            "label": "Applied a real fix",
+            "what": "Rate limits per account and per address stop both the burst and the spray. Backoff and a second factor mean a guessed password is not enough, and an alert means a person knows within minutes.",
+            "ideal": "fixes the cause, not the symptom.",
+            "card": {
+              "title": "Slow, locked, and noticed",
+              "kicker": "Unrestricted resource consumption",
+              "body": [
+                "Rate limits per account and per address stop both the burst and the spray. Backoff and a second factor mean a guessed password is not enough, and an alert means a person knows within minutes.",
+                "Every layer is cheap. Together they turn free guessing into a losing bet."
+              ],
+              "ideal": "fixes the cause with the standard control, and adds defence in depth."
+            }
+          },
+          "go": "verify"
+        },
+        {
+          "when": {
+            "event": "bench:fixApplied",
+            "match": {
+              "bad": {
+                "includes": "weak"
+              }
+            }
+          },
+          "outcome": {
+            "points": -25,
+            "verdict": "unsafe",
+            "label": "Applied a fix that can be bypassed",
+            "what": "A vaguer message and a CAPTCHA on the website change how the front door looks. The API is still open, and attackers use the API. Neither slows a script, and neither tells anyone it is happening.",
+            "ideal": "fixes the cause instead of blocking one payload or hiding the symptom.",
+            "card": {
+              "title": "The wrong layer",
+              "kicker": "Unrestricted resource consumption",
+              "body": [
+                "A vaguer message and a CAPTCHA on the website change how the front door looks. The API is still open, and attackers use the API. Neither slows a script, and neither tells anyone it is happening.",
+                "Limit the attempts, and alert on them."
+              ],
+              "ideal": "fixes the cause, and knows why a blocklist or a hidden field is not a fix.",
+              "rewindLabel": "Rewind to the Fix tab"
+            }
+          },
+          "go": "verify"
+        },
+        {
+          "when": {
+            "event": "bench:fixApplied"
+          },
+          "outcome": {
+            "points": -5,
+            "verdict": "risky",
+            "label": "Applied a patch that was not enough",
+            "what": "The patch missed part of the fix, or added a change that does not address the problem.",
+            "ideal": "closes the hole completely.",
+            "card": {
+              "title": "Not enough",
+              "kicker": "Unrestricted resource consumption",
+              "body": [
+                "The patch missed something that has to change, or included a change that does nothing for this bug. Open the Fix tab to see which options were right, missed, or wrong, and why.",
+                "A partial fix is the most dangerous kind: everyone assumes it is closed."
+              ],
+              "ideal": "closes the hole completely.",
+              "rewindLabel": "Rewind to the Fix tab"
+            }
+          },
+          "go": "verify"
+        }
+      ]
+    },
+    "verify": {
+      "objective": "Prove it: re-run the exploit on the Exploit tab, then check normal use still works.",
+      "target": "computer",
+      "decision": true,
+      "hint": {
+        "text": "On the Exploit tab, send the exploit again. It should be blocked. Then send the normal request to check nothing broke."
+      },
+      "on": [
+        {
+          "when": {
+            "event": "bench:retest",
+            "match": {
+              "blocked": true
+            }
+          },
+          "outcome": {
+            "points": 15,
+            "verdict": "safe",
+            "label": "Proved the exploit is blocked",
+            "what": "The same request that worked before now fails, and normal use still works.",
+            "ideal": "verifies a fix by re-running the exploit.",
+            "card": {
+              "title": "Fixed, and proved",
+              "kicker": "Unrestricted resource consumption",
+              "body": [
+                "You re-ran the exact request that broke it, and it is blocked. A fix you have not tested against the exploit is a hope, not a fix.",
+                "Add the exploit as an automated test so nobody can quietly bring the bug back."
+              ],
+              "ideal": "turns the exploit into a regression test."
+            }
+          },
+          "go": "done"
+        },
+        {
+          "when": {
+            "event": "bench:retest",
+            "match": {
+              "exploit": true,
+              "blocked": false
+            }
+          },
+          "outcome": {
+            "points": 0,
+            "verdict": "risky",
+            "label": "The exploit still works",
+            "what": "The patch did not close the hole. The same kind of request still gets through.",
+            "ideal": "never ships a fix without re-running the exploit.",
+            "rewind": false,
+            "card": {
+              "title": "Still open",
+              "kicker": "Unrestricted resource consumption",
+              "body": [
+                "The exploit still works after your patch. This is what happens when a fix blocks one payload, or hides a symptom, instead of removing the cause.",
+                "Go back over the Fix tab: it shows which options were right, and why the others fail."
+              ],
+              "ideal": "verifies with the exploit before calling it fixed.",
+              "rewind": false
+            }
+          },
+          "go": "done"
+        }
+      ]
+    },
+    "done": {
+      "end": true
+    }
+  }
+}

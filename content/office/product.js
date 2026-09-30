@@ -343,6 +343,7 @@ export const product = {
       vpn: { connected: false, server: 'vpn.veltrix-logistics.com' },
       network: { cable: true, lan: 'Veltrix LAN', wifiOn: false, wifi: null, networks: [] },
       cases: [],
+      bench: null,
       search: [],
       helpdeskAbout: [],
       video: { meetings: [] },

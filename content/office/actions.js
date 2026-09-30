@@ -189,5 +189,9 @@ export const officeTrace = {
   'recovery:removed': () => 'Removed a recovery option',
   'recovery:viewed': () => 'Read the account recovery options',
   'case:action': (p) => `Decided a request in the work queue (${p.action})`,
-  'doc:macroKept': () => 'Kept the macros switched off'
+  'doc:macroKept': () => 'Kept the macros switched off',
+  'bench:fileViewed': (p) => `Read ${p.path}`,
+  'bench:attempt': (p) => (p.exploited ? 'Reproduced the bug against staging' : 'Tried normal use against staging'),
+  'bench:fixApplied': (p) => (p.ok ? 'Applied a complete patch' : 'Applied a patch that was not enough'),
+  'bench:retest': (p) => (p.exploit ? (p.blocked ? 'Re-ran the exploit: it is blocked' : 'Re-ran the exploit: it still works') : 'Checked normal use still works')
 };

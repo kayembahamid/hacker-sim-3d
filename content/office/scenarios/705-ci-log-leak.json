@@ -1,0 +1,414 @@
+{
+  "id": "ci-log-leak",
+  "order": 705,
+  "title": "The leaked token in CI logs",
+  "kind": "Secret leaked in CI logs",
+  "track": "git-security",
+  "pool": false,
+  "level": "Core",
+  "minutes": 7,
+  "maxPoints": 79,
+  "startsAt": 1044,
+  "brief": "18:10. The build logs for the open source part of the shipment tracker are public. A researcher points to a line in last night's log.",
+  "role": "Platform engineer, reviewing a change on the Veltrix engineering team",
+  "insight": "The build printed its own deploy token, in plain text, into a log anyone can read.",
+  "teaches": [
+    "Never print a secret, and never turn on shell tracing in a job that holds one",
+    "Mask secrets in logs, and limit who can read them",
+    "Deleting a log line afterwards does not recall what has been copied: rotate"
+  ],
+  "setup": [
+    {
+      "do": "world.set",
+      "path": "office.bench",
+      "value": {
+        "id": "ci-log-leak",
+        "title": "Build log review",
+        "sub": "shipment-tracker · CI",
+        "files": [
+          {
+            "path": ".ci/deploy.yml",
+            "lang": "CI",
+            "lines": [
+              "deploy:",
+              "  env: { DEPLOY_TOKEN: ${{ secrets.DEPLOY_TOKEN }} }",
+              "  steps:",
+              "    - run: set -x",
+              "    - run: echo \"Deploying with token $DEPLOY_TOKEN\"",
+              "    - run: ./scripts/deploy.sh"
+            ],
+            "flaw": [
+              4,
+              5
+            ],
+            "vulnerable": true
+          },
+          {
+            "path": "settings/logs.json",
+            "lang": "Config",
+            "lines": [
+              "{ \"build_logs_visible_to\": \"public\" }"
+            ],
+            "flaw": [
+              1
+            ],
+            "vulnerable": true
+          }
+        ],
+        "intro": "Read the public log the way a scraper would, and see whether the token is worth anything.",
+        "attempts": [
+          {
+            "id": "logtop",
+            "label": "Read the top of the public log",
+            "request": "open build #4172 log",
+            "response": "18:02:11  Starting deploy\n18:02:14  deploy.sh: ok  (12 files)\n18:02:15  Done in 4s",
+            "fixedResponse": "18:02:11  Starting deploy\n18:02:14  deploy.sh: ok  (12 files)\n18:02:15  Done in 4s",
+            "exploits": false
+          },
+          {
+            "id": "search",
+            "label": "Search the public log for \"token\"",
+            "request": "grep -i token build-4172.log",
+            "response": "18:02:11  + echo Deploying with token vlx_deploy_5b19c07e88ad02f4\n18:02:11  Deploying with token vlx_deploy_5b19c07e88ad02f4\n\nThe token, twice: once from shell tracing, once from the echo.",
+            "fixedResponse": "18:02:11  Deploying with token ***",
+            "exploits": true
+          },
+          {
+            "id": "use",
+            "label": "Try the token against the deploy service",
+            "request": "POST https://deploy.veltrix-logistics.com/v1/releases\nAuthorization: Bearer vlx_deploy_5b19c07e88ad02f4",
+            "response": "HTTP 201\nRelease created: production.\n\nA token from a public log can ship code to production.",
+            "fixedResponse": "HTTP 401\n{ \"error\": \"token_revoked\" }",
+            "exploits": true
+          }
+        ],
+        "fix": {
+          "prompt": "Pick every change that stops it printing, hides it if it ever does, and deals with the token already out.",
+          "options": [
+            {
+              "id": "echo",
+              "label": "Stop printing the token, and turn off shell tracing in jobs that hold secrets",
+              "code": [
+                "- - run: set -x",
+                "- - run: echo \"Deploying with token $DEPLOY_TOKEN\"",
+                "+ - run: ./scripts/deploy.sh"
+              ],
+              "why": "The cause: the job wrote the secret to the log. No line, nothing to leak.",
+              "good": true
+            },
+            {
+              "id": "mask",
+              "label": "Turn on secret masking in the CI, and fail a build that prints one",
+              "code": [
+                "+ mask: [DEPLOY_TOKEN]",
+                "+ fail_if_secret_in_output: true"
+              ],
+              "why": "If a mistake happens again, the log shows *** instead of the token.",
+              "good": true
+            },
+            {
+              "id": "acl",
+              "label": "Restrict build logs to signed in members of the organisation",
+              "code": [
+                "- \"build_logs_visible_to\": \"public\"",
+                "+ \"build_logs_visible_to\": \"organisation\""
+              ],
+              "why": "Logs often hold more than intended. They should be readable only by people who need them.",
+              "good": true
+            },
+            {
+              "id": "rotate",
+              "label": "Revoke the token and issue a new one",
+              "code": [
+                "+ revoke vlx_deploy_5b19c07e88ad02f4",
+                "+ new token -> protected environment"
+              ],
+              "why": "It was public for hours, and scrapers read public logs. Only revoking it makes the leaked copy useless.",
+              "good": true
+            },
+            {
+              "id": "del",
+              "label": "Delete the log lines and carry on",
+              "code": [
+                "+ delete build #4172 log"
+              ],
+              "why": "Copies, caches and archives of the log already exist. Deleting the original recalls none of them.",
+              "good": false,
+              "bad": "weak"
+            },
+            {
+              "id": "b64",
+              "label": "Print the token base64 encoded, so it is not readable",
+              "code": [
+                "+ echo \"Deploying with token $(echo $DEPLOY_TOKEN | base64)\""
+              ],
+              "why": "Base64 is not encryption. It decodes in one command, and it is still a secret in a log.",
+              "good": false,
+              "bad": "weak"
+            }
+          ]
+        },
+        "found": false,
+        "decided": false,
+        "fixed": false,
+        "picks": [],
+        "last": null
+      }
+    },
+    {
+      "do": "desktop.open",
+      "app": "bench"
+    },
+    {
+      "do": "room.banner",
+      "title": "Workbench",
+      "body": "Review last night's deploy log",
+      "icon": "code",
+      "object": "computer",
+      "action": "Open"
+    }
+  ],
+  "bonuses": [
+    {
+      "id": "b-read",
+      "when": {
+        "event": "bench:fileViewed",
+        "match": {
+          "vulnerable": true
+        }
+      },
+      "outcome": {
+        "points": 6,
+        "verdict": "careful",
+        "label": "Read the vulnerable code first",
+        "what": "Reading the code before attacking it tells you where to look, and why it fails.",
+        "ideal": "reads the code under review before trying to break it."
+      }
+    },
+    {
+      "id": "b-normal",
+      "when": {
+        "event": "bench:attempt",
+        "match": {
+          "exploited": false
+        }
+      },
+      "outcome": {
+        "points": 4,
+        "verdict": "careful",
+        "label": "Tried normal use first",
+        "what": "Knowing what a good request looks like is how you spot a bad one.",
+        "ideal": "establishes normal behaviour before testing the abnormal."
+      }
+    },
+    {
+      "id": "b-regress",
+      "when": {
+        "event": "bench:retest",
+        "match": {
+          "exploit": false,
+          "fixed": true
+        }
+      },
+      "outcome": {
+        "points": 4,
+        "verdict": "careful",
+        "label": "Checked normal use still works",
+        "what": "A fix that breaks real users gets reverted, and the bug comes back.",
+        "ideal": "tests that the fix did not break normal use."
+      }
+    }
+  ],
+  "guards": [],
+  "start": "exploit",
+  "stages": {
+    "exploit": {
+      "objective": "Reproduce the bug: read the Code tab, then use the Exploit tab on staging.",
+      "target": "computer",
+      "decision": true,
+      "insight": "The build printed its own deploy token, in plain text, into a log anyone can read.",
+      "hint": {
+        "text": "Open the Workbench. Read the code, try normal use on the Exploit tab, then send the request that breaks it."
+      },
+      "on": [
+        {
+          "when": {
+            "event": "bench:attempt",
+            "match": {
+              "exploited": true
+            }
+          },
+          "outcome": {
+            "points": 15,
+            "verdict": "careful",
+            "label": "Reproduced the bug",
+            "what": "The job echoed its own token, and shell tracing printed it a second time. The log was public, and the token created a production release.",
+            "ideal": "proves a bug is real before fixing it.",
+            "card": {
+              "title": "A public log, and a working deploy token",
+              "kicker": "Secret leaked in CI logs",
+              "body": [
+                "The job echoed its own token, and shell tracing printed it a second time. The log was public, and the token created a production release.",
+                "Nobody attacked anything: they read a web page."
+              ],
+              "ideal": "reproduces a bug first, so the fix can be proved to work."
+            }
+          },
+          "go": "fix"
+        }
+      ]
+    },
+    "fix": {
+      "objective": "Fix it: pick the changes on the Fix tab that close the hole for good, then apply the patch.",
+      "target": "computer",
+      "decision": true,
+      "hint": {
+        "text": "Pick every change that removes the cause. Avoid changes an attacker can walk around, and ones that do not touch the problem. Then Apply the patch."
+      },
+      "on": [
+        {
+          "when": {
+            "event": "bench:fixApplied",
+            "match": {
+              "ok": true
+            }
+          },
+          "outcome": {
+            "points": 35,
+            "verdict": "safe",
+            "label": "Applied a real fix",
+            "what": "Removing the echo and the tracing fixes the cause. Masking makes the next mistake harmless, restricting who can read logs limits the audience, and revoking the token makes the copy that escaped worthless.",
+            "ideal": "fixes the cause, not the symptom.",
+            "card": {
+              "title": "Not printed, masked if it ever is, and dead already",
+              "kicker": "Secret leaked in CI logs",
+              "body": [
+                "Removing the echo and the tracing fixes the cause. Masking makes the next mistake harmless, restricting who can read logs limits the audience, and revoking the token makes the copy that escaped worthless.",
+                "Rotation is the only step that recalls what is already out."
+              ],
+              "ideal": "fixes the cause with the standard control, and adds defence in depth."
+            }
+          },
+          "go": "verify"
+        },
+        {
+          "when": {
+            "event": "bench:fixApplied",
+            "match": {
+              "bad": {
+                "includes": "weak"
+              }
+            }
+          },
+          "outcome": {
+            "points": -25,
+            "verdict": "unsafe",
+            "label": "Applied a fix that can be bypassed",
+            "what": "Deleting the log removes one copy, not the ones already fetched by scrapers and archives. Encoding the token in base64 protects nothing.",
+            "ideal": "fixes the cause instead of blocking one payload or hiding the symptom.",
+            "card": {
+              "title": "The token is already copied",
+              "kicker": "Secret leaked in CI logs",
+              "body": [
+                "Deleting the log removes one copy, not the ones already fetched by scrapers and archives. Encoding the token in base64 protects nothing.",
+                "Assume a secret that appeared in a public log was taken. Rotate it."
+              ],
+              "ideal": "fixes the cause, and knows why a blocklist or a hidden field is not a fix.",
+              "rewindLabel": "Rewind to the Fix tab"
+            }
+          },
+          "go": "verify"
+        },
+        {
+          "when": {
+            "event": "bench:fixApplied"
+          },
+          "outcome": {
+            "points": -5,
+            "verdict": "risky",
+            "label": "Applied a patch that was not enough",
+            "what": "The patch missed part of the fix, or added a change that does not address the problem.",
+            "ideal": "closes the hole completely.",
+            "card": {
+              "title": "Not enough",
+              "kicker": "Secret leaked in CI logs",
+              "body": [
+                "The patch missed something that has to change, or included a change that does nothing for this bug. Open the Fix tab to see which options were right, missed, or wrong, and why.",
+                "A partial fix is the most dangerous kind: everyone assumes it is closed."
+              ],
+              "ideal": "closes the hole completely.",
+              "rewindLabel": "Rewind to the Fix tab"
+            }
+          },
+          "go": "verify"
+        }
+      ]
+    },
+    "verify": {
+      "objective": "Prove it: re-run the exploit on the Exploit tab, then check normal use still works.",
+      "target": "computer",
+      "decision": true,
+      "hint": {
+        "text": "On the Exploit tab, send the exploit again. It should be blocked. Then send the normal request to check nothing broke."
+      },
+      "on": [
+        {
+          "when": {
+            "event": "bench:retest",
+            "match": {
+              "blocked": true
+            }
+          },
+          "outcome": {
+            "points": 15,
+            "verdict": "safe",
+            "label": "Proved the exploit is blocked",
+            "what": "The same request that worked before now fails, and normal use still works.",
+            "ideal": "verifies a fix by re-running the exploit.",
+            "card": {
+              "title": "Fixed, and proved",
+              "kicker": "Secret leaked in CI logs",
+              "body": [
+                "You re-ran the exact request that broke it, and it is blocked. A fix you have not tested against the exploit is a hope, not a fix.",
+                "Add the exploit as an automated test so nobody can quietly bring the bug back."
+              ],
+              "ideal": "turns the exploit into a regression test."
+            }
+          },
+          "go": "done"
+        },
+        {
+          "when": {
+            "event": "bench:retest",
+            "match": {
+              "exploit": true,
+              "blocked": false
+            }
+          },
+          "outcome": {
+            "points": 0,
+            "verdict": "risky",
+            "label": "The exploit still works",
+            "what": "The patch did not close the hole. The same kind of request still gets through.",
+            "ideal": "never ships a fix without re-running the exploit.",
+            "rewind": false,
+            "card": {
+              "title": "Still open",
+              "kicker": "Secret leaked in CI logs",
+              "body": [
+                "The exploit still works after your patch. This is what happens when a fix blocks one payload, or hides a symptom, instead of removing the cause.",
+                "Go back over the Fix tab: it shows which options were right, and why the others fail."
+              ],
+              "ideal": "verifies with the exploit before calling it fixed.",
+              "rewind": false
+            }
+          },
+          "go": "done"
+        }
+      ]
+    },
+    "done": {
+      "end": true
+    }
+  }
+}

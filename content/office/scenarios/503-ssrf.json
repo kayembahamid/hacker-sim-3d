@@ -1,0 +1,404 @@
+{
+  "id": "ssrf",
+  "order": 503,
+  "title": "Server-side request forgery",
+  "kind": "Server-side request forgery",
+  "track": "application-security",
+  "pool": false,
+  "level": "Advanced",
+  "minutes": 9,
+  "maxPoints": 79,
+  "startsAt": 996,
+  "brief": "16:50. A new feature shows a preview card for any link a customer pastes. The server fetches the page to build it. It runs inside Veltrix's cloud.",
+  "role": "Platform engineer, reviewing a change on the Veltrix engineering team",
+  "insight": "The server will fetch whatever it is told to, from inside the network, with the network's trust.",
+  "teaches": [
+    "A server that fetches user supplied URLs can be pointed at things only it can reach",
+    "Allowlist what may be fetched, and block internal and link-local addresses after resolving the name",
+    "A string blocklist for “localhost” loses to decimal, hex and DNS tricks"
+  ],
+  "setup": [
+    {
+      "do": "world.set",
+      "path": "office.bench",
+      "value": {
+        "id": "ssrf",
+        "title": "Link preview service",
+        "sub": "portal-api · staging",
+        "files": [
+          {
+            "path": "portal/routes/preview.js",
+            "lang": "JavaScript",
+            "lines": [
+              "app.get('/preview', requireLogin, async (req, res) => {",
+              "  const target = req.query.url;",
+              "  const page = await fetch(target);              // follows redirects",
+              "  const html = await page.text();",
+              "  res.json({ title: titleOf(html), text: html.slice(0, 400) });",
+              "});"
+            ],
+            "flaw": [
+              2,
+              3
+            ],
+            "vulnerable": true
+          },
+          {
+            "path": "infra/notes.md",
+            "lang": "Notes",
+            "lines": [
+              "The portal runs on a cloud VM with an instance role.",
+              "The metadata service at 169.254.169.254 hands out the role credentials.",
+              "The admin console listens on localhost:9000 on the same machine."
+            ],
+            "flaw": [],
+            "vulnerable": false
+          }
+        ],
+        "intro": "The preview endpoint fetches a URL for you. Try a real page, then try addresses only the server can reach.",
+        "attempts": [
+          {
+            "id": "normal",
+            "label": "Preview a normal news link",
+            "request": "GET /preview?url=https://freightledger.news/rates",
+            "response": "HTTP 200\n{ \"title\": \"Freight rates this week\", \"text\": \"Container dwell times...\" }",
+            "fixedResponse": "HTTP 200\n{ \"title\": \"Freight rates this week\", \"text\": \"Container dwell times...\" }",
+            "exploits": false
+          },
+          {
+            "id": "meta",
+            "label": "Preview the cloud metadata address",
+            "request": "GET /preview?url=http://169.254.169.254/latest/meta-data/iam/security-credentials/portal-role",
+            "response": "HTTP 200\n{ \"text\": \"{ \\\"AccessKeyId\\\": \\\"VLXKEY-EXAMPLE\\\", \\\"SecretAccessKey\\\": \\\"...\\\", \\\"Token\\\": \\\"...\\\" }\" }\n\nThe server handed over its own cloud credentials.",
+            "fixedResponse": "HTTP 400\n{ \"error\": \"that address is not allowed\" }",
+            "exploits": true
+          },
+          {
+            "id": "local",
+            "label": "Preview the admin console on localhost",
+            "request": "GET /preview?url=http://localhost:9000/admin",
+            "response": "HTTP 200\n{ \"title\": \"Veltrix admin console\", \"text\": \"Users, keys, exports...\" }\n\nThe admin console was reachable only from the server itself.",
+            "fixedResponse": "HTTP 400\n{ \"error\": \"that address is not allowed\" }",
+            "exploits": true
+          }
+        ],
+        "fix": {
+          "prompt": "Pick every change that limits what the server can be made to fetch, and any that limits what a stolen credential could do.",
+          "options": [
+            {
+              "id": "allow",
+              "label": "Only fetch http and https URLs to an allowlist of hosts we choose",
+              "code": [
+                "+ const ALLOWED = new Set(['freightledger.news', 'kestrelfreight.co.uk']);",
+                "+ if (!['http:', 'https:'].includes(u.protocol) || !ALLOWED.has(u.hostname)) return res.status(400).end();"
+              ],
+              "why": "Deciding what may be fetched, rather than what may not, is what works.",
+              "good": true
+            },
+            {
+              "id": "range",
+              "label": "Resolve the host first and refuse private, loopback and link-local addresses",
+              "code": [
+                "+ const ip = await resolve(u.hostname);",
+                "+ if (isPrivate(ip) || isLoopback(ip) || isLinkLocal(ip)) return res.status(400).end();",
+                "+ // then connect to that same ip: no second lookup"
+              ],
+              "why": "This catches the internal targets however they are spelled, including names that resolve inside.",
+              "good": true
+            },
+            {
+              "id": "meta",
+              "label": "Require a session token for the metadata service and cut the role down to what the portal needs",
+              "code": [
+                "+ metadata_service: require_token = true",
+                "+ role portal-role: allow only storage:read on veltrix-portal-assets"
+              ],
+              "why": "If a request still reaches the metadata service, a plain fetch gets nothing, and what it could reach is small.",
+              "good": true
+            },
+            {
+              "id": "black",
+              "label": "Reject URLs containing \"localhost\" or \"169.254\"",
+              "code": [
+                "+ if (/localhost|169\\.254/.test(target)) return res.status(400).end();"
+              ],
+              "why": "Attackers write the address as 2852039166, 0xA9FEA9FE, or point a DNS name at it. String blocklists lose.",
+              "good": false,
+              "bad": "weak"
+            },
+            {
+              "id": "time",
+              "label": "Add a two second timeout to the fetch",
+              "code": [
+                "+ fetch(target, { signal: AbortSignal.timeout(2000) })"
+              ],
+              "why": "Good hygiene, but it does not change where the request can go.",
+              "good": false,
+              "bad": "gap"
+            }
+          ]
+        },
+        "found": false,
+        "decided": false,
+        "fixed": false,
+        "picks": [],
+        "last": null
+      }
+    },
+    {
+      "do": "desktop.open",
+      "app": "bench"
+    },
+    {
+      "do": "room.banner",
+      "title": "Workbench",
+      "body": "Review the link preview feature",
+      "icon": "code",
+      "object": "computer",
+      "action": "Open"
+    }
+  ],
+  "bonuses": [
+    {
+      "id": "b-read",
+      "when": {
+        "event": "bench:fileViewed",
+        "match": {
+          "vulnerable": true
+        }
+      },
+      "outcome": {
+        "points": 6,
+        "verdict": "careful",
+        "label": "Read the vulnerable code first",
+        "what": "Reading the code before attacking it tells you where to look, and why it fails.",
+        "ideal": "reads the code under review before trying to break it."
+      }
+    },
+    {
+      "id": "b-normal",
+      "when": {
+        "event": "bench:attempt",
+        "match": {
+          "exploited": false
+        }
+      },
+      "outcome": {
+        "points": 4,
+        "verdict": "careful",
+        "label": "Tried normal use first",
+        "what": "Knowing what a good request looks like is how you spot a bad one.",
+        "ideal": "establishes normal behaviour before testing the abnormal."
+      }
+    },
+    {
+      "id": "b-regress",
+      "when": {
+        "event": "bench:retest",
+        "match": {
+          "exploit": false,
+          "fixed": true
+        }
+      },
+      "outcome": {
+        "points": 4,
+        "verdict": "careful",
+        "label": "Checked normal use still works",
+        "what": "A fix that breaks real users gets reverted, and the bug comes back.",
+        "ideal": "tests that the fix did not break normal use."
+      }
+    }
+  ],
+  "guards": [],
+  "start": "exploit",
+  "stages": {
+    "exploit": {
+      "objective": "Reproduce the bug: read the Code tab, then use the Exploit tab on staging.",
+      "target": "computer",
+      "decision": true,
+      "insight": "The server will fetch whatever it is told to, from inside the network, with the network's trust.",
+      "hint": {
+        "text": "Open the Workbench. Read the code, try normal use on the Exploit tab, then send the request that breaks it."
+      },
+      "on": [
+        {
+          "when": {
+            "event": "bench:attempt",
+            "match": {
+              "exploited": true
+            }
+          },
+          "outcome": {
+            "points": 15,
+            "verdict": "careful",
+            "label": "Reproduced the bug",
+            "what": "The preview feature fetched the metadata address from inside the cloud and returned the response: the server's temporary credentials. With those, an attacker acts as the portal against the cloud account.",
+            "ideal": "proves a bug is real before fixing it.",
+            "card": {
+              "title": "The server gave away its own keys",
+              "kicker": "Server-side request forgery",
+              "body": [
+                "The preview feature fetched the metadata address from inside the cloud and returned the response: the server's temporary credentials. With those, an attacker acts as the portal against the cloud account.",
+                "The request came from a customer. The server made it, from a place customers cannot reach."
+              ],
+              "ideal": "reproduces a bug first, so the fix can be proved to work."
+            }
+          },
+          "go": "fix"
+        }
+      ]
+    },
+    "fix": {
+      "objective": "Fix it: pick the changes on the Fix tab that close the hole for good, then apply the patch.",
+      "target": "computer",
+      "decision": true,
+      "hint": {
+        "text": "Pick every change that removes the cause. Avoid changes an attacker can walk around, and ones that do not touch the problem. Then Apply the patch."
+      },
+      "on": [
+        {
+          "when": {
+            "event": "bench:fixApplied",
+            "match": {
+              "ok": true
+            }
+          },
+          "outcome": {
+            "points": 35,
+            "verdict": "safe",
+            "label": "Applied a real fix",
+            "what": "An allowlist means the server cannot be steered to an internal address at all. Resolving the name and refusing private and link-local ranges catches the tricks, and the metadata service now needs a token and a much smaller role.",
+            "ideal": "fixes the cause, not the symptom.",
+            "card": {
+              "title": "The server fetches only what we chose",
+              "kicker": "Server-side request forgery",
+              "body": [
+                "An allowlist means the server cannot be steered to an internal address at all. Resolving the name and refusing private and link-local ranges catches the tricks, and the metadata service now needs a token and a much smaller role.",
+                "Three layers, each one enough to stop the demo."
+              ],
+              "ideal": "fixes the cause with the standard control, and adds defence in depth."
+            }
+          },
+          "go": "verify"
+        },
+        {
+          "when": {
+            "event": "bench:fixApplied",
+            "match": {
+              "bad": {
+                "includes": "weak"
+              }
+            }
+          },
+          "outcome": {
+            "points": -25,
+            "verdict": "unsafe",
+            "label": "Applied a fix that can be bypassed",
+            "what": "Blocking the words localhost and 169.254 stops the obvious spelling. The same address can be written as a single decimal number, in hex, or as a name that resolves there, and a redirect can bounce through.",
+            "ideal": "fixes the cause instead of blocking one payload or hiding the symptom.",
+            "card": {
+              "title": "The blocklist is a puzzle, not a wall",
+              "kicker": "Server-side request forgery",
+              "body": [
+                "Blocking the words localhost and 169.254 stops the obvious spelling. The same address can be written as a single decimal number, in hex, or as a name that resolves there, and a redirect can bounce through.",
+                "Decide what is allowed, rather than what is not."
+              ],
+              "ideal": "fixes the cause, and knows why a blocklist or a hidden field is not a fix.",
+              "rewindLabel": "Rewind to the Fix tab"
+            }
+          },
+          "go": "verify"
+        },
+        {
+          "when": {
+            "event": "bench:fixApplied"
+          },
+          "outcome": {
+            "points": -5,
+            "verdict": "risky",
+            "label": "Applied a patch that was not enough",
+            "what": "The patch missed part of the fix, or added a change that does not address the problem.",
+            "ideal": "closes the hole completely.",
+            "card": {
+              "title": "Not enough",
+              "kicker": "Server-side request forgery",
+              "body": [
+                "The patch missed something that has to change, or included a change that does nothing for this bug. Open the Fix tab to see which options were right, missed, or wrong, and why.",
+                "A partial fix is the most dangerous kind: everyone assumes it is closed."
+              ],
+              "ideal": "closes the hole completely.",
+              "rewindLabel": "Rewind to the Fix tab"
+            }
+          },
+          "go": "verify"
+        }
+      ]
+    },
+    "verify": {
+      "objective": "Prove it: re-run the exploit on the Exploit tab, then check normal use still works.",
+      "target": "computer",
+      "decision": true,
+      "hint": {
+        "text": "On the Exploit tab, send the exploit again. It should be blocked. Then send the normal request to check nothing broke."
+      },
+      "on": [
+        {
+          "when": {
+            "event": "bench:retest",
+            "match": {
+              "blocked": true
+            }
+          },
+          "outcome": {
+            "points": 15,
+            "verdict": "safe",
+            "label": "Proved the exploit is blocked",
+            "what": "The same request that worked before now fails, and normal use still works.",
+            "ideal": "verifies a fix by re-running the exploit.",
+            "card": {
+              "title": "Fixed, and proved",
+              "kicker": "Server-side request forgery",
+              "body": [
+                "You re-ran the exact request that broke it, and it is blocked. A fix you have not tested against the exploit is a hope, not a fix.",
+                "Add the exploit as an automated test so nobody can quietly bring the bug back."
+              ],
+              "ideal": "turns the exploit into a regression test."
+            }
+          },
+          "go": "done"
+        },
+        {
+          "when": {
+            "event": "bench:retest",
+            "match": {
+              "exploit": true,
+              "blocked": false
+            }
+          },
+          "outcome": {
+            "points": 0,
+            "verdict": "risky",
+            "label": "The exploit still works",
+            "what": "The patch did not close the hole. The same kind of request still gets through.",
+            "ideal": "never ships a fix without re-running the exploit.",
+            "rewind": false,
+            "card": {
+              "title": "Still open",
+              "kicker": "Server-side request forgery",
+              "body": [
+                "The exploit still works after your patch. This is what happens when a fix blocks one payload, or hides a symptom, instead of removing the cause.",
+                "Go back over the Fix tab: it shows which options were right, and why the others fail."
+              ],
+              "ideal": "verifies with the exploit before calling it fixed.",
+              "rewind": false
+            }
+          },
+          "go": "done"
+        }
+      ]
+    },
+    "done": {
+      "end": true
+    }
+  }
+}

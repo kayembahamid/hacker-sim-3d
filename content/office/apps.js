@@ -23,6 +23,7 @@ import { makeBankApp, makeMobileMailApp } from './apps/mobile.js';
 import { makeCasesApp } from './apps/cases.js';
 import { makeNetworkApp } from './apps/network.js';
 import { makeCameraApp } from './apps/camera.js';
+import { makeBenchApp } from './apps/bench.js';
 
 // Which apps Sam's phone and computer have. Mail, the browser, Files, Vault
 // and the phone apps are the engine's; the rest are the office's own.
@@ -74,6 +75,7 @@ export function desktopApps() {
     makeApiApp(),
     makeCasesApp(),
     makeNetworkApp(),
+    makeBenchApp(),
     makeNotesApp({ title: 'Notes', notes: [{ title: 'Late shift', lines: ['Payment run list to Dan by 18:30', 'Callback procedure for ANY bank change', 'Marta back Monday'], sign: 'Sam' }] })
   ];
 }

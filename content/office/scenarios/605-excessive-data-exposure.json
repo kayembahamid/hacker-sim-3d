@@ -1,0 +1,397 @@
+{
+  "id": "excessive-data-exposure",
+  "order": 605,
+  "title": "Data the endpoint should not return",
+  "kind": "Excessive data exposure",
+  "track": "api-security",
+  "pool": false,
+  "level": "Core",
+  "minutes": 7,
+  "maxPoints": 79,
+  "startsAt": 1026,
+  "brief": "17:40. The profile screen shows a name and a photo. A researcher opened the network tab and found a lot more in the response.",
+  "role": "Platform engineer, reviewing a change on the Veltrix engineering team",
+  "insight": "The app only displays the name. The server sends the whole row.",
+  "teaches": [
+    "The server decides what a response contains, not the client",
+    "Return an explicit list of fields for each audience",
+    "Password hashes and internal flags never belong in an API response"
+  ],
+  "setup": [
+    {
+      "do": "world.set",
+      "path": "office.bench",
+      "value": {
+        "id": "excessive-data-exposure",
+        "title": "User API",
+        "sub": "api.veltrix-logistics.com · staging",
+        "files": [
+          {
+            "path": "api/users.js",
+            "lang": "JavaScript",
+            "lines": [
+              "router.get('/v1/users/:id', requireToken, async (req, res) => {",
+              "  const user = await Users.find(req.params.id);",
+              "  res.json(user);                 // the whole row, the app picks what to show",
+              "});"
+            ],
+            "flaw": [
+              3
+            ],
+            "vulnerable": true
+          },
+          {
+            "path": "api/models/user.js",
+            "lang": "JavaScript",
+            "lines": [
+              "// columns: id, displayName, photoUrl, email, phone, pwHash,",
+              "//          internalNotes, fraudScore, isStaff, lastLoginIp"
+            ],
+            "flaw": [],
+            "vulnerable": false
+          }
+        ],
+        "intro": "Open the profile screen, then look at what actually arrives over the wire.",
+        "attempts": [
+          {
+            "id": "screen",
+            "label": "View the profile screen",
+            "request": "GET /v1/users/88  (what the app shows)",
+            "response": "The screen shows:\n  Megan Holt\n  [photo]",
+            "fixedResponse": "The screen shows:\n  Megan Holt\n  [photo]",
+            "exploits": false
+          },
+          {
+            "id": "raw",
+            "label": "Read the raw JSON response",
+            "request": "GET /v1/users/88\nAuthorization: Bearer <token>",
+            "response": "HTTP 200\n{ \"id\": 88, \"displayName\": \"Megan Holt\", \"photoUrl\": \"...\",\n  \"email\": \"megan@customer.test\", \"phone\": \"07700 900311\",\n  \"pwHash\": \"5f4dcc3b5aa765d61d8327deb882cf99\",\n  \"internalNotes\": \"chargeback dispute Oct, watch\",\n  \"fraudScore\": 0.72, \"isStaff\": false, \"lastLoginIp\": \"203.0.113.19\" }\n\nThe password hash, the fraud score and a staff note, for anyone who can call the API.",
+            "fixedResponse": "HTTP 200\n{ \"id\": 88, \"displayName\": \"Megan Holt\", \"photoUrl\": \"...\" }",
+            "exploits": true
+          },
+          {
+            "id": "other",
+            "label": "Read another user's profile the same way",
+            "request": "GET /v1/users/91\nAuthorization: Bearer <token for user 88>",
+            "response": "HTTP 200\n{ ...another customer's email, phone, hash and notes... }",
+            "fixedResponse": "HTTP 200\n{ \"id\": 91, \"displayName\": \"Daniel Okoro\", \"photoUrl\": \"...\" }",
+            "exploits": true
+          }
+        ],
+        "fix": {
+          "prompt": "Pick every change that makes the server decide exactly what leaves, and takes things that should never leave out of reach.",
+          "options": [
+            {
+              "id": "dto",
+              "label": "Return an explicit response shape with only the fields each audience needs",
+              "code": [
+                "- res.json(user);",
+                "+ res.json({ id: user.id, displayName: user.displayName, photoUrl: user.photoUrl });"
+              ],
+              "why": "A new column added tomorrow does not leak by default. The response lists what is allowed.",
+              "good": true
+            },
+            {
+              "id": "role",
+              "label": "Give staff and internal fields their own role gated endpoint",
+              "code": [
+                "+ router.get('/v1/internal/users/:id', requireRole('support'), internalView);"
+              ],
+              "why": "Support can still see what they need, and nobody else can.",
+              "good": true
+            },
+            {
+              "id": "hash",
+              "label": "Never load the password hash and fraud score into API code at all",
+              "code": [
+                "+ Users.find(id, { exclude: ['pwHash', 'fraudScore'] })"
+              ],
+              "why": "Data that never reaches the handler cannot be returned by a mistake.",
+              "good": true
+            },
+            {
+              "id": "ui",
+              "label": "Hide the extra fields in the app's code",
+              "code": [
+                "+ const { displayName, photoUrl } = response;   // ignore the rest"
+              ],
+              "why": "The data still travels over the network. Anyone with a proxy or the network tab reads all of it.",
+              "good": false,
+              "bad": "weak"
+            },
+            {
+              "id": "gzip",
+              "label": "Compress the response",
+              "code": [
+                "+ res.setHeader('Content-Encoding', 'gzip');"
+              ],
+              "why": "Compression hides nothing from the person receiving the response.",
+              "good": false,
+              "bad": "gap"
+            }
+          ]
+        },
+        "found": false,
+        "decided": false,
+        "fixed": false,
+        "picks": [],
+        "last": null
+      }
+    },
+    {
+      "do": "desktop.open",
+      "app": "bench"
+    },
+    {
+      "do": "room.banner",
+      "title": "Workbench",
+      "body": "Review the user endpoint response",
+      "icon": "code",
+      "object": "computer",
+      "action": "Open"
+    }
+  ],
+  "bonuses": [
+    {
+      "id": "b-read",
+      "when": {
+        "event": "bench:fileViewed",
+        "match": {
+          "vulnerable": true
+        }
+      },
+      "outcome": {
+        "points": 6,
+        "verdict": "careful",
+        "label": "Read the vulnerable code first",
+        "what": "Reading the code before attacking it tells you where to look, and why it fails.",
+        "ideal": "reads the code under review before trying to break it."
+      }
+    },
+    {
+      "id": "b-normal",
+      "when": {
+        "event": "bench:attempt",
+        "match": {
+          "exploited": false
+        }
+      },
+      "outcome": {
+        "points": 4,
+        "verdict": "careful",
+        "label": "Tried normal use first",
+        "what": "Knowing what a good request looks like is how you spot a bad one.",
+        "ideal": "establishes normal behaviour before testing the abnormal."
+      }
+    },
+    {
+      "id": "b-regress",
+      "when": {
+        "event": "bench:retest",
+        "match": {
+          "exploit": false,
+          "fixed": true
+        }
+      },
+      "outcome": {
+        "points": 4,
+        "verdict": "careful",
+        "label": "Checked normal use still works",
+        "what": "A fix that breaks real users gets reverted, and the bug comes back.",
+        "ideal": "tests that the fix did not break normal use."
+      }
+    }
+  ],
+  "guards": [],
+  "start": "exploit",
+  "stages": {
+    "exploit": {
+      "objective": "Reproduce the bug: read the Code tab, then use the Exploit tab on staging.",
+      "target": "computer",
+      "decision": true,
+      "insight": "The app only displays the name. The server sends the whole row.",
+      "hint": {
+        "text": "Open the Workbench. Read the code, try normal use on the Exploit tab, then send the request that breaks it."
+      },
+      "on": [
+        {
+          "when": {
+            "event": "bench:attempt",
+            "match": {
+              "exploited": true
+            }
+          },
+          "outcome": {
+            "points": 15,
+            "verdict": "careful",
+            "label": "Reproduced the bug",
+            "what": "The screen only displayed a name and a photo, but the API returned the whole database row: a password hash, a fraud score, a staff note. Anyone who can call the endpoint, or open the network tab, reads them all.",
+            "ideal": "proves a bug is real before fixing it.",
+            "card": {
+              "title": "The app showed a name. The wire carried the rest",
+              "kicker": "Excessive data exposure",
+              "body": [
+                "The screen only displayed a name and a photo, but the API returned the whole database row: a password hash, a fraud score, a staff note. Anyone who can call the endpoint, or open the network tab, reads them all.",
+                "And with no ownership check, they can read other people's too."
+              ],
+              "ideal": "reproduces a bug first, so the fix can be proved to work."
+            }
+          },
+          "go": "fix"
+        }
+      ]
+    },
+    "fix": {
+      "objective": "Fix it: pick the changes on the Fix tab that close the hole for good, then apply the patch.",
+      "target": "computer",
+      "decision": true,
+      "hint": {
+        "text": "Pick every change that removes the cause. Avoid changes an attacker can walk around, and ones that do not touch the problem. Then Apply the patch."
+      },
+      "on": [
+        {
+          "when": {
+            "event": "bench:fixApplied",
+            "match": {
+              "ok": true
+            }
+          },
+          "outcome": {
+            "points": 35,
+            "verdict": "safe",
+            "label": "Applied a real fix",
+            "what": "An explicit response shape means only named fields are returned, and a new sensitive column cannot leak by accident. Internal fields live behind a staff only route, and the hash never even reaches the handler.",
+            "ideal": "fixes the cause, not the symptom.",
+            "card": {
+              "title": "The server lists what leaves",
+              "kicker": "Excessive data exposure",
+              "body": [
+                "An explicit response shape means only named fields are returned, and a new sensitive column cannot leak by accident. Internal fields live behind a staff only route, and the hash never even reaches the handler.",
+                "Filter on the server, always."
+              ],
+              "ideal": "fixes the cause with the standard control, and adds defence in depth."
+            }
+          },
+          "go": "verify"
+        },
+        {
+          "when": {
+            "event": "bench:fixApplied",
+            "match": {
+              "bad": {
+                "includes": "weak"
+              }
+            }
+          },
+          "outcome": {
+            "points": -25,
+            "verdict": "unsafe",
+            "label": "Applied a fix that can be bypassed",
+            "what": "Ignoring fields in the app changes what the screen draws. The response still contains everything, and it takes one proxy or the browser's network tab to read it.",
+            "ideal": "fixes the cause instead of blocking one payload or hiding the symptom.",
+            "card": {
+              "title": "Hidden on screen, wide open on the wire",
+              "kicker": "Excessive data exposure",
+              "body": [
+                "Ignoring fields in the app changes what the screen draws. The response still contains everything, and it takes one proxy or the browser's network tab to read it.",
+                "The server decides what is returned."
+              ],
+              "ideal": "fixes the cause, and knows why a blocklist or a hidden field is not a fix.",
+              "rewindLabel": "Rewind to the Fix tab"
+            }
+          },
+          "go": "verify"
+        },
+        {
+          "when": {
+            "event": "bench:fixApplied"
+          },
+          "outcome": {
+            "points": -5,
+            "verdict": "risky",
+            "label": "Applied a patch that was not enough",
+            "what": "The patch missed part of the fix, or added a change that does not address the problem.",
+            "ideal": "closes the hole completely.",
+            "card": {
+              "title": "Not enough",
+              "kicker": "Excessive data exposure",
+              "body": [
+                "The patch missed something that has to change, or included a change that does nothing for this bug. Open the Fix tab to see which options were right, missed, or wrong, and why.",
+                "A partial fix is the most dangerous kind: everyone assumes it is closed."
+              ],
+              "ideal": "closes the hole completely.",
+              "rewindLabel": "Rewind to the Fix tab"
+            }
+          },
+          "go": "verify"
+        }
+      ]
+    },
+    "verify": {
+      "objective": "Prove it: re-run the exploit on the Exploit tab, then check normal use still works.",
+      "target": "computer",
+      "decision": true,
+      "hint": {
+        "text": "On the Exploit tab, send the exploit again. It should be blocked. Then send the normal request to check nothing broke."
+      },
+      "on": [
+        {
+          "when": {
+            "event": "bench:retest",
+            "match": {
+              "blocked": true
+            }
+          },
+          "outcome": {
+            "points": 15,
+            "verdict": "safe",
+            "label": "Proved the exploit is blocked",
+            "what": "The same request that worked before now fails, and normal use still works.",
+            "ideal": "verifies a fix by re-running the exploit.",
+            "card": {
+              "title": "Fixed, and proved",
+              "kicker": "Excessive data exposure",
+              "body": [
+                "You re-ran the exact request that broke it, and it is blocked. A fix you have not tested against the exploit is a hope, not a fix.",
+                "Add the exploit as an automated test so nobody can quietly bring the bug back."
+              ],
+              "ideal": "turns the exploit into a regression test."
+            }
+          },
+          "go": "done"
+        },
+        {
+          "when": {
+            "event": "bench:retest",
+            "match": {
+              "exploit": true,
+              "blocked": false
+            }
+          },
+          "outcome": {
+            "points": 0,
+            "verdict": "risky",
+            "label": "The exploit still works",
+            "what": "The patch did not close the hole. The same kind of request still gets through.",
+            "ideal": "never ships a fix without re-running the exploit.",
+            "rewind": false,
+            "card": {
+              "title": "Still open",
+              "kicker": "Excessive data exposure",
+              "body": [
+                "The exploit still works after your patch. This is what happens when a fix blocks one payload, or hides a symptom, instead of removing the cause.",
+                "Go back over the Fix tab: it shows which options were right, and why the others fail."
+              ],
+              "ideal": "verifies with the exploit before calling it fixed.",
+              "rewind": false
+            }
+          },
+          "go": "done"
+        }
+      ]
+    },
+    "done": {
+      "end": true
+    }
+  }
+}

@@ -364,6 +364,26 @@
 .cs-why { color: var(--dk-text) !important; font-style: italic; }
 .desktop-os.is-compact .cs-split { grid-template-columns: 1fr; }
 
+/* -------------------------------------------------------------- workbench */
+.bn-split { grid-template-columns: minmax(200px, 0.7fr) 2fr; }
+.bn-detail { min-width: 0; }
+.bn-code { margin: 8px 0 0; padding: 10px 0; border-radius: 10px; background: #12151f; color: #dfe6f7; font-size: 12.5px; line-height: 1.55; overflow-x: auto; }
+.bn-line { display: block; padding: 0 12px 0 0; white-space: pre; }
+.bn-line i { display: inline-block; width: 34px; margin-right: 10px; text-align: right; color: #5d6787; font-style: normal; user-select: none; }
+.bn-line.is-flaw { background: rgba(255, 90, 90, 0.2); box-shadow: inset 3px 0 0 #ff5a5a; }
+.bn-line.is-add { background: rgba(60, 200, 130, 0.16); padding-left: 12px; }
+.bn-line.is-del { background: rgba(255, 90, 90, 0.16); padding-left: 12px; }
+.bn-cap { display: block; margin: 8px 0 3px; color: var(--dk-muted); text-transform: uppercase; letter-spacing: 0.04em; font-size: 11px; }
+.bn-io { margin: 0; padding: 10px 12px; border-radius: 10px; background: #12151f; color: #dfe6f7; font-size: 12.5px; white-space: pre-wrap; word-break: break-word; }
+.bn-io.is-bad { box-shadow: inset 3px 0 0 #ff5a5a; color: #ffd0d0; }
+.bn-attempt { width: 100%; display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--dk-line); border-radius: 10px; background: var(--dk-panel); color: inherit; text-align: left; cursor: pointer; }
+.bn-attempt:hover { border-color: #b8c1d1; }
+.bn-attempt.is-on { border-color: var(--dk-blue); background: #eef7f3; }
+.bn-attempt .icon { width: 15px; height: 15px; flex: none; color: var(--dk-blue); }
+.bn-fix { display: flex; flex-direction: column; gap: 10px; }
+.bn-patch { margin-top: 4px; }
+.desktop-os.is-compact .bn-split { grid-template-columns: 1fr; }
+
 /* ------------------------------------------------------- phone camera */
 .app-camera { display: flex; flex-direction: column; height: 100%; background: #0b0d11; color: #eef1f6; }
 .cm-view { position: relative; margin: 10px 16px; height: 190px; border-radius: 18px; background: radial-gradient(90% 90% at 50% 40%, #2a2f38, #0b0d11); display: grid; place-items: center; }
