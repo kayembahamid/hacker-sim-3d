@@ -1,0 +1,454 @@
+{
+  "id": "exposed-dashboard",
+  "order": 803,
+  "title": "The admin console on the internet",
+  "kind": "Exposed management dashboard",
+  "track": "cloud-security",
+  "pool": false,
+  "level": "Core",
+  "minutes": 7,
+  "maxPoints": 79,
+  "startsAt": 1053,
+  "brief": "18:25. A scan finds the container management dashboard answering on the public internet. It was set up in a hurry during a migration.",
+  "role": "Platform engineer, reviewing a change on the Veltrix engineering team",
+  "insight": "A management console reachable from anywhere, with the login it shipped with.",
+  "teaches": [
+    "Management interfaces belong on a private network, behind single sign on and MFA",
+    "Remove default credentials and rotate anything already exposed",
+    "A secret path or a changed password on an open service is not access control"
+  ],
+  "setup": [
+    {
+      "do": "world.set",
+      "path": "office.bench",
+      "value": {
+        "id": "exposed-dashboard",
+        "title": "Container dashboard review",
+        "sub": "ops-01 · public scan",
+        "files": [
+          {
+            "path": "infra/dashboard.conf",
+            "lang": "Config",
+            "lines": [
+              "listen: 0.0.0.0:8443",
+              "auth: local",
+              "users:",
+              "  - admin / admin        # default",
+              "sso: disabled",
+              "mfa: disabled",
+              "allowed_networks: any"
+            ],
+            "flaw": [
+              1,
+              4,
+              5,
+              6,
+              7
+            ],
+            "vulnerable": true
+          },
+          {
+            "path": "infra/firewall.rules",
+            "lang": "Firewall",
+            "lines": [
+              "allow tcp 8443 from 0.0.0.0/0     # migration, remove later"
+            ],
+            "flaw": [
+              1
+            ],
+            "vulnerable": true
+          }
+        ],
+        "intro": "You are on the internet. See what you can find, and what you can do with it.",
+        "attempts": [
+          {
+            "id": "vpn",
+            "label": "Reach the dashboard from the office VPN",
+            "request": "GET https://ops-01.veltrix-logistics.com:8443/   (from the VPN)",
+            "response": "HTTP 200  Sign in page.",
+            "fixedResponse": "HTTP 200  Sign in with your company account (SSO + MFA).",
+            "exploits": false
+          },
+          {
+            "id": "find",
+            "label": "Find it from the internet",
+            "request": "scan 203.0.113.0/24 port 8443   (from outside)",
+            "response": "ops-01.veltrix-logistics.com:8443  open\nContainer dashboard, version 2.7 detected.\n\nIt answers to the whole internet.",
+            "fixedResponse": "ops-01.veltrix-logistics.com:8443  filtered. Not reachable from outside the company network.",
+            "exploits": true
+          },
+          {
+            "id": "login",
+            "label": "Sign in with admin / admin",
+            "request": "POST /login  { \"user\": \"admin\", \"password\": \"admin\" }",
+            "response": "HTTP 200\nSigned in. You can start, stop and open a shell in any container, including the payments service.",
+            "fixedResponse": "Not reachable from here. Sign in requires the company single sign on and a hardware key.",
+            "exploits": true
+          }
+        ],
+        "fix": {
+          "prompt": "Pick every change that takes it off the internet, puts proper sign in in front of it, and removes the default login.",
+          "options": [
+            {
+              "id": "net",
+              "label": "Restrict it to the private network, or the VPN, and close the public port",
+              "code": [
+                "- allow tcp 8443 from 0.0.0.0/0",
+                "+ allow tcp 8443 from 10.20.0.0/16   # VPN and office"
+              ],
+              "why": "It cannot be found, or attacked, from the internet at all.",
+              "good": true
+            },
+            {
+              "id": "sso",
+              "label": "Put it behind single sign on with MFA",
+              "code": [
+                "- auth: local",
+                "+ auth: sso   # company account",
+                "+ mfa: required (hardware key)"
+              ],
+              "why": "Access follows the person: their account, their second factor, and it is removed when they leave.",
+              "good": true
+            },
+            {
+              "id": "cred",
+              "label": "Delete the default account and rotate any credentials that were exposed",
+              "code": [
+                "- users: admin / admin",
+                "+ # no local accounts; rotate keys the dashboard could read"
+              ],
+              "why": "It was open with a default login, so assume it was used, and change what it could reach.",
+              "good": true
+            },
+            {
+              "id": "path",
+              "label": "Move it to a secret path so nobody finds it",
+              "code": [
+                "- https://ops-01.../",
+                "+ https://ops-01.../ops-a93f2c/"
+              ],
+              "why": "Scanners and certificate logs reveal hosts and paths. A secret address is not a lock.",
+              "good": false,
+              "bad": "weak"
+            },
+            {
+              "id": "pw",
+              "label": "Change the admin password but leave it on the public internet",
+              "code": [
+                "- admin / admin",
+                "+ admin / Winter2026!"
+              ],
+              "why": "A better password on an open management console will be guessed, stuffed or phished, and every unpatched flaw in it is exposed too.",
+              "good": false,
+              "bad": "weak"
+            }
+          ]
+        },
+        "found": false,
+        "decided": false,
+        "fixed": false,
+        "picks": [],
+        "last": null
+      }
+    },
+    {
+      "do": "desktop.open",
+      "app": "bench"
+    },
+    {
+      "do": "room.banner",
+      "title": "Workbench",
+      "body": "Review the exposed dashboard",
+      "icon": "code",
+      "object": "computer",
+      "action": "Open"
+    }
+  ],
+  "bonuses": [
+    {
+      "id": "b-read",
+      "when": {
+        "event": "bench:fileViewed",
+        "match": {
+          "vulnerable": true
+        }
+      },
+      "outcome": {
+        "points": 6,
+        "verdict": "careful",
+        "label": "Read the vulnerable code first",
+        "what": "Reading the code before attacking it tells you where to look, and why it fails.",
+        "ideal": "reads the code under review before trying to break it."
+      }
+    },
+    {
+      "id": "b-normal",
+      "when": {
+        "event": "bench:attempt",
+        "match": {
+          "exploited": false
+        }
+      },
+      "outcome": {
+        "points": 4,
+        "verdict": "careful",
+        "label": "Tried normal use first",
+        "what": "Knowing what a good request looks like is how you spot a bad one.",
+        "ideal": "establishes normal behaviour before testing the abnormal."
+      }
+    },
+    {
+      "id": "b-regress",
+      "when": {
+        "event": "bench:retest",
+        "match": {
+          "exploit": false,
+          "fixed": true
+        }
+      },
+      "outcome": {
+        "points": 4,
+        "verdict": "careful",
+        "label": "Checked normal use still works",
+        "what": "A fix that breaks real users gets reverted, and the bug comes back.",
+        "ideal": "tests that the fix did not break normal use."
+      }
+    }
+  ],
+  "guards": [],
+  "start": "exploit",
+  "stages": {
+    "exploit": {
+      "objective": "Reproduce the bug: read the Code tab, then use the Exploit tab on staging.",
+      "target": "computer",
+      "decision": true,
+      "insight": "A management console reachable from anywhere, with the login it shipped with.",
+      "points": [
+        {
+          "device": "desktop",
+          "app": "bench",
+          "sel": [
+            ".bn-attempt[data-attempt=\"find\"]",
+            ".app-bench .ox-tab:nth-child(2)"
+          ],
+          "label": [
+            "Send this request: it breaks it",
+            "Open the Exploit tab"
+          ]
+        }
+      ],
+      "hint": {
+        "text": "Open the Workbench. Read the code, try normal use on the Exploit tab, then send the request that breaks it."
+      },
+      "on": [
+        {
+          "when": {
+            "event": "bench:attempt",
+            "match": {
+              "exploited": true
+            }
+          },
+          "outcome": {
+            "points": 15,
+            "verdict": "careful",
+            "label": "Reproduced the bug",
+            "what": "The dashboard was open to the whole internet, and the shipped login still worked. From it you could open a shell in any container, including the payments service.",
+            "ideal": "proves a bug is real before fixing it.",
+            "card": {
+              "title": "One search, one login, every container",
+              "kicker": "Exposed management dashboard",
+              "body": [
+                "The dashboard was open to the whole internet, and the shipped login still worked. From it you could open a shell in any container, including the payments service.",
+                "The firewall rule even says \"migration, remove later\"."
+              ],
+              "ideal": "reproduces a bug first, so the fix can be proved to work."
+            }
+          },
+          "go": "fix"
+        }
+      ]
+    },
+    "fix": {
+      "objective": "Fix it: pick the changes on the Fix tab that close the hole for good, then apply the patch.",
+      "target": "computer",
+      "decision": true,
+      "points": [
+        {
+          "device": "desktop",
+          "app": "bench",
+          "sel": [
+            ".bn-apply:not([disabled])",
+            ".bn-fix .cs-options",
+            ".app-bench .ox-tab:nth-child(3)"
+          ],
+          "label": [
+            "Picked everything that fixes it? Apply the patch",
+            "Pick every change that fixes the cause",
+            "Open the Fix tab"
+          ]
+        }
+      ],
+      "hint": {
+        "text": "Pick every change that removes the cause. Avoid changes an attacker can walk around, and ones that do not touch the problem. Then Apply the patch."
+      },
+      "on": [
+        {
+          "when": {
+            "event": "bench:fixApplied",
+            "match": {
+              "ok": true
+            }
+          },
+          "outcome": {
+            "points": 35,
+            "verdict": "safe",
+            "label": "Applied a real fix",
+            "what": "Restricting it to the private network removes it from the internet entirely. Single sign on with a hardware key ties access to a person, and the default account is gone. Anything it could read gets rotated, because it was open for weeks.",
+            "ideal": "fixes the cause, not the symptom.",
+            "card": {
+              "title": "Not on the internet, not without you",
+              "kicker": "Exposed management dashboard",
+              "body": [
+                "Restricting it to the private network removes it from the internet entirely. Single sign on with a hardware key ties access to a person, and the default account is gone. Anything it could read gets rotated, because it was open for weeks.",
+                "Management interfaces are not for the public internet."
+              ],
+              "ideal": "fixes the cause with the standard control, and adds defence in depth."
+            }
+          },
+          "go": "verify"
+        },
+        {
+          "when": {
+            "event": "bench:fixApplied",
+            "match": {
+              "bad": {
+                "includes": "weak"
+              }
+            }
+          },
+          "outcome": {
+            "points": -25,
+            "verdict": "unsafe",
+            "label": "Applied a fix that can be bypassed",
+            "what": "Hiding it on a secret path or choosing a stronger password still leaves a management console visible to attackers, with every flaw in it exposed. Scans find hosts by certificate and by port.",
+            "ideal": "fixes the cause instead of blocking one payload or hiding the symptom.",
+            "card": {
+              "title": "A better lock on the wrong door",
+              "kicker": "Exposed management dashboard",
+              "body": [
+                "Hiding it on a secret path or choosing a stronger password still leaves a management console visible to attackers, with every flaw in it exposed. Scans find hosts by certificate and by port.",
+                "Take it off the internet first."
+              ],
+              "ideal": "fixes the cause, and knows why a blocklist or a hidden field is not a fix.",
+              "rewindLabel": "Rewind to the Fix tab"
+            }
+          },
+          "go": "verify"
+        },
+        {
+          "when": {
+            "event": "bench:fixApplied"
+          },
+          "outcome": {
+            "points": -5,
+            "verdict": "risky",
+            "label": "Applied a patch that was not enough",
+            "what": "The patch missed part of the fix, or added a change that does not address the problem.",
+            "ideal": "closes the hole completely.",
+            "card": {
+              "title": "Not enough",
+              "kicker": "Exposed management dashboard",
+              "body": [
+                "The patch missed something that has to change, or included a change that does nothing for this bug. Open the Fix tab to see which options were right, missed, or wrong, and why.",
+                "A partial fix is the most dangerous kind: everyone assumes it is closed."
+              ],
+              "ideal": "closes the hole completely.",
+              "rewindLabel": "Rewind to the Fix tab"
+            }
+          },
+          "go": "verify"
+        }
+      ]
+    },
+    "verify": {
+      "objective": "Prove it: re-run the exploit on the Exploit tab, then check normal use still works.",
+      "target": "computer",
+      "decision": true,
+      "points": [
+        {
+          "device": "desktop",
+          "app": "bench",
+          "sel": [
+            ".bn-attempt[data-attempt=\"find\"]",
+            ".app-bench .ox-tab:nth-child(2)"
+          ],
+          "label": [
+            "Send the exploit again: it should be blocked",
+            "Open the Exploit tab"
+          ]
+        }
+      ],
+      "hint": {
+        "text": "On the Exploit tab, send the exploit again. It should be blocked. Then send the normal request to check nothing broke."
+      },
+      "on": [
+        {
+          "when": {
+            "event": "bench:retest",
+            "match": {
+              "blocked": true
+            }
+          },
+          "outcome": {
+            "points": 15,
+            "verdict": "safe",
+            "label": "Proved the exploit is blocked",
+            "what": "The same request that worked before now fails, and normal use still works.",
+            "ideal": "verifies a fix by re-running the exploit.",
+            "card": {
+              "title": "Fixed, and proved",
+              "kicker": "Exposed management dashboard",
+              "body": [
+                "You re-ran the exact request that broke it, and it is blocked. A fix you have not tested against the exploit is a hope, not a fix.",
+                "Add the exploit as an automated test so nobody can quietly bring the bug back."
+              ],
+              "ideal": "turns the exploit into a regression test."
+            }
+          },
+          "go": "done"
+        },
+        {
+          "when": {
+            "event": "bench:retest",
+            "match": {
+              "exploit": true,
+              "blocked": false
+            }
+          },
+          "outcome": {
+            "points": 0,
+            "verdict": "risky",
+            "label": "The exploit still works",
+            "what": "The patch did not close the hole. The same kind of request still gets through.",
+            "ideal": "never ships a fix without re-running the exploit.",
+            "rewind": false,
+            "card": {
+              "title": "Still open",
+              "kicker": "Exposed management dashboard",
+              "body": [
+                "The exploit still works after your patch. This is what happens when a fix blocks one payload, or hides a symptom, instead of removing the cause.",
+                "Go back over the Fix tab: it shows which options were right, and why the others fail."
+              ],
+              "ideal": "verifies with the exploit before calling it fixed.",
+              "rewind": false
+            }
+          },
+          "go": "done"
+        }
+      ]
+    },
+    "done": {
+      "end": true
+    }
+  }
+}

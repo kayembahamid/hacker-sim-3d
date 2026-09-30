@@ -1,0 +1,444 @@
+{
+  "id": "public-snapshot",
+  "order": 806,
+  "title": "The snapshot shared with the world",
+  "kind": "Public disk snapshot",
+  "track": "cloud-security",
+  "pool": false,
+  "level": "Advanced",
+  "minutes": 8,
+  "maxPoints": 79,
+  "startsAt": 1062,
+  "brief": "18:40. A contractor needed a copy of a database for a one off report. The snapshot made for them is still there, and it is marked public.",
+  "role": "Platform engineer, reviewing a change on the Veltrix engineering team",
+  "insight": "Sharing with one person and sharing with the world used the same button, and nobody came back to undo it.",
+  "teaches": [
+    "Share a snapshot by naming the account, never by making it public",
+    "A snapshot holds everything the disk held: audit it like the database itself",
+    "Time box access to data shared for a one off job, and check for copies"
+  ],
+  "setup": [
+    {
+      "do": "world.set",
+      "path": "office.bench",
+      "value": {
+        "id": "public-snapshot",
+        "title": "Snapshot review: customer database backup",
+        "sub": "cloud account · storage",
+        "files": [
+          {
+            "path": "storage/snapshots/snap-0x8f21.json",
+            "lang": "Settings",
+            "lines": [
+              "{ \"source\": \"customers-prod-db\", \"size_gb\": 220,",
+              "  \"visibility\": \"public\",",
+              "  \"created\": \"2025-11-02\", \"reason\": \"contractor report, one off\",",
+              "  \"shared_with\": \"everyone\" }"
+            ],
+            "flaw": [
+              3,
+              6
+            ],
+            "vulnerable": true
+          },
+          {
+            "path": "incident-notes.txt",
+            "lang": "Notes",
+            "lines": [
+              "Contractor finished the report on 2025-11-09.",
+              "Nobody set an end date on the snapshot or the sharing."
+            ],
+            "flaw": [
+              2
+            ],
+            "vulnerable": true
+          }
+        ],
+        "intro": "You have no account and no credentials. See what a public snapshot lets you do with just its id.",
+        "attempts": [
+          {
+            "id": "contractor",
+            "label": "Copy it the way the contractor did, with their own account named on it",
+            "request": "copy snap-0x8f21 to account:contractor-104   (named access)",
+            "response": "Copy started. Only the named account could do this.",
+            "fixedResponse": "Copy started. Only the named account could do this.",
+            "exploits": false
+          },
+          {
+            "id": "find",
+            "label": "Find the snapshot id from a public list of recent snapshots",
+            "request": "list public snapshots in eu-west",
+            "response": "snap-0x8f21  220 GB  customers-prod-db  visibility: public\n\nA public snapshot shows up in a public list, to anyone browsing.",
+            "fixedResponse": "No public snapshots listed. Sharing is by named account only.",
+            "exploits": true
+          },
+          {
+            "id": "restore",
+            "label": "Restore the public snapshot into your own account and read it",
+            "request": "restore snap-0x8f21 -> new-database   (no account named)",
+            "response": "HTTP 200\nRestored. 41,000 customers, full records, including the ones added after the contractor's report.\n\nA public snapshot is a public copy of the database.",
+            "fixedResponse": "AccessDenied: snapshot is not shared with your account.",
+            "exploits": true
+          }
+        ],
+        "fix": {
+          "prompt": "Pick every change that shares the snapshot with a person, not the world, and cleans up after the job is done.",
+          "options": [
+            {
+              "id": "named",
+              "label": "Share the snapshot with the contractor's account by id, not by making it public",
+              "code": [
+                "- \"visibility\": \"public\"",
+                "+ \"visibility\": \"private\", \"shared_with\": [\"account:contractor-104\"]"
+              ],
+              "why": "Restoring or copying it then needs to be that one account, not anyone with the id.",
+              "good": true
+            },
+            {
+              "id": "expire",
+              "label": "Set an end date on the sharing, tied to when the job finishes",
+              "code": [
+                "+ \"shared_until\": \"2025-11-09\""
+              ],
+              "why": "Access for a one off job should end when the job does, without anyone needing to remember.",
+              "good": true
+            },
+            {
+              "id": "audit",
+              "label": "Audit the snapshot like the database it came from: check what it holds and whether it has been copied",
+              "code": [
+                "+ review: does the snapshot need masking before any sharing? has it been copied elsewhere?"
+              ],
+              "why": "A snapshot is a full copy of the disk. It deserves the same care as the live database, including checking whether it was copied while it was open.",
+              "good": true
+            },
+            {
+              "id": "policy",
+              "label": "Block public sharing for snapshots at the account level, the same as storage buckets",
+              "code": [
+                "+ account.block_public_snapshots = true"
+              ],
+              "why": "The same one switch idea as the public bucket: remove the option to make the mistake at all.",
+              "good": true
+            },
+            {
+              "id": "name2",
+              "label": "Rename the snapshot so it is harder to find",
+              "code": [
+                "- snap-0x8f21",
+                "+ snap-report-temp"
+              ],
+              "why": "A public snapshot is still public and still appears in listings and searches, whatever it is called.",
+              "good": false,
+              "bad": "weak"
+            }
+          ]
+        },
+        "found": false,
+        "decided": false,
+        "fixed": false,
+        "picks": [],
+        "last": null
+      }
+    },
+    {
+      "do": "desktop.open",
+      "app": "bench"
+    },
+    {
+      "do": "room.banner",
+      "title": "Workbench",
+      "body": "Review the shared database snapshot",
+      "icon": "code",
+      "object": "computer",
+      "action": "Open"
+    }
+  ],
+  "bonuses": [
+    {
+      "id": "b-read",
+      "when": {
+        "event": "bench:fileViewed",
+        "match": {
+          "vulnerable": true
+        }
+      },
+      "outcome": {
+        "points": 6,
+        "verdict": "careful",
+        "label": "Read the vulnerable code first",
+        "what": "Reading the code before attacking it tells you where to look, and why it fails.",
+        "ideal": "reads the code under review before trying to break it."
+      }
+    },
+    {
+      "id": "b-normal",
+      "when": {
+        "event": "bench:attempt",
+        "match": {
+          "exploited": false
+        }
+      },
+      "outcome": {
+        "points": 4,
+        "verdict": "careful",
+        "label": "Tried normal use first",
+        "what": "Knowing what a good request looks like is how you spot a bad one.",
+        "ideal": "establishes normal behaviour before testing the abnormal."
+      }
+    },
+    {
+      "id": "b-regress",
+      "when": {
+        "event": "bench:retest",
+        "match": {
+          "exploit": false,
+          "fixed": true
+        }
+      },
+      "outcome": {
+        "points": 4,
+        "verdict": "careful",
+        "label": "Checked normal use still works",
+        "what": "A fix that breaks real users gets reverted, and the bug comes back.",
+        "ideal": "tests that the fix did not break normal use."
+      }
+    }
+  ],
+  "guards": [],
+  "start": "exploit",
+  "stages": {
+    "exploit": {
+      "objective": "Reproduce the bug: read the Code tab, then use the Exploit tab on staging.",
+      "target": "computer",
+      "decision": true,
+      "insight": "Sharing with one person and sharing with the world used the same button, and nobody came back to undo it.",
+      "points": [
+        {
+          "device": "desktop",
+          "app": "bench",
+          "sel": [
+            ".bn-attempt[data-attempt=\"find\"]",
+            ".app-bench .ox-tab:nth-child(2)"
+          ],
+          "label": [
+            "Send this request: it breaks it",
+            "Open the Exploit tab"
+          ]
+        }
+      ],
+      "hint": {
+        "text": "Open the Workbench. Read the code, try normal use on the Exploit tab, then send the request that breaks it."
+      },
+      "on": [
+        {
+          "when": {
+            "event": "bench:attempt",
+            "match": {
+              "exploited": true
+            }
+          },
+          "outcome": {
+            "points": 15,
+            "verdict": "careful",
+            "label": "Reproduced the bug",
+            "what": "The snapshot was made public to share it with one contractor, and stayed that way after the job finished. Anyone who found its id, or simply browsed public snapshots, could restore the whole customer database, including records added after the report was done.",
+            "ideal": "proves a bug is real before fixing it.",
+            "card": {
+              "title": "A database, copied by anyone who looked",
+              "kicker": "Public disk snapshot",
+              "body": [
+                "The snapshot was made public to share it with one contractor, and stayed that way after the job finished. Anyone who found its id, or simply browsed public snapshots, could restore the whole customer database, including records added after the report was done.",
+                "Public and shared with one person are not the same setting."
+              ],
+              "ideal": "reproduces a bug first, so the fix can be proved to work."
+            }
+          },
+          "go": "fix"
+        }
+      ]
+    },
+    "fix": {
+      "objective": "Fix it: pick the changes on the Fix tab that close the hole for good, then apply the patch.",
+      "target": "computer",
+      "decision": true,
+      "points": [
+        {
+          "device": "desktop",
+          "app": "bench",
+          "sel": [
+            ".bn-apply:not([disabled])",
+            ".bn-fix .cs-options",
+            ".app-bench .ox-tab:nth-child(3)"
+          ],
+          "label": [
+            "Picked everything that fixes it? Apply the patch",
+            "Pick every change that fixes the cause",
+            "Open the Fix tab"
+          ]
+        }
+      ],
+      "hint": {
+        "text": "Pick every change that removes the cause. Avoid changes an attacker can walk around, and ones that do not touch the problem. Then Apply the patch."
+      },
+      "on": [
+        {
+          "when": {
+            "event": "bench:fixApplied",
+            "match": {
+              "ok": true
+            }
+          },
+          "outcome": {
+            "points": 35,
+            "verdict": "safe",
+            "label": "Applied a real fix",
+            "what": "Sharing by account id means only the contractor could reach it, an end date means access stopped when the job did, and blocking public snapshots at the account level removes the shortcut for next time. Auditing it like the database it is means someone checks whether the exposure was used.",
+            "ideal": "fixes the cause, not the symptom.",
+            "card": {
+              "title": "Named, time boxed, and blocked by default",
+              "kicker": "Public disk snapshot",
+              "body": [
+                "Sharing by account id means only the contractor could reach it, an end date means access stopped when the job did, and blocking public snapshots at the account level removes the shortcut for next time. Auditing it like the database it is means someone checks whether the exposure was used.",
+                "Share a copy of the data as carefully as the data itself."
+              ],
+              "ideal": "fixes the cause with the standard control, and adds defence in depth."
+            }
+          },
+          "go": "verify"
+        },
+        {
+          "when": {
+            "event": "bench:fixApplied",
+            "match": {
+              "bad": {
+                "includes": "weak"
+              }
+            }
+          },
+          "outcome": {
+            "points": -25,
+            "verdict": "unsafe",
+            "label": "Applied a fix that can be bypassed",
+            "what": "Renaming the snapshot does nothing to its visibility. It is still listed publicly and still restorable by anyone who finds it, under its new name.",
+            "ideal": "fixes the cause instead of blocking one payload or hiding the symptom.",
+            "card": {
+              "title": "Still public, just harder to spell",
+              "kicker": "Public disk snapshot",
+              "body": [
+                "Renaming the snapshot does nothing to its visibility. It is still listed publicly and still restorable by anyone who finds it, under its new name.",
+                "Fix who can reach it, not what it is called."
+              ],
+              "ideal": "fixes the cause, and knows why a blocklist or a hidden field is not a fix.",
+              "rewindLabel": "Rewind to the Fix tab"
+            }
+          },
+          "go": "verify"
+        },
+        {
+          "when": {
+            "event": "bench:fixApplied"
+          },
+          "outcome": {
+            "points": -5,
+            "verdict": "risky",
+            "label": "Applied a patch that was not enough",
+            "what": "The patch missed part of the fix, or added a change that does not address the problem.",
+            "ideal": "closes the hole completely.",
+            "card": {
+              "title": "Not enough",
+              "kicker": "Public disk snapshot",
+              "body": [
+                "The patch missed something that has to change, or included a change that does nothing for this bug. Open the Fix tab to see which options were right, missed, or wrong, and why.",
+                "A partial fix is the most dangerous kind: everyone assumes it is closed."
+              ],
+              "ideal": "closes the hole completely.",
+              "rewindLabel": "Rewind to the Fix tab"
+            }
+          },
+          "go": "verify"
+        }
+      ]
+    },
+    "verify": {
+      "objective": "Prove it: re-run the exploit on the Exploit tab, then check normal use still works.",
+      "target": "computer",
+      "decision": true,
+      "points": [
+        {
+          "device": "desktop",
+          "app": "bench",
+          "sel": [
+            ".bn-attempt[data-attempt=\"find\"]",
+            ".app-bench .ox-tab:nth-child(2)"
+          ],
+          "label": [
+            "Send the exploit again: it should be blocked",
+            "Open the Exploit tab"
+          ]
+        }
+      ],
+      "hint": {
+        "text": "On the Exploit tab, send the exploit again. It should be blocked. Then send the normal request to check nothing broke."
+      },
+      "on": [
+        {
+          "when": {
+            "event": "bench:retest",
+            "match": {
+              "blocked": true
+            }
+          },
+          "outcome": {
+            "points": 15,
+            "verdict": "safe",
+            "label": "Proved the exploit is blocked",
+            "what": "The same request that worked before now fails, and normal use still works.",
+            "ideal": "verifies a fix by re-running the exploit.",
+            "card": {
+              "title": "Fixed, and proved",
+              "kicker": "Public disk snapshot",
+              "body": [
+                "You re-ran the exact request that broke it, and it is blocked. A fix you have not tested against the exploit is a hope, not a fix.",
+                "Add the exploit as an automated test so nobody can quietly bring the bug back."
+              ],
+              "ideal": "turns the exploit into a regression test."
+            }
+          },
+          "go": "done"
+        },
+        {
+          "when": {
+            "event": "bench:retest",
+            "match": {
+              "exploit": true,
+              "blocked": false
+            }
+          },
+          "outcome": {
+            "points": 0,
+            "verdict": "risky",
+            "label": "The exploit still works",
+            "what": "The patch did not close the hole. The same kind of request still gets through.",
+            "ideal": "never ships a fix without re-running the exploit.",
+            "rewind": false,
+            "card": {
+              "title": "Still open",
+              "kicker": "Public disk snapshot",
+              "body": [
+                "The exploit still works after your patch. This is what happens when a fix blocks one payload, or hides a symptom, instead of removing the cause.",
+                "Go back over the Fix tab: it shows which options were right, and why the others fail."
+              ],
+              "ideal": "verifies with the exploit before calling it fixed.",
+              "rewind": false
+            }
+          },
+          "go": "done"
+        }
+      ]
+    },
+    "done": {
+      "end": true
+    }
+  }
+}

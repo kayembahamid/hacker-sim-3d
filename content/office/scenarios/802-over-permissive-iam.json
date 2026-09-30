@@ -1,0 +1,448 @@
+{
+  "id": "over-permissive-iam",
+  "order": 802,
+  "title": "The role that can do anything",
+  "kind": "Over permissive IAM role",
+  "track": "cloud-security",
+  "pool": false,
+  "level": "Core",
+  "minutes": 8,
+  "maxPoints": 79,
+  "startsAt": 1050,
+  "brief": "18:20. A reporting job needs to read one bucket. It was given a role with a wildcard, because that was quicker. Its credential has just turned up in a log.",
+  "role": "Platform engineer, reviewing a change on the Veltrix engineering team",
+  "insight": "The job needs to read one bucket. If its credential leaks, the attacker gets the whole account.",
+  "teaches": [
+    "Grant the smallest set of actions on the smallest set of resources",
+    "Use short lived role credentials, not long lived keys",
+    "Measure what a role really uses, and trim the rest"
+  ],
+  "setup": [
+    {
+      "do": "world.set",
+      "path": "office.bench",
+      "value": {
+        "id": "over-permissive-iam",
+        "title": "IAM console: role report-service",
+        "sub": "cloud account · access control",
+        "files": [
+          {
+            "path": "iam/report-service-policy.json",
+            "lang": "Policy",
+            "lines": [
+              "{",
+              "  \"role\": \"report-service\",",
+              "  \"allow\": [ { \"actions\": [\"*\"], \"resources\": [\"*\"] } ],",
+              "  \"credential\": \"long lived access key\"",
+              "}"
+            ],
+            "flaw": [
+              3,
+              4
+            ],
+            "vulnerable": true
+          },
+          {
+            "path": "iam/last-90-days.txt",
+            "lang": "Access report",
+            "lines": [
+              "report-service used: storage:read on veltrix-reports",
+              "                     nothing else",
+              "",
+              "Permissions granted: everything"
+            ],
+            "flaw": [
+              4
+            ],
+            "vulnerable": true
+          }
+        ],
+        "intro": "Pretend the leaked credential is yours. See what it can do, beyond running a report.",
+        "attempts": [
+          {
+            "id": "report",
+            "label": "Run the nightly report",
+            "request": "run report-job   (as report-service)",
+            "response": "read veltrix-reports/daily.csv\nReport generated.",
+            "fixedResponse": "read veltrix-reports/daily.csv\nReport generated.",
+            "exploits": false
+          },
+          {
+            "id": "dbs",
+            "label": "List every database in the account",
+            "request": "list databases   (as report-service)",
+            "response": "3 databases: customers-prod, payments-prod, hr-prod\n\nThe report job can see them all.",
+            "fixedResponse": "AccessDenied: report-service is not allowed to list databases",
+            "exploits": true
+          },
+          {
+            "id": "delete",
+            "label": "Delete the backups",
+            "request": "delete backup-vault/*   (as report-service)",
+            "response": "Deleted 41 backups.\n\nThe same credential can destroy the recovery copies.",
+            "fixedResponse": "AccessDenied: report-service is not allowed to delete backups",
+            "exploits": true
+          }
+        ],
+        "fix": {
+          "prompt": "Pick every change that cuts the role down to what it needs, and limits how long a leaked credential is useful.",
+          "options": [
+            {
+              "id": "scope",
+              "label": "Allow only reading the reports bucket",
+              "code": [
+                "- \"actions\": [\"*\"], \"resources\": [\"*\"]",
+                "+ \"actions\": [\"storage:read\"], \"resources\": [\"veltrix-reports/*\"]"
+              ],
+              "why": "The role can do its job and nothing else. A leaked credential can read reports.",
+              "good": true
+            },
+            {
+              "id": "short",
+              "label": "Use short lived role credentials instead of a long lived key",
+              "code": [
+                "- \"credential\": \"long lived access key\"",
+                "+ \"credential\": \"role assumed by the job, 1 hour\""
+              ],
+              "why": "A credential in a log stops working in an hour, instead of working for years.",
+              "good": true
+            },
+            {
+              "id": "trim",
+              "label": "Review access reports regularly, and remove permissions that are never used",
+              "code": [
+                "+ monthly: access-report --unused report-service -> open a ticket"
+              ],
+              "why": "Permissions drift wide over time. Regular pruning keeps a role near the least it needs.",
+              "good": true
+            },
+            {
+              "id": "deny",
+              "label": "Keep the wildcard, and add a deny for deleting backups",
+              "code": [
+                "+ \"deny\": [ { \"actions\": [\"backup:delete\"] } ]"
+              ],
+              "why": "It blocks one bad thing and leaves every other one open: reading every database, creating users, changing policies.",
+              "good": false,
+              "bad": "weak"
+            },
+            {
+              "id": "ip",
+              "label": "Keep the wildcard, but only from the office network address",
+              "code": [
+                "+ \"condition\": { \"source_ip\": \"198.51.100.0/24\" }"
+              ],
+              "why": "The credential leaked from inside your own logs. Network limits do not fix what the role is allowed to do.",
+              "good": false,
+              "bad": "weak"
+            }
+          ]
+        },
+        "found": false,
+        "decided": false,
+        "fixed": false,
+        "picks": [],
+        "last": null
+      }
+    },
+    {
+      "do": "desktop.open",
+      "app": "bench"
+    },
+    {
+      "do": "room.banner",
+      "title": "Workbench",
+      "body": "Review the reporting role's permissions",
+      "icon": "code",
+      "object": "computer",
+      "action": "Open"
+    }
+  ],
+  "bonuses": [
+    {
+      "id": "b-read",
+      "when": {
+        "event": "bench:fileViewed",
+        "match": {
+          "vulnerable": true
+        }
+      },
+      "outcome": {
+        "points": 6,
+        "verdict": "careful",
+        "label": "Read the vulnerable code first",
+        "what": "Reading the code before attacking it tells you where to look, and why it fails.",
+        "ideal": "reads the code under review before trying to break it."
+      }
+    },
+    {
+      "id": "b-normal",
+      "when": {
+        "event": "bench:attempt",
+        "match": {
+          "exploited": false
+        }
+      },
+      "outcome": {
+        "points": 4,
+        "verdict": "careful",
+        "label": "Tried normal use first",
+        "what": "Knowing what a good request looks like is how you spot a bad one.",
+        "ideal": "establishes normal behaviour before testing the abnormal."
+      }
+    },
+    {
+      "id": "b-regress",
+      "when": {
+        "event": "bench:retest",
+        "match": {
+          "exploit": false,
+          "fixed": true
+        }
+      },
+      "outcome": {
+        "points": 4,
+        "verdict": "careful",
+        "label": "Checked normal use still works",
+        "what": "A fix that breaks real users gets reverted, and the bug comes back.",
+        "ideal": "tests that the fix did not break normal use."
+      }
+    }
+  ],
+  "guards": [],
+  "start": "exploit",
+  "stages": {
+    "exploit": {
+      "objective": "Reproduce the bug: read the Code tab, then use the Exploit tab on staging.",
+      "target": "computer",
+      "decision": true,
+      "insight": "The job needs to read one bucket. If its credential leaks, the attacker gets the whole account.",
+      "points": [
+        {
+          "device": "desktop",
+          "app": "bench",
+          "sel": [
+            ".bn-attempt[data-attempt=\"dbs\"]",
+            ".app-bench .ox-tab:nth-child(2)"
+          ],
+          "label": [
+            "Send this request: it breaks it",
+            "Open the Exploit tab"
+          ]
+        }
+      ],
+      "hint": {
+        "text": "Open the Workbench. Read the code, try normal use on the Exploit tab, then send the request that breaks it."
+      },
+      "on": [
+        {
+          "when": {
+            "event": "bench:attempt",
+            "match": {
+              "exploited": true
+            }
+          },
+          "outcome": {
+            "points": 15,
+            "verdict": "careful",
+            "label": "Reproduced the bug",
+            "what": "The credential listed every database and deleted the backups, because the role was allowed to do anything to anything. The job only ever read one bucket.",
+            "ideal": "proves a bug is real before fixing it.",
+            "card": {
+              "title": "A report job that could burn the account down",
+              "kicker": "Over permissive IAM role",
+              "body": [
+                "The credential listed every database and deleted the backups, because the role was allowed to do anything to anything. The job only ever read one bucket.",
+                "The access report even said so: \"Permissions granted: everything\"."
+              ],
+              "ideal": "reproduces a bug first, so the fix can be proved to work."
+            }
+          },
+          "go": "fix"
+        }
+      ]
+    },
+    "fix": {
+      "objective": "Fix it: pick the changes on the Fix tab that close the hole for good, then apply the patch.",
+      "target": "computer",
+      "decision": true,
+      "points": [
+        {
+          "device": "desktop",
+          "app": "bench",
+          "sel": [
+            ".bn-apply:not([disabled])",
+            ".bn-fix .cs-options",
+            ".app-bench .ox-tab:nth-child(3)"
+          ],
+          "label": [
+            "Picked everything that fixes it? Apply the patch",
+            "Pick every change that fixes the cause",
+            "Open the Fix tab"
+          ]
+        }
+      ],
+      "hint": {
+        "text": "Pick every change that removes the cause. Avoid changes an attacker can walk around, and ones that do not touch the problem. Then Apply the patch."
+      },
+      "on": [
+        {
+          "when": {
+            "event": "bench:fixApplied",
+            "match": {
+              "ok": true
+            }
+          },
+          "outcome": {
+            "points": 35,
+            "verdict": "safe",
+            "label": "Applied a real fix",
+            "what": "The role reads one bucket and nothing else, and its credential comes from a role that expires within the hour. A regular look at what is actually used stops it creeping back to a wildcard.",
+            "ideal": "fixes the cause, not the symptom.",
+            "card": {
+              "title": "The least it needs, for the least time",
+              "kicker": "Over permissive IAM role",
+              "body": [
+                "The role reads one bucket and nothing else, and its credential comes from a role that expires within the hour. A regular look at what is actually used stops it creeping back to a wildcard.",
+                "Least privilege is what makes a leak an incident instead of a disaster."
+              ],
+              "ideal": "fixes the cause with the standard control, and adds defence in depth."
+            }
+          },
+          "go": "verify"
+        },
+        {
+          "when": {
+            "event": "bench:fixApplied",
+            "match": {
+              "bad": {
+                "includes": "weak"
+              }
+            }
+          },
+          "outcome": {
+            "points": -25,
+            "verdict": "unsafe",
+            "label": "Applied a fix that can be bypassed",
+            "what": "Denying deletion of backups, or limiting the network, leaves a role that can still read every database, create users and change policies. Deny lists are always one action short.",
+            "ideal": "fixes the cause instead of blocking one payload or hiding the symptom.",
+            "card": {
+              "title": "One door shut, the rest wide open",
+              "kicker": "Over permissive IAM role",
+              "body": [
+                "Denying deletion of backups, or limiting the network, leaves a role that can still read every database, create users and change policies. Deny lists are always one action short.",
+                "Allow only what the job needs."
+              ],
+              "ideal": "fixes the cause, and knows why a blocklist or a hidden field is not a fix.",
+              "rewindLabel": "Rewind to the Fix tab"
+            }
+          },
+          "go": "verify"
+        },
+        {
+          "when": {
+            "event": "bench:fixApplied"
+          },
+          "outcome": {
+            "points": -5,
+            "verdict": "risky",
+            "label": "Applied a patch that was not enough",
+            "what": "The patch missed part of the fix, or added a change that does not address the problem.",
+            "ideal": "closes the hole completely.",
+            "card": {
+              "title": "Not enough",
+              "kicker": "Over permissive IAM role",
+              "body": [
+                "The patch missed something that has to change, or included a change that does nothing for this bug. Open the Fix tab to see which options were right, missed, or wrong, and why.",
+                "A partial fix is the most dangerous kind: everyone assumes it is closed."
+              ],
+              "ideal": "closes the hole completely.",
+              "rewindLabel": "Rewind to the Fix tab"
+            }
+          },
+          "go": "verify"
+        }
+      ]
+    },
+    "verify": {
+      "objective": "Prove it: re-run the exploit on the Exploit tab, then check normal use still works.",
+      "target": "computer",
+      "decision": true,
+      "points": [
+        {
+          "device": "desktop",
+          "app": "bench",
+          "sel": [
+            ".bn-attempt[data-attempt=\"dbs\"]",
+            ".app-bench .ox-tab:nth-child(2)"
+          ],
+          "label": [
+            "Send the exploit again: it should be blocked",
+            "Open the Exploit tab"
+          ]
+        }
+      ],
+      "hint": {
+        "text": "On the Exploit tab, send the exploit again. It should be blocked. Then send the normal request to check nothing broke."
+      },
+      "on": [
+        {
+          "when": {
+            "event": "bench:retest",
+            "match": {
+              "blocked": true
+            }
+          },
+          "outcome": {
+            "points": 15,
+            "verdict": "safe",
+            "label": "Proved the exploit is blocked",
+            "what": "The same request that worked before now fails, and normal use still works.",
+            "ideal": "verifies a fix by re-running the exploit.",
+            "card": {
+              "title": "Fixed, and proved",
+              "kicker": "Over permissive IAM role",
+              "body": [
+                "You re-ran the exact request that broke it, and it is blocked. A fix you have not tested against the exploit is a hope, not a fix.",
+                "Add the exploit as an automated test so nobody can quietly bring the bug back."
+              ],
+              "ideal": "turns the exploit into a regression test."
+            }
+          },
+          "go": "done"
+        },
+        {
+          "when": {
+            "event": "bench:retest",
+            "match": {
+              "exploit": true,
+              "blocked": false
+            }
+          },
+          "outcome": {
+            "points": 0,
+            "verdict": "risky",
+            "label": "The exploit still works",
+            "what": "The patch did not close the hole. The same kind of request still gets through.",
+            "ideal": "never ships a fix without re-running the exploit.",
+            "rewind": false,
+            "card": {
+              "title": "Still open",
+              "kicker": "Over permissive IAM role",
+              "body": [
+                "The exploit still works after your patch. This is what happens when a fix blocks one payload, or hides a symptom, instead of removing the cause.",
+                "Go back over the Fix tab: it shows which options were right, and why the others fail."
+              ],
+              "ideal": "verifies with the exploit before calling it fixed.",
+              "rewind": false
+            }
+          },
+          "go": "done"
+        }
+      ]
+    },
+    "done": {
+      "end": true
+    }
+  }
+}

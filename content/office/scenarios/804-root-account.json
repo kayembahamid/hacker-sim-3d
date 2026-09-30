@@ -1,0 +1,453 @@
+{
+  "id": "root-account",
+  "order": 804,
+  "title": "Protect the root account",
+  "kind": "Unprotected root account",
+  "track": "cloud-security",
+  "pool": false,
+  "level": "Foundational",
+  "minutes": 6,
+  "maxPoints": 79,
+  "startsAt": 1056,
+  "brief": "18:30. An audit finds the cloud account's root user in daily use, with an access key stored in a CI variable, and no hardware security key.",
+  "role": "Platform engineer, reviewing a change on the Veltrix engineering team",
+  "insight": "The root account can do everything and cannot be restricted. It should barely ever be used.",
+  "teaches": [
+    "The root account is for a handful of tasks: lock it away, with a hardware key",
+    "Do daily administration through roles and single sign on",
+    "Delete root access keys: they cannot be scoped down"
+  ],
+  "setup": [
+    {
+      "do": "world.set",
+      "path": "office.bench",
+      "value": {
+        "id": "root-account",
+        "title": "Account security review: root user",
+        "sub": "cloud account · identity",
+        "files": [
+          {
+            "path": "identity/root-user.json",
+            "lang": "Settings",
+            "lines": [
+              "{ \"mfa\": \"SMS code\",",
+              "  \"hardware_key\": false,",
+              "  \"access_keys\": 1,",
+              "  \"last_used\": \"today\",",
+              "  \"logins_last_30_days\": 23,",
+              "  \"email\": \"cloud-admin@veltrix-logistics.com (shared mailbox)\" }"
+            ],
+            "flaw": [
+              1,
+              2,
+              3,
+              5,
+              6
+            ],
+            "vulnerable": true
+          },
+          {
+            "path": ".ci/variables",
+            "lang": "CI",
+            "lines": [
+              "ROOT_ACCESS_KEY=AKIA-EXAMPLE-ROOT-71Q",
+              "ROOT_SECRET=***set***"
+            ],
+            "flaw": [
+              1,
+              2
+            ],
+            "vulnerable": true
+          }
+        ],
+        "intro": "Act as an attacker with a foothold in the shared mailbox, then in the CI. See how far each gets.",
+        "attempts": [
+          {
+            "id": "daily",
+            "label": "Use root for an everyday task",
+            "request": "sign in as root -> restart a service",
+            "response": "HTTP 200\nDone. Root did a job any admin role could have done.",
+            "fixedResponse": "AccessDenied: sign in as root is blocked for this action. Use your admin role.",
+            "exploits": false
+          },
+          {
+            "id": "phish",
+            "label": "Reset the root password from the shared mailbox",
+            "request": "password reset email -> shared cloud-admin@veltrix-logistics.com",
+            "response": "Reset link opened. New password set.\nNo hardware key was asked for: an SMS code was enough.\n\nWhoever reads that shared mailbox now owns the account that owns everything.",
+            "fixedResponse": "Reset link opened. Blocked: root sign in requires the hardware security key, which the attacker does not have.",
+            "exploits": true
+          },
+          {
+            "id": "cikey",
+            "label": "Use the root access key left in CI",
+            "request": "deploy job: aws --profile root s3 ls",
+            "response": "Every bucket in the account listed. The CI variable is a live root key.",
+            "fixedResponse": "Error: no credential named 'root'. Root has no access keys.",
+            "exploits": true
+          }
+        ],
+        "fix": {
+          "prompt": "Pick every change that gets root out of daily use and locks what is left behind hardware.",
+          "options": [
+            {
+              "id": "key",
+              "label": "Delete the root access key entirely",
+              "code": [
+                "- ROOT_ACCESS_KEY=AKIA-EXAMPLE-ROOT-71Q",
+                "+ # no access keys on the root user, ever"
+              ],
+              "why": "Root cannot be scoped down, so it should never hold a key a script or a pipeline can use.",
+              "good": true
+            },
+            {
+              "id": "hw",
+              "label": "Require a hardware security key for root, and stop accepting an SMS code for it",
+              "code": [
+                "- \"mfa\": \"SMS code\"",
+                "+ \"mfa\": \"hardware key (FIDO2)\"",
+                "+ \"hardware_key\": true"
+              ],
+              "why": "An SMS code can be intercepted or socially engineered. Root, which cannot be restricted, deserves the strongest factor.",
+              "good": true
+            },
+            {
+              "id": "role",
+              "label": "Do daily administration through named roles and single sign on, and lock root away for emergencies only",
+              "code": [
+                "+ daily admin: role/cloud-admin via SSO",
+                "+ root: used only to recover account access, logged and alerted"
+              ],
+              "why": "Root stops being an everyday account, so a phished password or a leaked key cannot reach it through routine work.",
+              "good": true
+            },
+            {
+              "id": "mail",
+              "label": "Move root's recovery email off the shared mailbox",
+              "code": [
+                "- \"email\": \"cloud-admin@veltrix-logistics.com (shared mailbox)\"",
+                "+ \"email\": \"root-recovery@veltrix-logistics.com (restricted, 2 owners)\""
+              ],
+              "why": "A shared mailbox that many people can read is not a safe place to control the account that controls everything.",
+              "good": true
+            },
+            {
+              "id": "sms2",
+              "label": "Keep SMS as the second factor, but require it every time",
+              "code": [
+                "+ \"mfa\": \"SMS code, every sign in\""
+              ],
+              "why": "Still phishable and interceptable. The factor is the weak point, not how often it is asked for.",
+              "good": false,
+              "bad": "weak"
+            }
+          ]
+        },
+        "found": false,
+        "decided": false,
+        "fixed": false,
+        "picks": [],
+        "last": null
+      }
+    },
+    {
+      "do": "desktop.open",
+      "app": "bench"
+    },
+    {
+      "do": "room.banner",
+      "title": "Workbench",
+      "body": "Review how root is used",
+      "icon": "code",
+      "object": "computer",
+      "action": "Open"
+    }
+  ],
+  "bonuses": [
+    {
+      "id": "b-read",
+      "when": {
+        "event": "bench:fileViewed",
+        "match": {
+          "vulnerable": true
+        }
+      },
+      "outcome": {
+        "points": 6,
+        "verdict": "careful",
+        "label": "Read the vulnerable code first",
+        "what": "Reading the code before attacking it tells you where to look, and why it fails.",
+        "ideal": "reads the code under review before trying to break it."
+      }
+    },
+    {
+      "id": "b-normal",
+      "when": {
+        "event": "bench:attempt",
+        "match": {
+          "exploited": false
+        }
+      },
+      "outcome": {
+        "points": 4,
+        "verdict": "careful",
+        "label": "Tried normal use first",
+        "what": "Knowing what a good request looks like is how you spot a bad one.",
+        "ideal": "establishes normal behaviour before testing the abnormal."
+      }
+    },
+    {
+      "id": "b-regress",
+      "when": {
+        "event": "bench:retest",
+        "match": {
+          "exploit": false,
+          "fixed": true
+        }
+      },
+      "outcome": {
+        "points": 4,
+        "verdict": "careful",
+        "label": "Checked normal use still works",
+        "what": "A fix that breaks real users gets reverted, and the bug comes back.",
+        "ideal": "tests that the fix did not break normal use."
+      }
+    }
+  ],
+  "guards": [],
+  "start": "exploit",
+  "stages": {
+    "exploit": {
+      "objective": "Reproduce the bug: read the Code tab, then use the Exploit tab on staging.",
+      "target": "computer",
+      "decision": true,
+      "insight": "The root account can do everything and cannot be restricted. It should barely ever be used.",
+      "points": [
+        {
+          "device": "desktop",
+          "app": "bench",
+          "sel": [
+            ".bn-attempt[data-attempt=\"phish\"]",
+            ".app-bench .ox-tab:nth-child(2)"
+          ],
+          "label": [
+            "Send this request: it breaks it",
+            "Open the Exploit tab"
+          ]
+        }
+      ],
+      "hint": {
+        "text": "Open the Workbench. Read the code, try normal use on the Exploit tab, then send the request that breaks it."
+      },
+      "on": [
+        {
+          "when": {
+            "event": "bench:attempt",
+            "match": {
+              "exploited": true
+            }
+          },
+          "outcome": {
+            "points": 15,
+            "verdict": "careful",
+            "label": "Reproduced the bug",
+            "what": "Root was used for ordinary work, its password could be reset from a mailbox several people read, and a live root key sat in a CI variable. Any one of those routes hands over an account that cannot be restricted.",
+            "ideal": "proves a bug is real before fixing it.",
+            "card": {
+              "title": "Every door led back to root",
+              "kicker": "Unprotected root account",
+              "body": [
+                "Root was used for ordinary work, its password could be reset from a mailbox several people read, and a live root key sat in a CI variable. Any one of those routes hands over an account that cannot be restricted.",
+                "Root is the one identity in the account with no ceiling."
+              ],
+              "ideal": "reproduces a bug first, so the fix can be proved to work."
+            }
+          },
+          "go": "fix"
+        }
+      ]
+    },
+    "fix": {
+      "objective": "Fix it: pick the changes on the Fix tab that close the hole for good, then apply the patch.",
+      "target": "computer",
+      "decision": true,
+      "points": [
+        {
+          "device": "desktop",
+          "app": "bench",
+          "sel": [
+            ".bn-apply:not([disabled])",
+            ".bn-fix .cs-options",
+            ".app-bench .ox-tab:nth-child(3)"
+          ],
+          "label": [
+            "Picked everything that fixes it? Apply the patch",
+            "Pick every change that fixes the cause",
+            "Open the Fix tab"
+          ]
+        }
+      ],
+      "hint": {
+        "text": "Pick every change that removes the cause. Avoid changes an attacker can walk around, and ones that do not touch the problem. Then Apply the patch."
+      },
+      "on": [
+        {
+          "when": {
+            "event": "bench:fixApplied",
+            "match": {
+              "ok": true
+            }
+          },
+          "outcome": {
+            "points": 35,
+            "verdict": "safe",
+            "label": "Applied a real fix",
+            "what": "With no access key, a hardware only second factor, and daily work done through roles, root stops being reachable by a phished password or a leaked pipeline variable. Moving its recovery email off a shared mailbox closes the last route.",
+            "ideal": "fixes the cause, not the symptom.",
+            "card": {
+              "title": "Locked away, reached only by hardware",
+              "kicker": "Unprotected root account",
+              "body": [
+                "With no access key, a hardware only second factor, and daily work done through roles, root stops being reachable by a phished password or a leaked pipeline variable. Moving its recovery email off a shared mailbox closes the last route.",
+                "Use root as little as the design of the account lets you."
+              ],
+              "ideal": "fixes the cause with the standard control, and adds defence in depth."
+            }
+          },
+          "go": "verify"
+        },
+        {
+          "when": {
+            "event": "bench:fixApplied",
+            "match": {
+              "bad": {
+                "includes": "weak"
+              }
+            }
+          },
+          "outcome": {
+            "points": -25,
+            "verdict": "unsafe",
+            "label": "Applied a fix that can be bypassed",
+            "what": "Asking for an SMS code every time does not change that SMS can be intercepted or talked out of someone. The account with no ceiling deserves a factor that cannot be phished.",
+            "ideal": "fixes the cause instead of blocking one payload or hiding the symptom.",
+            "card": {
+              "title": "Same weak factor, more often",
+              "kicker": "Unprotected root account",
+              "body": [
+                "Asking for an SMS code every time does not change that SMS can be intercepted or talked out of someone. The account with no ceiling deserves a factor that cannot be phished.",
+                "Hardware keys, not more prompts."
+              ],
+              "ideal": "fixes the cause, and knows why a blocklist or a hidden field is not a fix.",
+              "rewindLabel": "Rewind to the Fix tab"
+            }
+          },
+          "go": "verify"
+        },
+        {
+          "when": {
+            "event": "bench:fixApplied"
+          },
+          "outcome": {
+            "points": -5,
+            "verdict": "risky",
+            "label": "Applied a patch that was not enough",
+            "what": "The patch missed part of the fix, or added a change that does not address the problem.",
+            "ideal": "closes the hole completely.",
+            "card": {
+              "title": "Not enough",
+              "kicker": "Unprotected root account",
+              "body": [
+                "The patch missed something that has to change, or included a change that does nothing for this bug. Open the Fix tab to see which options were right, missed, or wrong, and why.",
+                "A partial fix is the most dangerous kind: everyone assumes it is closed."
+              ],
+              "ideal": "closes the hole completely.",
+              "rewindLabel": "Rewind to the Fix tab"
+            }
+          },
+          "go": "verify"
+        }
+      ]
+    },
+    "verify": {
+      "objective": "Prove it: re-run the exploit on the Exploit tab, then check normal use still works.",
+      "target": "computer",
+      "decision": true,
+      "points": [
+        {
+          "device": "desktop",
+          "app": "bench",
+          "sel": [
+            ".bn-attempt[data-attempt=\"phish\"]",
+            ".app-bench .ox-tab:nth-child(2)"
+          ],
+          "label": [
+            "Send the exploit again: it should be blocked",
+            "Open the Exploit tab"
+          ]
+        }
+      ],
+      "hint": {
+        "text": "On the Exploit tab, send the exploit again. It should be blocked. Then send the normal request to check nothing broke."
+      },
+      "on": [
+        {
+          "when": {
+            "event": "bench:retest",
+            "match": {
+              "blocked": true
+            }
+          },
+          "outcome": {
+            "points": 15,
+            "verdict": "safe",
+            "label": "Proved the exploit is blocked",
+            "what": "The same request that worked before now fails, and normal use still works.",
+            "ideal": "verifies a fix by re-running the exploit.",
+            "card": {
+              "title": "Fixed, and proved",
+              "kicker": "Unprotected root account",
+              "body": [
+                "You re-ran the exact request that broke it, and it is blocked. A fix you have not tested against the exploit is a hope, not a fix.",
+                "Add the exploit as an automated test so nobody can quietly bring the bug back."
+              ],
+              "ideal": "turns the exploit into a regression test."
+            }
+          },
+          "go": "done"
+        },
+        {
+          "when": {
+            "event": "bench:retest",
+            "match": {
+              "exploit": true,
+              "blocked": false
+            }
+          },
+          "outcome": {
+            "points": 0,
+            "verdict": "risky",
+            "label": "The exploit still works",
+            "what": "The patch did not close the hole. The same kind of request still gets through.",
+            "ideal": "never ships a fix without re-running the exploit.",
+            "rewind": false,
+            "card": {
+              "title": "Still open",
+              "kicker": "Unprotected root account",
+              "body": [
+                "The exploit still works after your patch. This is what happens when a fix blocks one payload, or hides a symptom, instead of removing the cause.",
+                "Go back over the Fix tab: it shows which options were right, and why the others fail."
+              ],
+              "ideal": "verifies with the exploit before calling it fixed.",
+              "rewind": false
+            }
+          },
+          "go": "done"
+        }
+      ]
+    },
+    "done": {
+      "end": true
+    }
+  }
+}

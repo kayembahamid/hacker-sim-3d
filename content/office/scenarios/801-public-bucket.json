@@ -1,0 +1,452 @@
+{
+  "id": "public-bucket",
+  "order": 801,
+  "title": "The public bucket",
+  "kind": "Public storage bucket",
+  "track": "cloud-security",
+  "pool": false,
+  "level": "Foundational",
+  "minutes": 6,
+  "maxPoints": 79,
+  "startsAt": 1047,
+  "brief": "18:15. A storage bucket was made public \"just to test\" a year ago. A researcher says its contents are listed for anyone to read.",
+  "role": "Platform engineer, reviewing a change on the Veltrix engineering team",
+  "insight": "The test finished a year ago. The setting was never changed back.",
+  "teaches": [
+    "Public access should be off by default and blocked at the account level",
+    "Share with short lived links or roles, not with the whole internet",
+    "Turn on access logs so you can tell who read what"
+  ],
+  "setup": [
+    {
+      "do": "world.set",
+      "path": "office.bench",
+      "value": {
+        "id": "public-bucket",
+        "title": "Storage console: veltrix-exports",
+        "sub": "cloud account · eu-west",
+        "files": [
+          {
+            "path": "storage/veltrix-exports/policy.json",
+            "lang": "Policy",
+            "lines": [
+              "{",
+              "  \"bucket\": \"veltrix-exports\",",
+              "  \"effect\": \"allow\",",
+              "  \"principal\": \"*\",",
+              "  \"actions\": [\"list\", \"read\"]",
+              "}"
+            ],
+            "flaw": [
+              4,
+              5
+            ],
+            "vulnerable": true
+          },
+          {
+            "path": "storage/veltrix-exports/settings.json",
+            "lang": "Settings",
+            "lines": [
+              "{ \"block_public_access\": false,",
+              "  \"access_logging\": false,",
+              "  \"created\": \"2025-09-02\", \"note\": \"just to test\" }"
+            ],
+            "flaw": [
+              1,
+              2
+            ],
+            "vulnerable": true
+          }
+        ],
+        "intro": "You are on the internet, not signed in to anything. See what you can do to that bucket.",
+        "attempts": [
+          {
+            "id": "staff",
+            "label": "List it as a signed in member of staff",
+            "request": "list veltrix-exports   (as s.rivera, via role)",
+            "response": "customers-2025.csv  18.4 MB\nremittance-oct.pdf  0.4 MB\nvendor-master.xlsx  0.1 MB",
+            "fixedResponse": "customers-2025.csv  18.4 MB\nremittance-oct.pdf  0.4 MB\nvendor-master.xlsx  0.1 MB",
+            "exploits": false
+          },
+          {
+            "id": "anon",
+            "label": "List it with no sign in at all",
+            "request": "GET https://veltrix-exports.storage.veltrix-logistics.com/",
+            "response": "HTTP 200\n<ListBucketResult>\n  customers-2025.csv\n  remittance-oct.pdf\n  vendor-master.xlsx\n\nAnyone on the internet can list it.",
+            "fixedResponse": "HTTP 403\nAccessDenied",
+            "exploits": true
+          },
+          {
+            "id": "get",
+            "label": "Download the customer file, with no sign in",
+            "request": "GET .../customers-2025.csv",
+            "response": "HTTP 200\n18.4 MB downloaded: 41,000 customers, names and addresses.",
+            "fixedResponse": "HTTP 403\nAccessDenied",
+            "exploits": true
+          }
+        ],
+        "fix": {
+          "prompt": "Pick every change that makes public access impossible by default, and gives real users a safe way in.",
+          "options": [
+            {
+              "id": "block",
+              "label": "Turn on \"block public access\" for the whole account",
+              "code": [
+                "+ account.block_public_access = true    # overrides any bucket policy"
+              ],
+              "why": "One switch that makes public exposure a two step mistake instead of a one line one, across every bucket.",
+              "good": true
+            },
+            {
+              "id": "policy",
+              "label": "Remove the public policy and grant access to named roles, with short lived links for sharing",
+              "code": [
+                "- \"principal\": \"*\"",
+                "+ \"principal\": \"role/finance-exports\"",
+                "+ share via presigned link, expires in 1 hour"
+              ],
+              "why": "The right people get in, and nobody else does. A shared link stops working by itself.",
+              "good": true
+            },
+            {
+              "id": "log",
+              "label": "Turn on access logging and review who has already read it",
+              "code": [
+                "+ access_logging = true",
+                "+ review: requests from outside 10.20.0.0/16 since 2025-09"
+              ],
+              "why": "You will know whether the last year's exposure was used, which decides what you have to report.",
+              "good": true
+            },
+            {
+              "id": "rename",
+              "label": "Rename the bucket to something hard to guess",
+              "code": [
+                "- veltrix-exports",
+                "+ vx-9f3a2c-exports"
+              ],
+              "why": "The name appears in links, logs and search results. Public is public, however obscure the name.",
+              "good": false,
+              "bad": "weak"
+            },
+            {
+              "id": "nolist",
+              "label": "Turn off listing but leave the files readable",
+              "code": [
+                "- \"actions\": [\"list\", \"read\"]",
+                "+ \"actions\": [\"read\"]"
+              ],
+              "why": "Anyone with a file name can still download it, and names are easy to find or guess.",
+              "good": false,
+              "bad": "weak"
+            }
+          ]
+        },
+        "found": false,
+        "decided": false,
+        "fixed": false,
+        "picks": [],
+        "last": null
+      }
+    },
+    {
+      "do": "desktop.open",
+      "app": "bench"
+    },
+    {
+      "do": "room.banner",
+      "title": "Workbench",
+      "body": "Review the storage bucket settings",
+      "icon": "code",
+      "object": "computer",
+      "action": "Open"
+    }
+  ],
+  "bonuses": [
+    {
+      "id": "b-read",
+      "when": {
+        "event": "bench:fileViewed",
+        "match": {
+          "vulnerable": true
+        }
+      },
+      "outcome": {
+        "points": 6,
+        "verdict": "careful",
+        "label": "Read the vulnerable code first",
+        "what": "Reading the code before attacking it tells you where to look, and why it fails.",
+        "ideal": "reads the code under review before trying to break it."
+      }
+    },
+    {
+      "id": "b-normal",
+      "when": {
+        "event": "bench:attempt",
+        "match": {
+          "exploited": false
+        }
+      },
+      "outcome": {
+        "points": 4,
+        "verdict": "careful",
+        "label": "Tried normal use first",
+        "what": "Knowing what a good request looks like is how you spot a bad one.",
+        "ideal": "establishes normal behaviour before testing the abnormal."
+      }
+    },
+    {
+      "id": "b-regress",
+      "when": {
+        "event": "bench:retest",
+        "match": {
+          "exploit": false,
+          "fixed": true
+        }
+      },
+      "outcome": {
+        "points": 4,
+        "verdict": "careful",
+        "label": "Checked normal use still works",
+        "what": "A fix that breaks real users gets reverted, and the bug comes back.",
+        "ideal": "tests that the fix did not break normal use."
+      }
+    }
+  ],
+  "guards": [],
+  "start": "exploit",
+  "stages": {
+    "exploit": {
+      "objective": "Reproduce the bug: read the Code tab, then use the Exploit tab on staging.",
+      "target": "computer",
+      "decision": true,
+      "insight": "The test finished a year ago. The setting was never changed back.",
+      "points": [
+        {
+          "device": "desktop",
+          "app": "bench",
+          "sel": [
+            ".bn-attempt[data-attempt=\"anon\"]",
+            ".app-bench .ox-tab:nth-child(2)"
+          ],
+          "label": [
+            "Send this request: it breaks it",
+            "Open the Exploit tab"
+          ]
+        }
+      ],
+      "hint": {
+        "text": "Open the Workbench. Read the code, try normal use on the Exploit tab, then send the request that breaks it."
+      },
+      "on": [
+        {
+          "when": {
+            "event": "bench:attempt",
+            "match": {
+              "exploited": true
+            }
+          },
+          "outcome": {
+            "points": 15,
+            "verdict": "careful",
+            "label": "Reproduced the bug",
+            "what": "Anyone could list the bucket and download the customer file with no sign in at all. It had been that way for a year, and nothing was logging who looked.",
+            "ideal": "proves a bug is real before fixing it.",
+            "card": {
+              "title": "A year in public",
+              "kicker": "Public storage bucket",
+              "body": [
+                "Anyone could list the bucket and download the customer file with no sign in at all. It had been that way for a year, and nothing was logging who looked.",
+                "Most cloud incidents are not exploits. They are settings."
+              ],
+              "ideal": "reproduces a bug first, so the fix can be proved to work."
+            }
+          },
+          "go": "fix"
+        }
+      ]
+    },
+    "fix": {
+      "objective": "Fix it: pick the changes on the Fix tab that close the hole for good, then apply the patch.",
+      "target": "computer",
+      "decision": true,
+      "points": [
+        {
+          "device": "desktop",
+          "app": "bench",
+          "sel": [
+            ".bn-apply:not([disabled])",
+            ".bn-fix .cs-options",
+            ".app-bench .ox-tab:nth-child(3)"
+          ],
+          "label": [
+            "Picked everything that fixes it? Apply the patch",
+            "Pick every change that fixes the cause",
+            "Open the Fix tab"
+          ]
+        }
+      ],
+      "hint": {
+        "text": "Pick every change that removes the cause. Avoid changes an attacker can walk around, and ones that do not touch the problem. Then Apply the patch."
+      },
+      "on": [
+        {
+          "when": {
+            "event": "bench:fixApplied",
+            "match": {
+              "ok": true
+            }
+          },
+          "outcome": {
+            "points": 35,
+            "verdict": "safe",
+            "label": "Applied a real fix",
+            "what": "Blocking public access at the account level means the next mistake fails safe. Named roles and short lived links give real users a way in, and logging tells you what happened in the year it was open.",
+            "ideal": "fixes the cause, not the symptom.",
+            "card": {
+              "title": "Closed everywhere, shared safely",
+              "kicker": "Public storage bucket",
+              "body": [
+                "Blocking public access at the account level means the next mistake fails safe. Named roles and short lived links give real users a way in, and logging tells you what happened in the year it was open.",
+                "Now go and find out whether it was read."
+              ],
+              "ideal": "fixes the cause with the standard control, and adds defence in depth."
+            }
+          },
+          "go": "verify"
+        },
+        {
+          "when": {
+            "event": "bench:fixApplied",
+            "match": {
+              "bad": {
+                "includes": "weak"
+              }
+            }
+          },
+          "outcome": {
+            "points": -25,
+            "verdict": "unsafe",
+            "label": "Applied a fix that can be bypassed",
+            "what": "A hard to guess name or a bucket with listing off still hands the files to anyone who has, or finds, the address. Names leak in links, logs and search.",
+            "ideal": "fixes the cause instead of blocking one payload or hiding the symptom.",
+            "card": {
+              "title": "Obscure is not private",
+              "kicker": "Public storage bucket",
+              "body": [
+                "A hard to guess name or a bucket with listing off still hands the files to anyone who has, or finds, the address. Names leak in links, logs and search.",
+                "Block public access, and grant access by identity."
+              ],
+              "ideal": "fixes the cause, and knows why a blocklist or a hidden field is not a fix.",
+              "rewindLabel": "Rewind to the Fix tab"
+            }
+          },
+          "go": "verify"
+        },
+        {
+          "when": {
+            "event": "bench:fixApplied"
+          },
+          "outcome": {
+            "points": -5,
+            "verdict": "risky",
+            "label": "Applied a patch that was not enough",
+            "what": "The patch missed part of the fix, or added a change that does not address the problem.",
+            "ideal": "closes the hole completely.",
+            "card": {
+              "title": "Not enough",
+              "kicker": "Public storage bucket",
+              "body": [
+                "The patch missed something that has to change, or included a change that does nothing for this bug. Open the Fix tab to see which options were right, missed, or wrong, and why.",
+                "A partial fix is the most dangerous kind: everyone assumes it is closed."
+              ],
+              "ideal": "closes the hole completely.",
+              "rewindLabel": "Rewind to the Fix tab"
+            }
+          },
+          "go": "verify"
+        }
+      ]
+    },
+    "verify": {
+      "objective": "Prove it: re-run the exploit on the Exploit tab, then check normal use still works.",
+      "target": "computer",
+      "decision": true,
+      "points": [
+        {
+          "device": "desktop",
+          "app": "bench",
+          "sel": [
+            ".bn-attempt[data-attempt=\"anon\"]",
+            ".app-bench .ox-tab:nth-child(2)"
+          ],
+          "label": [
+            "Send the exploit again: it should be blocked",
+            "Open the Exploit tab"
+          ]
+        }
+      ],
+      "hint": {
+        "text": "On the Exploit tab, send the exploit again. It should be blocked. Then send the normal request to check nothing broke."
+      },
+      "on": [
+        {
+          "when": {
+            "event": "bench:retest",
+            "match": {
+              "blocked": true
+            }
+          },
+          "outcome": {
+            "points": 15,
+            "verdict": "safe",
+            "label": "Proved the exploit is blocked",
+            "what": "The same request that worked before now fails, and normal use still works.",
+            "ideal": "verifies a fix by re-running the exploit.",
+            "card": {
+              "title": "Fixed, and proved",
+              "kicker": "Public storage bucket",
+              "body": [
+                "You re-ran the exact request that broke it, and it is blocked. A fix you have not tested against the exploit is a hope, not a fix.",
+                "Add the exploit as an automated test so nobody can quietly bring the bug back."
+              ],
+              "ideal": "turns the exploit into a regression test."
+            }
+          },
+          "go": "done"
+        },
+        {
+          "when": {
+            "event": "bench:retest",
+            "match": {
+              "exploit": true,
+              "blocked": false
+            }
+          },
+          "outcome": {
+            "points": 0,
+            "verdict": "risky",
+            "label": "The exploit still works",
+            "what": "The patch did not close the hole. The same kind of request still gets through.",
+            "ideal": "never ships a fix without re-running the exploit.",
+            "rewind": false,
+            "card": {
+              "title": "Still open",
+              "kicker": "Public storage bucket",
+              "body": [
+                "The exploit still works after your patch. This is what happens when a fix blocks one payload, or hides a symptom, instead of removing the cause.",
+                "Go back over the Fix tab: it shows which options were right, and why the others fail."
+              ],
+              "ideal": "verifies with the exploit before calling it fixed.",
+              "rewind": false
+            }
+          },
+          "go": "done"
+        }
+      ]
+    },
+    "done": {
+      "end": true
+    }
+  }
+}

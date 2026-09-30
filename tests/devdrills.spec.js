@@ -5,7 +5,7 @@ import { startScenario, stage, score, clearCards, wait, fly, desktopApp } from '
 // catalogue opens it. The careful path: read the code, try normal use, break
 // it, pick every right fix, then prove it. The bypassable path: apply a fix
 // that can be walked round, see the consequence and rewind.
-const SLUGS = ["sql-injection", "stored-xss", "ssrf", "broken-access-control", "hardcoded-secrets", "insecure-deserialization", "vulnerable-dependency", "password-storage", "bola", "mass-assignment", "no-rate-limit", "over-privileged-key", "excessive-data-exposure", "improper-inventory", "secret-in-history", "malicious-pr", "branch-protection", "dependency-confusion", "ci-log-leak"];
+const SLUGS = ["sql-injection", "stored-xss", "ssrf", "broken-access-control", "hardcoded-secrets", "insecure-deserialization", "vulnerable-dependency", "password-storage", "bola", "mass-assignment", "no-rate-limit", "over-privileged-key", "excessive-data-exposure", "improper-inventory", "secret-in-history", "malicious-pr", "branch-protection", "dependency-confusion", "ci-log-leak", "public-bucket", "over-permissive-iam", "exposed-dashboard", "root-account", "cloud-logging", "public-snapshot"];
 
 async function emit(page, t, p = {}, clear = true) {
   await page.evaluate(([type, payload]) => sim.bus.emit(type, payload), [t, p]);

@@ -1,0 +1,456 @@
+{
+  "id": "cloud-logging",
+  "order": 805,
+  "title": "Logging you can actually use",
+  "kind": "Missing cloud audit logging",
+  "track": "cloud-security",
+  "pool": false,
+  "level": "Core",
+  "minutes": 7,
+  "maxPoints": 79,
+  "startsAt": 1059,
+  "brief": "18:35. Finance report a payment that nobody remembers releasing. You go to find out who did it, and the trail is not there.",
+  "role": "Platform engineer, reviewing a change on the Veltrix engineering team",
+  "insight": "Something happened. Nobody can say who, because nothing was watching.",
+  "teaches": [
+    "Turn on the account activity trail everywhere, not just in the region you use most",
+    "Alert on the actions that matter (root sign in, policy changes, deleted logs), not just collect them",
+    "Keep logs long enough, and stop them being switched off quietly"
+  ],
+  "setup": [
+    {
+      "do": "world.set",
+      "path": "office.bench",
+      "value": {
+        "id": "cloud-logging",
+        "title": "Logging review: the missing trail",
+        "sub": "cloud account · audit",
+        "files": [
+          {
+            "path": "logging/trail-eu-west.json",
+            "lang": "Settings",
+            "lines": [
+              "{ \"enabled\": true, \"regions\": [\"eu-west\"], \"retention_days\": 14,",
+              "  \"alerts\": [] }"
+            ],
+            "flaw": [
+              1,
+              2
+            ],
+            "vulnerable": true
+          },
+          {
+            "path": "logging/trail-us-east.json",
+            "lang": "Settings",
+            "lines": [
+              "{ \"enabled\": false, \"regions\": [\"us-east\"], \"retention_days\": 0 }"
+            ],
+            "flaw": [
+              1
+            ],
+            "vulnerable": true
+          },
+          {
+            "path": "incident-notes.txt",
+            "lang": "Notes",
+            "lines": [
+              "Payment P-9931 released for 42,000 tonight.",
+              "Nobody in Finance says they released it.",
+              "The release API is in us-east."
+            ],
+            "flaw": [
+              3
+            ],
+            "vulnerable": true
+          }
+        ],
+        "intro": "Try to find who released the payment, the way the on call engineer just did.",
+        "attempts": [
+          {
+            "id": "eu",
+            "label": "Search the eu-west trail for the release",
+            "request": "search trail: action=payment.release id=P-9931",
+            "response": "No matching region. The payment release happened in us-east.",
+            "fixedResponse": "No matching region. The payment release happened in us-east.",
+            "exploits": false
+          },
+          {
+            "id": "us",
+            "label": "Search the us-east trail for the release",
+            "request": "search trail: region=us-east action=payment.release id=P-9931",
+            "response": "No trail configured for this region.\n\nThere is nothing to search. Whoever released it left no record at all.",
+            "fixedResponse": "payment.release  P-9931  42,000  by role/batch-ops  17:58:03  source 203.0.113.77",
+            "exploits": true
+          },
+          {
+            "id": "gap",
+            "label": "Check whether logging was ever switched off on purpose",
+            "request": "search trail: action=logging.disable region=us-east",
+            "response": "No trail to search, so no answer either way. A disabled trail hides its own disabling.",
+            "fixedResponse": "logging.disable  region=us-east  attempted by role/batch-ops  DENIED (protected)",
+            "exploits": true
+          }
+        ],
+        "fix": {
+          "prompt": "Pick every change that gives you a trail everywhere, tells someone when it matters, and stops it being turned off quietly.",
+          "options": [
+            {
+              "id": "all",
+              "label": "Turn the trail on for every region, not only the one you use most",
+              "code": [
+                "- \"regions\": [\"eu-west\"]",
+                "+ \"regions\": [\"all\"]",
+                "- \"enabled\": false   (us-east)",
+                "+ \"enabled\": true"
+              ],
+              "why": "An account has no borders. A trail that only watches one region misses everything done in the others.",
+              "good": true
+            },
+            {
+              "id": "alert",
+              "label": "Alert on the actions that matter: root sign in, policy changes, payment releases, the trail itself being changed",
+              "code": [
+                "+ \"alerts\": [\"root.signin\", \"iam.policy.change\", \"payment.release\", \"logging.disable\", \"logging.delete\"]"
+              ],
+              "why": "Nobody reads a log until something goes wrong. An alert means someone finds out the same day, not during an audit.",
+              "good": true
+            },
+            {
+              "id": "protect",
+              "label": "Make the logging configuration itself protected, so it cannot be disabled by an ordinary role",
+              "code": [
+                "+ logging config: requires break-glass approval to change"
+              ],
+              "why": "If a compromised role can just switch logging off, the log is only as strong as its weakest permission.",
+              "good": true
+            },
+            {
+              "id": "retain",
+              "label": "Keep logs for a year, not 14 days",
+              "code": [
+                "- \"retention_days\": 14",
+                "+ \"retention_days\": 400"
+              ],
+              "why": "Some incidents are not noticed for months. A log that has already expired cannot answer anything.",
+              "good": true
+            },
+            {
+              "id": "more",
+              "label": "Log more fields in the application instead of fixing the trail",
+              "code": [
+                "+ app.log(\"payment released\", extra_fields)"
+              ],
+              "why": "Application logs can be edited or lost with the application. The cloud trail is the independent record, and it was the one missing.",
+              "good": false,
+              "bad": "weak"
+            }
+          ]
+        },
+        "found": false,
+        "decided": false,
+        "fixed": false,
+        "picks": [],
+        "last": null
+      }
+    },
+    {
+      "do": "desktop.open",
+      "app": "bench"
+    },
+    {
+      "do": "room.banner",
+      "title": "Workbench",
+      "body": "Find out why nobody can see what happened",
+      "icon": "code",
+      "object": "computer",
+      "action": "Open"
+    }
+  ],
+  "bonuses": [
+    {
+      "id": "b-read",
+      "when": {
+        "event": "bench:fileViewed",
+        "match": {
+          "vulnerable": true
+        }
+      },
+      "outcome": {
+        "points": 6,
+        "verdict": "careful",
+        "label": "Read the vulnerable code first",
+        "what": "Reading the code before attacking it tells you where to look, and why it fails.",
+        "ideal": "reads the code under review before trying to break it."
+      }
+    },
+    {
+      "id": "b-normal",
+      "when": {
+        "event": "bench:attempt",
+        "match": {
+          "exploited": false
+        }
+      },
+      "outcome": {
+        "points": 4,
+        "verdict": "careful",
+        "label": "Tried normal use first",
+        "what": "Knowing what a good request looks like is how you spot a bad one.",
+        "ideal": "establishes normal behaviour before testing the abnormal."
+      }
+    },
+    {
+      "id": "b-regress",
+      "when": {
+        "event": "bench:retest",
+        "match": {
+          "exploit": false,
+          "fixed": true
+        }
+      },
+      "outcome": {
+        "points": 4,
+        "verdict": "careful",
+        "label": "Checked normal use still works",
+        "what": "A fix that breaks real users gets reverted, and the bug comes back.",
+        "ideal": "tests that the fix did not break normal use."
+      }
+    }
+  ],
+  "guards": [],
+  "start": "exploit",
+  "stages": {
+    "exploit": {
+      "objective": "Reproduce the bug: read the Code tab, then use the Exploit tab on staging.",
+      "target": "computer",
+      "decision": true,
+      "insight": "Something happened. Nobody can say who, because nothing was watching.",
+      "points": [
+        {
+          "device": "desktop",
+          "app": "bench",
+          "sel": [
+            ".bn-attempt[data-attempt=\"us\"]",
+            ".app-bench .ox-tab:nth-child(2)"
+          ],
+          "label": [
+            "Send this request: it breaks it",
+            "Open the Exploit tab"
+          ]
+        }
+      ],
+      "hint": {
+        "text": "Open the Workbench. Read the code, try normal use on the Exploit tab, then send the request that breaks it."
+      },
+      "on": [
+        {
+          "when": {
+            "event": "bench:attempt",
+            "match": {
+              "exploited": true
+            }
+          },
+          "outcome": {
+            "points": 15,
+            "verdict": "careful",
+            "label": "Reproduced the bug",
+            "what": "The region that mattered had no trail at all, so the question \"who released this\" had no answer. A trail that only covers your main region is a trail with a blind spot exactly where you need it.",
+            "ideal": "proves a bug is real before fixing it.",
+            "card": {
+              "title": "A 42,000 payment, no fingerprints",
+              "kicker": "Missing cloud audit logging",
+              "body": [
+                "The region that mattered had no trail at all, so the question \"who released this\" had no answer. A trail that only covers your main region is a trail with a blind spot exactly where you need it.",
+                "Logging that exists only where it is convenient is not logging you can rely on."
+              ],
+              "ideal": "reproduces a bug first, so the fix can be proved to work."
+            }
+          },
+          "go": "fix"
+        }
+      ]
+    },
+    "fix": {
+      "objective": "Fix it: pick the changes on the Fix tab that close the hole for good, then apply the patch.",
+      "target": "computer",
+      "decision": true,
+      "points": [
+        {
+          "device": "desktop",
+          "app": "bench",
+          "sel": [
+            ".bn-apply:not([disabled])",
+            ".bn-fix .cs-options",
+            ".app-bench .ox-tab:nth-child(3)"
+          ],
+          "label": [
+            "Picked everything that fixes it? Apply the patch",
+            "Pick every change that fixes the cause",
+            "Open the Fix tab"
+          ]
+        }
+      ],
+      "hint": {
+        "text": "Pick every change that removes the cause. Avoid changes an attacker can walk around, and ones that do not touch the problem. Then Apply the patch."
+      },
+      "on": [
+        {
+          "when": {
+            "event": "bench:fixApplied",
+            "match": {
+              "ok": true
+            }
+          },
+          "outcome": {
+            "points": 35,
+            "verdict": "safe",
+            "label": "Applied a real fix",
+            "what": "Every region has a trail, the actions that matter raise an alert the same day, the logging setup itself cannot be quietly switched off, and a year of history means a slow to surface incident still has an answer.",
+            "ideal": "fixes the cause, not the symptom.",
+            "card": {
+              "title": "Watched everywhere, protected, and kept",
+              "kicker": "Missing cloud audit logging",
+              "body": [
+                "Every region has a trail, the actions that matter raise an alert the same day, the logging setup itself cannot be quietly switched off, and a year of history means a slow to surface incident still has an answer.",
+                "Set up logging as something an attacker cannot turn off and you cannot forget to check."
+              ],
+              "ideal": "fixes the cause with the standard control, and adds defence in depth."
+            }
+          },
+          "go": "verify"
+        },
+        {
+          "when": {
+            "event": "bench:fixApplied",
+            "match": {
+              "bad": {
+                "includes": "weak"
+              }
+            }
+          },
+          "outcome": {
+            "points": -25,
+            "verdict": "unsafe",
+            "label": "Applied a fix that can be bypassed",
+            "what": "Logging inside the application does not replace an independent trail at the account level, and it is just as easy to lose if the service is compromised. The missing region is still missing.",
+            "ideal": "fixes the cause instead of blocking one payload or hiding the symptom.",
+            "card": {
+              "title": "More detail, same blind spot",
+              "kicker": "Missing cloud audit logging",
+              "body": [
+                "Logging inside the application does not replace an independent trail at the account level, and it is just as easy to lose if the service is compromised. The missing region is still missing.",
+                "Fix the trail itself, not what feeds into it."
+              ],
+              "ideal": "fixes the cause, and knows why a blocklist or a hidden field is not a fix.",
+              "rewindLabel": "Rewind to the Fix tab"
+            }
+          },
+          "go": "verify"
+        },
+        {
+          "when": {
+            "event": "bench:fixApplied"
+          },
+          "outcome": {
+            "points": -5,
+            "verdict": "risky",
+            "label": "Applied a patch that was not enough",
+            "what": "The patch missed part of the fix, or added a change that does not address the problem.",
+            "ideal": "closes the hole completely.",
+            "card": {
+              "title": "Not enough",
+              "kicker": "Missing cloud audit logging",
+              "body": [
+                "The patch missed something that has to change, or included a change that does nothing for this bug. Open the Fix tab to see which options were right, missed, or wrong, and why.",
+                "A partial fix is the most dangerous kind: everyone assumes it is closed."
+              ],
+              "ideal": "closes the hole completely.",
+              "rewindLabel": "Rewind to the Fix tab"
+            }
+          },
+          "go": "verify"
+        }
+      ]
+    },
+    "verify": {
+      "objective": "Prove it: re-run the exploit on the Exploit tab, then check normal use still works.",
+      "target": "computer",
+      "decision": true,
+      "points": [
+        {
+          "device": "desktop",
+          "app": "bench",
+          "sel": [
+            ".bn-attempt[data-attempt=\"us\"]",
+            ".app-bench .ox-tab:nth-child(2)"
+          ],
+          "label": [
+            "Send the exploit again: it should be blocked",
+            "Open the Exploit tab"
+          ]
+        }
+      ],
+      "hint": {
+        "text": "On the Exploit tab, send the exploit again. It should be blocked. Then send the normal request to check nothing broke."
+      },
+      "on": [
+        {
+          "when": {
+            "event": "bench:retest",
+            "match": {
+              "blocked": true
+            }
+          },
+          "outcome": {
+            "points": 15,
+            "verdict": "safe",
+            "label": "Proved the exploit is blocked",
+            "what": "The same request that worked before now fails, and normal use still works.",
+            "ideal": "verifies a fix by re-running the exploit.",
+            "card": {
+              "title": "Fixed, and proved",
+              "kicker": "Missing cloud audit logging",
+              "body": [
+                "You re-ran the exact request that broke it, and it is blocked. A fix you have not tested against the exploit is a hope, not a fix.",
+                "Add the exploit as an automated test so nobody can quietly bring the bug back."
+              ],
+              "ideal": "turns the exploit into a regression test."
+            }
+          },
+          "go": "done"
+        },
+        {
+          "when": {
+            "event": "bench:retest",
+            "match": {
+              "exploit": true,
+              "blocked": false
+            }
+          },
+          "outcome": {
+            "points": 0,
+            "verdict": "risky",
+            "label": "The exploit still works",
+            "what": "The patch did not close the hole. The same kind of request still gets through.",
+            "ideal": "never ships a fix without re-running the exploit.",
+            "rewind": false,
+            "card": {
+              "title": "Still open",
+              "kicker": "Missing cloud audit logging",
+              "body": [
+                "The exploit still works after your patch. This is what happens when a fix blocks one payload, or hides a symptom, instead of removing the cause.",
+                "Go back over the Fix tab: it shows which options were right, and why the others fail."
+              ],
+              "ideal": "verifies with the exploit before calling it fixed.",
+              "rewind": false
+            }
+          },
+          "go": "done"
+        }
+      ]
+    },
+    "done": {
+      "end": true
+    }
+  }
+}
