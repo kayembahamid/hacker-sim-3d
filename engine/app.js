@@ -231,7 +231,9 @@ export class Engine {
       // the tools at the top and the Back button at the bottom.
       const short = h < 560;   // a phone held sideways
       const top = short ? 50 : 58;
-      const bottom = short ? 50 : 64;
+      // A finished step's Next button sits at the bottom: the device makes
+      // room for it instead of lying underneath its own controls.
+      const bottom = (short ? 50 : 64) + (this.shell.pendingNext ? (short ? 64 : 92) : 0);
       screen.fullscreen(this.focusLayer, { x: 0, y: top, w, h: Math.max(200, h - top - bottom) }, { stretch: id !== 'phone' });
     } else {
       screen.focus(this.focusLayer, this.rig.camera, w, h);
@@ -330,6 +332,9 @@ export class Engine {
     mountCaptions(this.shell.captions);
     this.menu = new GameMenu({ engine: this, parent: this.shell.stage });
     this.pointer = new CoachPointer({ engine: this, store });
+    // The Next button comes and goes, so a device open on a small screen is laid
+    // out again each time (after the shell has shown or hidden it).
+    for (const ev of ['stage:complete', 'coach:step', 'coach:next']) bus.on(ev, () => setTimeout(() => { if (this.liveScreen) this.layoutLiveScreen(); }, 0));
     this.screenRoot = el('div', { class: 'screen-root', hidden: true });
     this.shell.stage.append(this.screenRoot);
     const wake = () => audio.start();

@@ -98,7 +98,7 @@ export function makeChatApp({ name = 'Chat', colour = 'linear-gradient(160deg,#8
     const replies = (chat.replies || []).filter((r) => !r.used);
     if (replies.length) {
       wrap.append(el('div', { class: 'ct-replies' }, replies.map((r) => el('button', {
-        class: 'ms-reply', type: 'button',
+        class: 'ms-reply', type: 'button', dataset: { reply: r.id },
         onclick: () => {
           ctx.store.update((s) => {
             const c = s.phone.chats.find((x) => x.id === chat.id);

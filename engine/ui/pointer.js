@@ -56,11 +56,11 @@ export class CoachPointer {
   // ------------------------------------------------------------ idle ride
   // A step has started and the player is standing back in the room, doing
   // nothing: after a few seconds the guide takes them there, once. Only in
-  // Training, where the guide is meant to lead.
+  // the gentlest mode (Training, or Easy), where the guide is meant to lead.
   armIdle() {
     this.cancelIdle();
     const e = this.engine;
-    if (!this.data || !this.data.target || !load('guide', true) || e.mode !== 'training') return;
+    if (!this.data || !this.data.target || !load('guide', true) || !['training', 'easy'].includes(e.mode)) return;
     this.idle = setTimeout(() => {
       this.idle = null;
       const d = this.data;

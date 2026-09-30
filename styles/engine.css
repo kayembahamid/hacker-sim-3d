@@ -516,20 +516,20 @@ kbd { font-family: var(--mono); }
 /* A pulsing ring on the exact control, and a label that rides beside it. Both
    live inside the phone and computer screens, so they scale with them. */
 .coach-mark {
-  outline: 3px solid #24ff9c !important; outline-offset: 3px;
-  box-shadow: 0 0 0 6px rgba(36, 255, 156, 0.25), 0 0 22px 4px rgba(36, 255, 156, 0.55) !important;
+  outline: 3px solid var(--accent) !important; outline-offset: 3px;
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 25%, transparent), 0 0 22px 4px color-mix(in srgb, var(--accent) 55%, transparent) !important;
   animation: coach-ring 1.15s ease-in-out infinite;
 }
-@keyframes coach-ring { 0%, 100% { box-shadow: 0 0 0 4px rgba(36, 255, 156, 0.2), 0 0 12px 2px rgba(36, 255, 156, 0.4); } 50% { box-shadow: 0 0 0 10px rgba(36, 255, 156, 0.32), 0 0 30px 8px rgba(36, 255, 156, 0.65); } }
+@keyframes coach-ring { 0%, 100% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 20%, transparent), 0 0 12px 2px color-mix(in srgb, var(--accent) 40%, transparent); } 50% { box-shadow: 0 0 0 10px color-mix(in srgb, var(--accent) 32%, transparent), 0 0 30px 8px color-mix(in srgb, var(--accent) 65%, transparent); } }
 .coach-bubble {
   position: absolute; z-index: 999; pointer-events: none; max-width: 78%;
-  padding: 8px 13px; border-radius: 12px; background: #24ff9c; color: #04140c;
+  padding: 8px 13px; border-radius: 12px; background: var(--accent); color: var(--accent-ink);
   font: 700 calc(14px * var(--ui, 1)) / 1.25 var(--body, system-ui); letter-spacing: 0.01em;
   box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45); animation: coach-bob 1.15s ease-in-out infinite;
 }
 .coach-bubble::after {
   content: ""; position: absolute; left: var(--arrow, 50%); bottom: -7px; width: 14px; height: 14px; margin-left: -7px;
-  background: #24ff9c; transform: rotate(45deg); border-radius: 3px;
+  background: var(--accent); transform: rotate(45deg); border-radius: 3px;
 }
 .coach-bubble.is-below::after { bottom: auto; top: -7px; }
 @keyframes coach-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
@@ -552,3 +552,10 @@ kbd { font-family: var(--mono); }
 .sim-app.device-open .backbtn, .sim-app.device-open .back-btn { order: 1; }
 
 .beat-time { font-size: 0.85rem; }
+
+/* On a narrow screen the "What now?" tab keeps to an icon, so it sits beside
+   Back on one row instead of wrapping over the device's own controls. */
+@media (max-width: 520px) {
+  .sim-app.device-open .coach-peek { width: 44px; padding: 0; justify-content: center; }
+  .sim-app.device-open .coach-peek span { display: none; }
+}
