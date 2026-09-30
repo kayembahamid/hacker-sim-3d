@@ -14,7 +14,9 @@ import { load } from '../core/storage.js';
 // "Press Report phishing" only shows once an email is open, and "Open the
 // email" shows until then.
 const POSE = { desktop: 'computer', phone: 'phone', deskphone: 'deskphone' };
-const IDLE_FLY_MS = 4200;
+const IDLE_FLY_MS = 2800;
+// The hardest modes are played without a guide; every other mode is led.
+const UNGUIDED = ['expert', 'assessment'];
 
 export class CoachPointer {
   constructor({ engine, store }) {
@@ -29,6 +31,8 @@ export class CoachPointer {
     bus.on('coach:step', (d) => this.setStep(d));
     bus.on('stage:complete', () => this.clearStep());
     bus.on('scenario:complete', () => this.clearStep());
+    // Back in the room with a step still to do: lead again, the same as at the start.
+    bus.on('room:returned', () => this.armIdle());
     bus.on('world:changed', () => this.soon());
     bus.on('device:live', () => this.soon());
     bus.on('app:opened', () => this.soon());
@@ -56,11 +60,11 @@ export class CoachPointer {
   // ------------------------------------------------------------ idle ride
   // A step has started and the player is standing back in the room, doing
   // nothing: after a few seconds the guide takes them there, once. Only in
-  // the gentlest mode (Training, or Easy), where the guide is meant to lead.
+  // any mode that has a guide (everything but Expert and Assessment).
   armIdle() {
     this.cancelIdle();
     const e = this.engine;
-    if (!this.data || !this.data.target || !load('guide', true) || !['training', 'easy'].includes(e.mode)) return;
+    if (!this.data || !this.data.target || !load('guide', true) || UNGUIDED.includes(e.mode) || e.shell.pendingNext) return;
     this.idle = setTimeout(() => {
       this.idle = null;
       const d = this.data;
@@ -80,12 +84,54 @@ export class CoachPointer {
     const e = this.engine;
     const d = this.data;
     if (!d || !d.points || !d.points.length || !load('guide', true) || e.shell.pendingNext || !e.liveScreen) { this.clearMark(); return; }
+    // A locked phone comes first: nothing on it can be done until it is open.
+    const ph = this.store.get().phone;
+    // (A call or a sign in prompt shows over the lock screen, so those come first.)
+    const busy = !!ph.call || (ph.pushes || []).some((q) => q.state === 'pending');
+    if (e.liveScreen === 'phone' && ph.locked && !busy && (d.target === 'phone' || d.points.some((p) => p.device === 'phone'))) {
+      const found = this.lockStep(e);
+      if (found) { this.mark(found.el, found.label, e.screens.phone.root); return; }
+      this.clearMark();
+      return;
+    }
     for (const pt of d.points) {
       if (POSE[pt.device || 'desktop'] !== e.liveScreen) continue;
       const found = this.resolve(pt, e);
       if (found) { this.mark(found.el, found.label, e.screens[e.liveScreen].root); return; }
     }
     this.clearMark();
+  }
+
+  // The lock screen, step by step. If the PIN has not been found, the guide
+  // takes the player to where it is written; once it is known, it rings each
+  // digit in turn.
+  lockStep(e) {
+    const world = this.store.get();
+    const root = e.screens.phone.root;
+    const pin = String(world.phone.pin || '');
+    if (!pin) return null;
+    if (!world.phone.pinKnown) {
+      const object = e.product.phone && e.product.phone.pinObject;
+      if (object && !this.fetching) {
+        this.fetching = true;
+        bus.emit('caption', { speaker: 'Guide', text: 'You need the PIN first. It is written down nearby, so let us go and find it.', ms: 4200 });
+        setTimeout(() => {
+          this.fetching = false;
+          const w = this.store.get();
+          if (!e.liveScreen || !w.phone.locked || w.phone.pinKnown || w.phone.call) return;
+          bus.emit('room:back', {});
+          setTimeout(() => bus.emit('coach:goto', { target: object }), 700);
+        }, 2600);
+      }
+      return null;
+    }
+    const digit = pin[(e.phoneOS.pinEntry || '').length];
+    if (digit === undefined) return null;
+    for (const key of root.querySelectorAll('.ph-key')) {
+      const b = key.querySelector('b');
+      if (b && b.textContent === digit) { const v = this.visible(key); return v ? { el: v, label: `Tap ${digit}` } : null; }
+    }
+    return null;
   }
 
   resolve(pt, e) {

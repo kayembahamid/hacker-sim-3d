@@ -195,15 +195,16 @@ export class ScenarioRunner {
     // The guided walkthrough (the coach) gets the full step guidance straight
     // away: what to do now, and where to go to do it. The player can turn the
     // coach off; then the hint below still appears, on a delay, as before.
+    const guide = this.guideFor(stage);
     if (!stage.end) {
       bus.emit('coach:step', {
         scenario: a.scenario.id, index: (a.index ?? 0) + 1, count: a.count ?? 1, stage: stageId,
         objective: stage.objective || '',
         hint: (stage.hint && (stage.hint.text || stage.hint)) || '',
-        target: stage.target || (stage.hint && stage.hint.glow) || null,
+        target: guide.target,
         targetLabel: stage.targetLabel || null,
         decision: !!stage.decision,
-        points: this.pointsFor(stage)
+        points: guide.points
       });
     }
 
@@ -211,7 +212,7 @@ export class ScenarioRunner {
     if (stage.hint && hintDelay !== undefined) {
       a.hintTimer = setTimeout(() => bus.emit('hint', { text: stage.hint.text || stage.hint }), stage.hint.afterMs ?? hintDelay);
     }
-    const target = stage.target || (stage.hint && stage.hint.glow);
+    const target = guide.target;
     // With the guided walkthrough on, the marker that says "look here" comes up
     // almost at once, so "where to go" is never a guess. With it off, it keeps
     // the by difficulty pace.
@@ -226,42 +227,56 @@ export class ScenarioRunner {
     if (stage.end) this.overlay.whenIdle().then(() => this.finish(stage.endReason || 'complete'));
   }
 
-  // Where in the phone or computer this step is done, for the walkthrough's
-  // pointer: the stage's own list if it has one, otherwise the product's map
-  // from an event to the control that raises it, for every move the stage would
-  // reward. The risky move is never pointed at.
-  pointsFor(stage) {
-    if (Array.isArray(stage.points)) return stage.points;
+  // What the walkthrough needs to lead the player through a step: where on the
+  // phone or computer it is done (its points), and which thing in the room to go
+  // to first (its target). A stage can say both itself (stage.points,
+  // stage.target); otherwise they come from the product's map of events to the
+  // controls that raise them, for every move the stage would reward. The risky
+  // move is never pointed at. An entry can also name a room object
+  // ({ room: 'door' }) or only a device ({ device: 'phone' }), for steps done
+  // somewhere without a control to ring.
+  guideFor(stage) {
     const map = this.product.coachPoints || {};
+    const DEVICE_OBJECT = { desktop: 'computer', phone: 'phone', deskphone: 'deskphone' };
     const out = [];
     const seen = new Set();
-    for (const r of stage.on || []) {
-      const o = r.outcome;
-      if (o && o.verdict !== 'safe' && o.verdict !== 'careful') continue;
-      if (!o && !r.go) continue;
-      const when = r.when || {};
-      for (const ev of [].concat(when.event || [])) {
-        const spec = map[ev];
-        if (!spec) continue;
-        const ctx = when.match || {};
-        const key = ev + JSON.stringify(ctx);
-        if (seen.has(key)) continue;
-        seen.add(key);
-        const fill = (text) => {
-          let ok = true;
-          const out2 = String(text).replace(/\{(\w+)\}/g, (m, k) => {
-            const v = [].concat(ctx[k])[0];
-            if (v === undefined || typeof v === 'object') { ok = false; return m; }
-            return String(v);
-          });
-          return ok ? out2 : null;
-        };
-        const sel = []; const label = [];
-        (spec.sel || []).forEach((c, i) => { const f = fill(c); if (f) { sel.push(f); label.push((spec.label || [])[i] || (spec.label || [])[0] || ''); } });
-        if (sel.length) out.push({ device: spec.device, app: spec.app, sel, label });
+    const rooms = [];
+    const devices = [];
+    if (Array.isArray(stage.points)) {
+      for (const p of stage.points) out.push(p);
+    } else {
+      for (const r of stage.on || []) {
+        const o = r.outcome;
+        if (o && o.verdict !== 'safe' && o.verdict !== 'careful') continue;
+        if (!o && !r.go) continue;
+        const when = r.when || {};
+        for (const ev of [].concat(when.event || [])) {
+          const ctx = when.match || {};
+          for (const spec of [].concat(map[ev] || [])) {
+            const key = ev + JSON.stringify(ctx) + (spec.device || '') + (spec.room || '');
+            if (seen.has(key)) continue;
+            seen.add(key);
+            if (spec.room) { rooms.push(spec.room); continue; }
+            if (!spec.sel) { if (spec.device) devices.push(spec.device); continue; }
+            const fill = (text) => {
+              let ok = true;
+              const done = String(text).replace(/\{(\w+)\}/g, (m, k) => {
+                const v = [].concat(ctx[k])[0];
+                if (v === undefined || typeof v === 'object') { ok = false; return m; }
+                return String(v);
+              });
+              return ok ? done : null;
+            };
+            const sel = []; const label = [];
+            spec.sel.forEach((c, i) => { const f = fill(c); if (f) { sel.push(f); label.push((spec.label || [])[i] || (spec.label || [])[0] || ''); } });
+            if (sel.length) out.push({ device: spec.device, app: spec.app, sel, label });
+          }
+        }
       }
     }
-    return out;
+    const firstDevice = (out[0] && (out[0].device || 'desktop')) || devices[0];
+    const target = stage.target || (stage.hint && stage.hint.glow) || rooms[0] || (firstDevice ? DEVICE_OBJECT[firstDevice] : null) || null;
+    return { points: out, target };
   }
 
   onEvent(type, payload) {
