@@ -18,6 +18,7 @@ function stars(n, max = 3) {
 }
 
 const VERDICT_ICON = { safe: 'check', careful: 'check', neutral: 'info', risky: 'warning', unsafe: 'warning' };
+const FEEDBACK_URL = 'https://forms.gle/LzeAYGEg8NerX5SW7';
 
 export function buildDebrief({ product, log, score, seed, mode, links = {}, onReplay, onNewRun, onExport }) {
   const totals = score.total();
@@ -79,6 +80,11 @@ export function buildDebrief({ product, log, score, seed, mode, links = {}, onRe
     el('button', { class: 'btn btn-primary', type: 'button', onclick: () => onReplay && onReplay() }, [icon('refresh'), 'Replay this seed']),
     el('button', { class: 'btn', type: 'button', onclick: () => onNewRun && onNewRun() }, [icon('play'), product.newRunLabel || 'New run']),
     onExport ? el('button', { class: 'btn btn-ghost', type: 'button', onclick: () => onExport() }, [icon('download'), 'Export my result']) : null
+  ]));
+
+  root.append(el('p', { class: 'db-feedback' }, [
+    'Used this with your team or class? ',
+    el('a', { href: FEEDBACK_URL, target: '_blank', rel: 'noopener', text: 'Tell me how it went.' })
   ]));
 
   bus.emit('debrief:shown', { stars: totals.stars, points: totals.points, seed });

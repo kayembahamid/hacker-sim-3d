@@ -411,6 +411,8 @@ kbd { font-family: var(--mono); }
 .db-tl-time { font-family: var(--mono); color: var(--muted); }
 .db-tl-points { font-family: var(--mono); color: var(--muted); }
 .db-buttons { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 30px; }
+.db-feedback { color: var(--muted); font-size: 0.9rem; margin: 18px 0 0; }
+.db-feedback a { color: var(--accent); font-weight: 600; }
 
 /* menu */
 .menu-overlay { position: absolute; inset: 0; z-index: 70; display: grid; place-items: center; background: rgba(4, 4, 8, 0.6); backdrop-filter: blur(4px); padding: 20px; }
