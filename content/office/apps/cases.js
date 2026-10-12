@@ -97,7 +97,7 @@ export function makeCasesApp() {
           const verdict = done && o.good !== undefined ? (o.good ? (on ? 'is-right' : 'is-missed') : (on ? 'is-wrong' : '')) : '';
           return el('button', {
             class: `cs-opt ${on ? 'is-on' : ''} ${verdict}`, type: 'button', role: s.multi ? 'checkbox' : 'radio', 'aria-checked': String(on),
-            dataset: { opt: o.id }, disabled: done ? '' : null, onclick: () => toggle(ctx, c, s, o)
+            dataset: { opt: o.id, good: o.good === true ? '1' : o.good === false ? '0' : '' }, disabled: done ? '' : null, onclick: () => toggle(ctx, c, s, o)
           }, [
             el('span', { class: 'cs-tick' }, [icon(on ? 'check' : 'plus')]),
             el('span', { class: 'cs-opt-main' }, [el('b', { text: o.label }), o.detail ? el('small', { text: o.detail }) : null, done && o.why ? el('small', { class: 'cs-why', text: o.why }) : null].filter(Boolean))

@@ -26,7 +26,7 @@ export function makeSocialApp({ name = 'Snaply', colour = 'linear-gradient(160de
 
   function nav(ctx, tab) {
     return el('nav', { class: 'seg' }, [['feed', 'Feed'], ['profile', 'Profile']].map(([id, label]) => el('button', {
-      class: `seg-btn ${tab === id ? 'is-on' : ''}`, type: 'button', onclick: () => ctx.setView('social', { tab: id })
+      class: `seg-btn ${tab === id ? 'is-on' : ''}`, type: 'button', dataset: { tab: id }, onclick: () => ctx.setView('social', { tab: id })
     }, [label])));
   }
 
@@ -65,7 +65,7 @@ export function makeSocialApp({ name = 'Snaply', colour = 'linear-gradient(160de
         el('span', { class: 'ct-avatar lg', text: handle[1] ? handle[1].toUpperCase() : 'B' }),
         el('div', {}, [el('b', { text: handle }), el('small', { text: st.visibility === 'public' ? 'Public account: anyone can see your posts' : 'Private account: only people you approve' })])
       ]),
-      el('label', { class: 'switch-row' }, [
+      el('label', { class: 'switch-row sc-private' }, [
         el('span', { text: 'Private account' }),
         el('input', { type: 'checkbox', role: 'switch', checked: st.visibility !== 'public' ? '' : null, onchange: (ev) => {
           const value = ev.target.checked ? 'private' : 'public';

@@ -83,6 +83,7 @@
           }
         ],
         "fix": {
+          "step": "Pick the fix that closes the hole",
           "prompt": "Pick every change that stops it printing, hides it if it ever does, and deals with the token already out.",
           "options": [
             {
@@ -223,6 +224,7 @@
   "start": "exploit",
   "stages": {
     "exploit": {
+      "step": "Reproduce the bug on staging",
       "objective": "Reproduce the bug: read the Code tab, then use the Exploit tab on staging.",
       "target": "computer",
       "decision": true,
@@ -281,13 +283,15 @@
           "device": "desktop",
           "app": "bench",
           "sel": [
+            ".bn-fix .cs-opt.is-on[data-good=\"0\"]",
+            ".bn-fix .cs-opt[data-good=\"1\"]:not(.is-on)",
             ".bn-apply:not([disabled])",
-            ".bn-fix .cs-options",
             ".app-bench .ox-tab:nth-child(3)"
           ],
           "label": [
+            "Untick this one, it does not fix the cause",
+            "Pick this change",
             "Picked everything that fixes it? Apply the patch",
-            "Pick every change that fixes the cause",
             "Open the Fix tab"
           ]
         }
@@ -375,6 +379,7 @@
       ]
     },
     "verify": {
+      "step": "Prove the fix works",
       "objective": "Prove it: re-run the exploit on the Exploit tab, then check normal use still works.",
       "target": "computer",
       "decision": true,

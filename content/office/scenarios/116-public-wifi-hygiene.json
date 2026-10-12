@@ -73,6 +73,7 @@
   "start": "connect",
   "stages": {
     "connect": {
+      "points": [{"device": "phone", "sel": [".sheet-num[data-right=\"1\"]"], "label": ["Tap the number the VPN shows"]}, {"device": "desktop", "app": "network", "skipIf": "office.network.wifi", "sel": [".ox-card[data-wifi=\"cafe\"] .tb-btn.primary"], "label": ["Join Northside-Cafe, the one on the sign"]}, {"device": "desktop", "app": "vpn", "sel": [".app-vpn .tb-btn.primary"], "label": ["Connect the VPN"]}],
       "objective": "Get back online safely and connect to the VPN.",
       "target": "computer",
       "decision": true,

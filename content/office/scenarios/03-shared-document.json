@@ -8,6 +8,7 @@
   "startsAt": 1035,
   "brief": "17:15. An email says a colleague shared a document with you. The link asks you to sign in again.",
   "insight": "A real share opens the file. This one asks for your Veltrix password first, on a page that is not Veltrix.",
+  "teaches": ["a real share opens the file, it does not ask for your password", "check the address of any sign in page", "report phishing so others are protected"],
   "vars": {
     "fake": {
       "fake": "vlx-sso",
@@ -167,6 +168,7 @@
   "start": "decide",
   "stages": {
     "decide": {
+      "step": "Check the shared document before signing in",
       "objective": "Decide whether to sign in to see the shared document.",
       "target": "computer",
       "decision": true,
@@ -222,6 +224,7 @@
       ]
     },
     "wrap": {
+      "step": "Report it and change your password",
       "auto": [
         {
           "do": "objective",

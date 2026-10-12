@@ -8,6 +8,7 @@
   "startsAt": 990,
   "brief": "16:34. An email from Ferrum Steel’s accounts team asks you to update their bank details before tonight’s payment run.",
   "insight": "Ferrum Steel is due £48,250 tonight. The email is from ferrum-steel’s accounts team, or so it says.",
+  "teaches": ["a bank detail change is checked on a number you already have", "an email can come from a real supplier account and still be a scam", "urgency before a payment run is a warning sign"],
   "vars": {
     "fake": {
       "fake": "ferrum",
@@ -284,6 +285,7 @@
   "start": "decide",
   "stages": {
     "decide": {
+      "step": "Check the bank detail change before it goes through",
       "objective": "Decide what to do with Ferrum Steel’s bank detail change (FS-4471 in Finance).",
       "target": "computer",
       "decision": true,
@@ -352,6 +354,7 @@
       ]
     },
     "lost": {
+      "step": "Report what happened",
       "auto": [
         {
           "do": "objective",

@@ -8,6 +8,7 @@
   "startsAt": 1120,
   "brief": "18:40. Your phone rings. The caller ID says Helen Marsh, the CEO, and it sounds like her.",
   "insight": "Helen is travelling today. And a voice on the phone is not proof of anything any more.",
+  "teaches": ["a familiar voice is not proof any more", "urgent payments are checked on a number you already have", "hold the payment until it is confirmed"],
   "vars": {
     "amount": {
       "pick": [
@@ -229,6 +230,7 @@
   "start": "decide",
   "stages": {
     "decide": {
+      "step": "Check the CEO’s payment request",
       "objective": "Decide what to do about the CEO’s payment request.",
       "target": "phone",
       "decision": true,
@@ -291,6 +293,7 @@
       ]
     },
     "wrap": {
+      "step": "Report the fake call",
       "auto": [
         {
           "do": "objective",

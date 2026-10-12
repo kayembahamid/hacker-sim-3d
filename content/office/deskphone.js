@@ -131,7 +131,7 @@ export class DeskPhone {
     const choices = c.state === 'active' && step && step.choices ? step.choices : null;
     return el('div', { class: `dp-call-view is-${c.state}` }, [
       el('div', { class: 'dp-transcript' }, (c.said || []).slice(-3).map((l) => el('p', { class: `dp-line ${l.who === 'me' ? 'is-me' : ''}` }, [el('b', { text: l.who === 'me' ? 'You' : (c.label || 'Caller') }), ` ${l.text}`]))),
-      choices ? el('div', { class: 'dp-choices' }, choices.map((ch) => el('button', { class: 'dp-choice', type: 'button', onclick: () => this.choose(ch) }, [ch.label]))) : null,
+      choices ? el('div', { class: 'dp-choices' }, choices.map((ch) => el('button', { class: 'dp-choice', type: 'button', dataset: { choice: ch.id || '' }, onclick: () => this.choose(ch) }, [ch.label]))) : null,
       el('div', { class: 'dp-actions' }, c.state === 'ringing' ? [
         el('button', { class: 'dp-btn dp-end', type: 'button', onclick: () => this.hangUp('declined') }, [icon('phoneOff'), el('span', { text: 'Decline' })]),
         el('button', { class: 'dp-btn dp-call', type: 'button', onclick: () => this.answer() }, [icon('phone'), el('span', { text: 'Answer' })])

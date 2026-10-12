@@ -45,11 +45,13 @@ export function makeSecurityApp() {
   const pages = {
     methods: (ctx, svc) => el('div', {}, [
       el('p', { class: 'ox-note', text: 'Number matching means a sign in prompt only works if you type the number shown on the screen you are signing in on. Someone who has your password but not your screen cannot use it.' }),
-      el('ul', { class: 'ox-cards' }, svc.methods.map((m) => el('li', { class: 'ox-card' }, [
+      el('ul', { class: 'ox-cards' }, svc.methods.map((m) => el('li', { class: 'ox-card', dataset: { method: m.id, on: m.on ? '1' : '0' } }, [
         el('span', { class: 'ox-row-main' }, [el('b', { text: m.label }), el('small', { text: m.on ? 'On' : 'Off' })]),
         btn(m.on ? 'Turn off' : 'Turn on', () => {
-          edit(ctx, (v) => { const t = v.methods.find((q) => q.id === m.id); if (t) t.on = !t.on; }, 'method');
-          bus.emit('method:changed', { id: m.id, on: !m.on });
+          // Read the new state before the edit: the edit changes m in place.
+          const on = !m.on;
+          edit(ctx, (v) => { const t = v.methods.find((q) => q.id === m.id); if (t) t.on = on; }, 'method');
+          bus.emit('method:changed', { id: m.id, on });
         })
       ])))
     ]),
@@ -104,7 +106,7 @@ export function makeSecurityApp() {
         bus.emit('mailrule:removed', { id: r.id, malicious: !!r.external });
       }, { warn: !!r.external, ic: 'bin' })
     ]))) : empty('No mailbox rules.'),
-    apps: (ctx, svc) => svc.oauth.length ? el('ul', { class: 'ox-cards' }, svc.oauth.map((o) => el('li', { class: `ox-card ${o.verified ? '' : 'is-bad'}` }, [
+    apps: (ctx, svc) => svc.oauth.length ? el('ul', { class: 'ox-cards' }, svc.oauth.map((o) => el('li', { class: `ox-card ${o.verified ? '' : 'is-bad'}`, dataset: { oauth: o.id } }, [
       el('span', { class: 'ox-row-main' }, [el('b', { text: o.name }), el('small', { text: `${o.publisher} · added ${o.added}` }), el('small', { text: `Can: ${o.scopes.join(', ')}` })]),
       btn('Remove access', () => {
         edit(ctx, (v) => { v.oauth = v.oauth.filter((q) => q.id !== o.id); }, 'oauth-revoke');

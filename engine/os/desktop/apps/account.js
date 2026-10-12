@@ -32,14 +32,14 @@ export function makeAccountApp({ title = 'Settings', tabs = ['security', 'device
       node.append(
         el('nav', { class: 'ac-side' }, [
           el('h3', { text: 'Accounts' }),
-          ...ids.map((id) => el('button', { class: `ac-svc ${id === sid ? 'is-on' : ''}`, type: 'button', onclick: () => ctx.setExtra('account', { service: id, tab: 'security' }) }, [
+          ...ids.map((id) => el('button', { class: `ac-svc ${id === sid ? 'is-on' : ''}`, type: 'button', dataset: { svc: id }, onclick: () => ctx.setExtra('account', { service: id, tab: 'security' }) }, [
             el('span', { class: 'ac-svc-ico', text: acc.services[id].name[0] }), el('span', {}, [el('b', { text: acc.services[id].name }), el('small', { class: 'mono', text: acc.services[id].domain })])
           ]))
         ]),
         svc ? el('div', { class: 'ac-main' }, [
           el('header', { class: 'ac-head' }, [el('h2', { text: svc.name }), el('small', { class: 'mono', text: svc.user || '' })]),
           el('nav', { class: 'seg' }, TABS.filter(([id]) => tabs.includes(id)).map(([id, label]) => el('button', {
-            class: `seg-btn ${tab === id ? 'is-on' : ''}`, type: 'button', onclick: () => { ctx.setExtra('account', { tab: id }); bus.emit('account:viewed', { service: sid, tab: id }); }
+            class: `seg-btn ${tab === id ? 'is-on' : ''}`, type: 'button', dataset: { tab: id }, onclick: () => { ctx.setExtra('account', { tab: id }); bus.emit('account:viewed', { service: sid, tab: id }); }
           }, [label]))),
           page(ctx, sid, svc, tab, x)
         ]) : el('p', { class: 'app-empty', text: 'No accounts.' })

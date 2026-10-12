@@ -8,6 +8,7 @@
   "startsAt": 1010,
   "brief": "16:50. Your phone starts buzzing with sign in requests you did not start. Then the desk phone rings: IT.",
   "insight": "Someone has your password and is hammering the approve button, hoping you tap yes to make it stop.",
+  "teaches": ["never approve a sign in you did not start", "IT never needs you to approve a request on a call", "a storm of requests means someone has your password"],
   "vars": {
     "num1": {
       "int": [
@@ -298,6 +299,8 @@
   "start": "storm",
   "stages": {
     "storm": {
+      "step": "Stop the sign in requests and change your password",
+      "points": [{ "device": "phone", "sel": [".sheet-deny"], "label": ["Tap No, it is not me"] }, { "device": "desktop", "app": "security", "sel": [".ox-detail .tb-btn.primary", ".ox-tab:nth-child(4)"], "label": ["Press Change password now", "Open the Password tab"] }],
       "objective": "Deal with the sign in requests and the call.",
       "target": "phone",
       "decision": true,

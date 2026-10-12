@@ -51,6 +51,7 @@
   "start": "decide",
   "stages": {
     "decide": {
+      "points": [{"device": "desktop", "app": "browser", "sel": [":scope:has(.br-url[title^=\"https://business.harbourbank.co.uk/\"]) .fm:not(:has(.fm-ok)) .fm-vault", ":scope:has(.br-url[title^=\"https://business.harbourbank.co.uk/\"]) .fm-submit", ".br-mark[title^=\"https://business.harbourbank.co.uk\"]"], "label": ["Fill from Vault", "Sign in, on the real site", "Go to the real bank from your bookmark"]}],
       "objective": "Sign in to Harbour Bank Business to check the run, on the real site.",
       "target": "computer",
       "decision": true,

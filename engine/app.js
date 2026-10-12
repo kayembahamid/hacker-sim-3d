@@ -233,7 +233,8 @@ export class Engine {
       const top = short ? 50 : 58;
       // A finished step's Next button sits at the bottom: the device makes
       // room for it instead of lying underneath its own controls.
-      const bottom = (short ? 50 : 64) + (this.shell.pendingNext ? (short ? 64 : 92) : 0);
+      const next = this.shell.pendingNext ? (this.shell.nextBtn.offsetHeight || (short ? 64 : 92)) + 10 : 0;
+      const bottom = (short ? 50 : 64) + next;
       screen.fullscreen(this.focusLayer, { x: 0, y: top, w, h: Math.max(200, h - top - bottom) }, { stretch: id !== 'phone' });
     } else {
       screen.focus(this.focusLayer, this.rig.camera, w, h);
@@ -407,7 +408,7 @@ export class Engine {
     this.screenRoot.append(buildStartScreen({
       product: this.product,
       intro,
-      defaultMode: load('mode', this.product.defaultMode),
+      defaultMode: load(this.product.modeKey || 'mode', this.product.defaultMode),
       lastRun: load('lastRun', null),
       // ?seed=words fills in the seed, so a teacher can give a whole class the
       // same evening. Only simple seed words are accepted.
@@ -422,7 +423,7 @@ export class Engine {
   }
 
   startRun(seed, mode) {
-    save('mode', mode);
+    save(this.product.modeKey || 'mode', mode);
     this.seed = seed;
     this.mode = mode;
     this.shell.root.classList.remove('is-title', 'is-debrief');

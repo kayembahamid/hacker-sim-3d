@@ -14,7 +14,10 @@ import { load } from '../core/storage.js';
 // "Press Report phishing" only shows once an email is open, and "Open the
 // email" shows until then.
 const POSE = { desktop: 'computer', phone: 'phone', deskphone: 'deskphone' };
-const IDLE_FLY_MS = 2800;
+// How long the guide waits, with the player idle in the room, before it takes
+// them to the next step itself. On Guided (easy) it drives almost at once.
+const IDLE_FLY_MS = { easy: 1600, training: 1600, normal: 3200 };
+const SWITCH_MS = { easy: 2200, training: 2200, normal: 4200 };
 // The hardest modes are played without a guide; every other mode is led.
 const UNGUIDED = ['expert', 'assessment'];
 
@@ -43,6 +46,8 @@ export class CoachPointer {
   }
 
   setStep(d) {
+    // A to do list re-leads within the same stage; only a new place resets the ride.
+    if (!this.data || d.stage !== this.data.stage || d.target !== this.data.target) this.switched = false;
     this.data = d;
     this.lastEl = null;
     this.clearMark();
@@ -50,7 +55,7 @@ export class CoachPointer {
     this.soon();
   }
 
-  clearStep() { this.data = null; this.cancelIdle(); this.clearMark(); }
+  clearStep() { this.data = null; this.cancelIdle(); this.cancelSwitch(); this.clearMark(); }
 
   soon() {
     if (this.raf) return;
@@ -65,41 +70,163 @@ export class CoachPointer {
     this.cancelIdle();
     const e = this.engine;
     if (!this.data || !this.data.target || !load('guide', true) || UNGUIDED.includes(e.mode) || e.shell.pendingNext) return;
+    const ms = IDLE_FLY_MS[e.mode] ?? IDLE_FLY_MS.normal;
+    bus.emit('coach:autoride', { ms });
     this.idle = setTimeout(() => {
       this.idle = null;
+      bus.emit('coach:autoride', { ms: 0 });
       const d = this.data;
-      if (!d || !d.target || e.liveScreen || !e.rig.isOverview() || e.rig.flight) return;
+      if (!d || !d.target || e.liveScreen || e.rig.flight) return;
       if (e.overlay && e.overlay.open) return;
+      // Parked at an object in the room with the step somewhere else: step back first.
+      if (!e.rig.isOverview()) {
+        if (e.rig.currentPose === d.target) return;
+        bus.emit('room:back', {});
+        setTimeout(() => bus.emit('coach:goto', { target: d.target }), 750);
+        return;
+      }
       if (e.shell.canReach && !e.shell.canReach(d.target)) return;
       const label = (e.interaction.get(d.target) || {}).label;
       if (label) bus.emit('caption', { speaker: 'Guide', text: `Taking you to the ${label.toLowerCase()}.`, ms: 2600 });
       bus.emit('coach:goto', { target: d.target });
-    }, IDLE_FLY_MS);
+    }, ms);
   }
 
-  cancelIdle() { if (this.idle) { clearTimeout(this.idle); this.idle = null; } }
+  cancelIdle() {
+    if (this.idle) { clearTimeout(this.idle); this.idle = null; bus.emit('coach:autoride', { ms: 0 }); }
+    // Doing something yourself also stops a pending switch to the other device.
+    this.cancelSwitch();
+  }
+
+  cancelSwitch() { if (this.switchTimer) { clearTimeout(this.switchTimer); this.switchTimer = null; } }
+
+  // ------------------------------------------------------- the wrong place
+  // The player is on one device but this step is done somewhere else (the
+  // computer, the door, the school bag). Ring the Back button with where to go,
+  // and on a guided mode take them there after a moment, once per step.
+  elsewhere(e, d) {
+    const here = e.liveScreen;
+    if (!d || !here) return null;
+    const pts = d.points || [];
+    if (pts.some((p) => POSE[p.device || 'desktop'] === here)) return null;
+    if (!d.target || d.target === here) return null;
+    if (e.shell.canReach && !e.shell.canReach(d.target)) return null;
+    // A call or a sign in prompt on the phone is the player's to deal with first.
+    const ph = this.store.get().phone;
+    if (here === 'phone' && (ph.call || (ph.pushes || []).some((q) => q.state === 'pending'))) return null;
+    return (e.interaction.get(d.target) || {}).label || null;
+  }
+
+  armSwitch(e, target) {
+    if (this.switched || this.switchTimer || UNGUIDED.includes(e.mode)) return;
+    this.switched = true;
+    const step = this.data;
+    this.switchTimer = setTimeout(() => {
+      this.switchTimer = null;
+      if (!this.data || this.data !== step || !e.liveScreen || e.liveScreen === target || e.shell.pendingNext) return;
+      if (e.overlay && e.overlay.open) return;
+      const label = (e.interaction.get(target) || {}).label;
+      if (label) bus.emit('caption', { speaker: 'Guide', text: `This step is at the ${label.toLowerCase()}. Taking you there.`, ms: 2600 });
+      bus.emit('room:back', {});
+      setTimeout(() => bus.emit('coach:goto', { target }), 750);
+    }, SWITCH_MS[e.mode] ?? SWITCH_MS.normal);
+  }
 
   // ------------------------------------------------------------- pointing
   tick() {
     const e = this.engine;
     const d = this.data;
-    if (!d || !d.points || !d.points.length || !load('guide', true) || e.shell.pendingNext || !e.liveScreen) { this.clearMark(); return; }
+    // A card asking the player to choose: ring the choice this step wants.
+    if (d && e.overlay && e.overlay.open && load('guide', true) && !UNGUIDED.includes(e.mode)) {
+      const want = d.events || [];
+      const pick = [...e.overlay.root.querySelectorAll('.ov-buttons [data-emit]')].find((b) => b.dataset.emit && want.includes(b.dataset.emit));
+      if (pick) { this.mark(pick, 'Choose this', e.overlay.root); return; }
+      this.clearMark();
+      return;
+    }
+    if (!d || !load('guide', true) || e.shell.pendingNext || !e.liveScreen) { this.clearMark(); return; }
+    const away = this.elsewhere(e, d);
+    if (away) {
+      const back = this.visible(e.shell.backBtn);
+      if (back) this.mark(back, `Next: the ${away.toLowerCase()}`, e.shell.stage);
+      this.armSwitch(e, d.target);
+      return;
+    }
+    if (!d.points || !d.points.length) { this.clearMark(); return; }
     // A locked phone comes first: nothing on it can be done until it is open.
     const ph = this.store.get().phone;
     // (A call or a sign in prompt shows over the lock screen, so those come first.)
-    const busy = !!ph.call || (ph.pushes || []).some((q) => q.state === 'pending');
+    // Only what is actually up on screen counts: a pending prompt that waits as
+    // a notification on the lock screen still needs the phone unlocked first.
+    const sheetUp = e.liveScreen === 'phone' && !!this.visible(e.screens.phone.root.querySelector('.sheet-deny'));
+    const busy = !!ph.call || sheetUp;
     if (e.liveScreen === 'phone' && ph.locked && !busy && (d.target === 'phone' || d.points.some((p) => p.device === 'phone'))) {
       const found = this.lockStep(e);
       if (found) { this.mark(found.el, found.label, e.screens.phone.root); return; }
       this.clearMark();
       return;
     }
+    // On a call or in a meeting, the careful line comes first.
+    const said = this.callStep(e, d, true);
+    if (said) { this.mark(said.el, said.label, e.screens[e.liveScreen].root); return; }
     for (const pt of d.points) {
-      if (POSE[pt.device || 'desktop'] !== e.liveScreen) continue;
+      if (pt.room || this.skip(pt) || POSE[pt.device || 'desktop'] !== e.liveScreen) continue;
       const found = this.resolve(pt, e);
       if (found) { this.mark(found.el, found.label, e.screens[e.liveScreen].root); return; }
     }
+    // A call in progress: answer it, say the careful line, or hang up.
+    const call = this.callStep(e, d);
+    if (call) { this.mark(call.el, call.label, e.screens[e.liveScreen].root); return; }
+    // Nothing left to press on this device, but the step has work on another
+    // one (deny the prompts on the phone, then change the password on the
+    // computer): ring Back with where to go next, and take the player there.
+    const placeOf = (p) => p.room || POSE[p.device || 'desktop'];
+    const other = !busy && d.points.find((p) => !p.soft && !this.skip(p) && placeOf(p) !== e.liveScreen && e.interaction.get(placeOf(p)));
+    if (other) {
+      const target = placeOf(other);
+      // The step now continues over there: the coach's ride, the marker in the
+      // room and the guide's own drive all point at the new place.
+      if (d.target !== target) {
+        d.target = target;
+        if (e.hotspots) { e.hotspots.clear(); e.hotspots.show(target, { label: 'Next step' }); }
+        e.shell.renderCoach();
+      }
+      const back = this.visible(e.shell.backBtn);
+      if (back) this.mark(back, `Next: the ${(e.interaction.get(target).label || target).toLowerCase()}`, e.shell.stage);
+      this.armSwitch(e, target);
+      return;
+    }
     this.clearMark();
+  }
+
+  // A call on the phone or the desk phone. The guide answers (the lesson is
+  // in hearing the pitch and turning it down), rings the reply the scenario
+  // scores as careful, and if there is no good reply on offer, Hang up. While
+  // the caller is talking there is nothing to press.
+  callStep(e, d, choicesOnly = false) {
+    const root = e.screens[e.liveScreen] && e.screens[e.liveScreen].root;
+    if (!root) return null;
+    const good = (d && d.choices) || [];
+    for (const id of good) {
+      const c = this.visible(root.querySelector(`.call-choice[data-choice="${id}"], .dp-choice[data-choice="${id}"]`));
+      if (c) return { el: c, label: 'Say this' };
+    }
+    if (choicesOnly) return null;
+    if (root.querySelector('.call-choices, .dp-choices')) {
+      const end = this.visible(root.querySelector('.call-screen.is-active .call-end, .dp-call-view.is-active .dp-end'));
+      if (end) return { el: end, label: 'Hang up' };
+    }
+    const answer = this.visible(root.querySelector('.call-screen.is-ringing .call-accept, .dp-call-view.is-ringing .dp-call'));
+    if (answer) return { el: answer, label: 'Answer, and listen' };
+    return null;
+  }
+
+  // A point already done: its world path (skipIf) or flag (skipIfFlag) is set.
+  skip(pt) {
+    const w = this.store.get();
+    if (pt.skipIfFlag && w.flags && w.flags[pt.skipIfFlag]) return true;
+    if (pt.skipIf && pt.skipIf.split('.').reduce((o, k) => (o == null ? o : o[k]), w)) return true;
+    return false;
   }
 
   // The lock screen, step by step. If the PIN has not been found, the guide
@@ -142,7 +269,8 @@ export class CoachPointer {
     // Get into the app first.
     if (app && device === 'desktop') {
       const open = world.desktop.windows.some((w) => w.app === app && !w.min);
-      if (!open) return this.launcher(root, app, e);
+      // A soft point only rings what is already on screen.
+      if (!open) return pt.soft ? null : this.launcher(root, app, e);
     }
     if (app && device === 'phone') {
       if (world.phone.locked) return null;
@@ -192,7 +320,14 @@ export class CoachPointer {
       try { node.scrollIntoView({ block: 'nearest', inline: 'nearest' }); } catch (err) { /* older browser */ }
       r = node.getBoundingClientRect();
     }
-    const top = document.elementFromPoint(r.left + r.width / 2, r.top + Math.min(r.height / 2, 24));
+    let top = document.elementFromPoint(r.left + r.width / 2, r.top + Math.min(r.height / 2, 24));
+    // A notification sitting on the very thing the guide wants pressed goes
+    // away (it is still in the notification centre).
+    const toast = top && top.closest && top.closest('.dk-toasts > *');
+    if (toast && !node.contains(toast)) {
+      toast.remove();
+      top = document.elementFromPoint(r.left + r.width / 2, r.top + Math.min(r.height / 2, 24));
+    }
     return top && (node === top || node.contains(top) || top.contains(node)) ? node : null;
   }
 

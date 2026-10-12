@@ -72,7 +72,7 @@ export function makeVaultApp({ title = 'Vault', suggestions = [] } = {}) {
         el('div', {}, [el('h2', { text: title }), el('small', { text: `${entries.length} logins saved` })]),
         el('div', { class: `vt-health ${reused ? 'is-warn' : entries.length ? 'is-ok' : ''}` }, [icon(reused ? 'warning' : 'shield'), el('span', { text: reused ? `${reused} logins share a password` : entries.length ? 'Every password is different' : 'Nothing saved yet' })])
       ]),
-      el('ul', { class: 'vt-list' }, entries.map((e) => el('li', { class: `vt-row ${counts[e.fingerprint] > 1 ? 'is-reused' : ''}` }, [
+      el('ul', { class: 'vt-list' }, entries.map((e) => el('li', { class: `vt-row ${counts[e.fingerprint] > 1 ? 'is-reused' : ''}`, dataset: { host: e.host } }, [
         el('span', { class: 'vt-site', text: e.host[0].toUpperCase() }),
         el('span', { class: 'vt-main-col' }, [el('b', { class: 'mono', text: e.host }), el('small', { text: e.username })]),
         el('span', { class: `vt-strength is-${e.strength}`, text: e.strength === 'strong' ? 'Strong' : e.strength === 'weak' ? 'Weak' : 'OK' }),

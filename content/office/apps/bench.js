@@ -110,7 +110,7 @@ export function makeBenchApp() {
         const on = picks.includes(o.id);
         const verdict = done ? (o.good ? (on ? 'is-right' : 'is-missed') : (on ? 'is-wrong' : '')) : '';
         return el('button', {
-          class: `cs-opt ${on ? 'is-on' : ''} ${verdict}`, type: 'button', role: 'checkbox', 'aria-checked': String(on), dataset: { opt: o.id },
+          class: `cs-opt ${on ? 'is-on' : ''} ${verdict}`, type: 'button', role: 'checkbox', 'aria-checked': String(on), dataset: { opt: o.id, good: o.good ? '1' : '0' },
           disabled: done || !b.found ? '' : null,
           onclick: () => {
             const next = on ? picks.filter((p) => p !== o.id) : [...picks, o.id];

@@ -90,7 +90,8 @@ test('a drill can be played from start to finish with taps on a phone', async ({
   await page.waitForSelector('.overlay:not([hidden]) .btn-primary');
   await page.tap('.overlay:not([hidden]) .btn-primary');
   await wait(page, 600);
-  await page.waitForSelector('.next-step:not([hidden]), .db-head', { timeout: 15000 });
+  // Guided training ends a drill on the lesson card ("What it taught you").
+  await page.waitForSelector('.next-step:not([hidden]), .db-head, .ov-lessons', { timeout: 15000 });
   expect(errs).toEqual([]);
   await ctx.close();
 });

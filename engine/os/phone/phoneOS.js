@@ -285,7 +285,7 @@ export class PhoneOS {
       head,
       el('div', { class: 'call-transcript' }, (call.said || []).slice(-3).map((l) => el('p', { class: `call-line ${l.who === 'me' ? 'is-me' : ''}` }, [el('b', { text: l.who === 'me' ? 'You' : call.label }), ` ${l.text}`]))),
       choices ? el('div', { class: 'call-choices' }, choices.map((c) => el('button', {
-        class: 'call-choice', type: 'button', onclick: () => this.chooseInCall(c)
+        class: 'call-choice', type: 'button', dataset: { choice: c.id || '' }, onclick: () => this.chooseInCall(c)
       }, [c.label]))) : null,
       el('div', { class: 'call-actions' }, [
         el('button', { class: 'call-btn call-end', type: 'button', onclick: () => this.hangUp() }, [icon('phoneOff'), el('span', { text: 'Hang up' })])
@@ -395,7 +395,7 @@ export class PhoneOS {
         el('dt', { text: 'Time' }), el('dd', { text: push.at })
       ]),
       push.choices ? el('p', { class: 'sheet-q', text: 'Tap the number shown on the sign in screen' }) : null,
-      push.choices ? el('div', { class: 'sheet-numbers' }, push.choices.map((n) => el('button', { class: 'sheet-num', type: 'button', onclick: () => decide(true, n) }, [String(n)]))) : null,
+      push.choices ? el('div', { class: 'sheet-numbers' }, push.choices.map((n) => el('button', { class: 'sheet-num', type: 'button', dataset: { right: push.genuine && String(n) === String(push.number) ? '1' : '0' }, onclick: () => decide(true, n) }, [String(n)]))) : null,
       el('div', { class: 'sheet-actions' }, [
         el('button', { class: 'sheet-btn sheet-deny', type: 'button', onclick: () => decide(false) }, [icon('close'), 'No, it is not me']),
         push.choices ? null : el('button', { class: 'sheet-btn sheet-approve', type: 'button', onclick: () => decide(true) }, [icon('check'), 'Yes, approve'])

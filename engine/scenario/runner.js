@@ -88,6 +88,12 @@ export class ScenarioRunner {
     this.traceUnsub = bus.on('*', (payload, type) => this.trace(type, payload));
     // The Next button at the bottom of the room advances a completed step.
     this.nextUnsub = bus.on('coach:next', () => this.next());
+    // A scenario with a to do list (several jobs in any order) is led one item
+    // at a time: the walkthrough follows the first job not yet ticked.
+    this.listUnsubs = [
+      bus.on('checklist', ({ items }) => { if (this.active) { this.active.checklist = items || null; this.active.listItem = null; this.guideList(); } }),
+      bus.on('world:changed', () => this.guideList())
+    ];
   }
 
   dispose() {
@@ -95,6 +101,7 @@ export class ScenarioRunner {
     if (this.unsub) this.unsub();
     if (this.traceUnsub) this.traceUnsub();
     if (this.nextUnsub) this.nextUnsub();
+    for (const u of this.listUnsubs || []) u();
     if (this.active) clearTimeout(this.active.hintTimer);
     if (this.active) clearTimeout(this.active.hotspotTimer);
     cancelTimers();
@@ -146,7 +153,7 @@ export class ScenarioRunner {
 
     this.active = {
       scenario, vars, index, count,
-      stageId: null, snapshot: null, pendingNext: null,
+      stageId: null, snapshot: null, pendingNext: null, visited: [], checklist: null, listItem: null,
       awarded: new Set(), finished: false,
       resolve: null, hintTimer: null, hotspotTimer: null,
       startedAt: performance.now()
@@ -180,6 +187,7 @@ export class ScenarioRunner {
     if (!stage) { console.warn('[scenario] missing stage', stageId); return; }
     a.stageId = stageId;
     a.pendingNext = null;
+    if (!stage.end && !a.visited.includes(stageId)) a.visited.push(stageId);
     a.fired = new Set();
     a.snapshot = this.store.snapshot();
     clearTimeout(a.hintTimer);
@@ -196,16 +204,23 @@ export class ScenarioRunner {
     // away: what to do now, and where to go to do it. The player can turn the
     // coach off; then the hint below still appears, on a delay, as before.
     const guide = this.guideFor(stage);
+    this.emitSteps();
     if (!stage.end) {
+      a.listItem = null;
       bus.emit('coach:step', {
         scenario: a.scenario.id, index: (a.index ?? 0) + 1, count: a.count ?? 1, stage: stageId,
         objective: stage.objective || '',
         hint: (stage.hint && (stage.hint.text || stage.hint)) || '',
+        why: stage.insight || '',
         target: guide.target,
         targetLabel: stage.targetLabel || null,
         decision: !!stage.decision,
-        points: guide.points
+        points: guide.points, events: guide.events,
+        choices: this.goodChoices(stage),
+        ...this.stepPosition()
       });
+      // A to do list set up by this stage leads from its first open job.
+      if (a.checklist) setTimeout(() => this.guideList(), 0);
     }
 
     const hintDelay = HINT_DELAY[this.difficulty];
@@ -219,12 +234,136 @@ export class ScenarioRunner {
     const guided = load('guide', true);
     const hsDelay = guided ? 500 : HOTSPOT_DELAY[this.difficulty];
     if (target && hs && hsDelay !== undefined) {
-      a.hotspotTimer = setTimeout(() => hs.show(target, { label: stage.targetLabel }), hsDelay);
+      // Led modes name the marker, so it reads as "the next step is here".
+      const label = stage.targetLabel || (guided && !['expert', 'assessment'].includes(this.difficulty) ? 'Next step' : undefined);
+      a.hotspotTimer = setTimeout(() => hs.show(target, { label }), hsDelay);
     }
 
     // A closing stage may put a card up first. Let it be read before the
     // scenario hands over to the next one or to the debrief.
     if (stage.end) this.overlay.whenIdle().then(() => this.finish(stage.endReason || 'complete'));
+  }
+
+  // ------------------------------------------------------------ the steps
+  // The steps of a scenario as the player sees them: every stage they have
+  // been through, then the best way on from where they are now (the safe or
+  // careful move the guide leads to first), up to the closing stage. Stages are a
+  // graph, so the list can grow or shrink when the player takes another road;
+  // the ticks stay honest because they only ever mark stages really visited.
+  pathFrom(stageId) {
+    const stages = this.active.scenario.stages;
+    const out = [];
+    const seen = new Set();
+    let id = stageId;
+    while (id && stages[id] && !stages[id].end && !seen.has(id)) {
+      seen.add(id);
+      out.push(id);
+      // The same order the pointer uses, so the list matches where it leads.
+      const rule = (stages[id].on || []).find((r) => r.go && r.go !== id && (!r.outcome || r.outcome.verdict === 'safe' || r.outcome.verdict === 'careful'));
+      id = rule && rule.go;
+    }
+    return out;
+  }
+
+  stepLabel(stage) {
+    if (stage.step) return stage.step;
+    const t = stage.objective || ((stage.auto || []).find((x) => x.do === 'objective') || {}).text || '';
+    return t.split(/(?<=\.)\s/)[0] || t;
+  }
+
+  steps() {
+    const a = this.active;
+    if (!a) return [];
+    const stages = a.scenario.stages;
+    const current = a.stageId;
+    const ahead = stages[current] && !stages[current].end ? this.pathFrom(current) : [];
+    const ids = [...a.visited.filter((id) => !ahead.includes(id)), ...ahead];
+    const ended = !stages[current] || stages[current].end;
+    return ids.map((id) => ({
+      id, label: this.stepLabel(stages[id]),
+      state: id === current && !a.pendingNext && !ended ? 'now' : a.visited.includes(id) && (id !== current || a.pendingNext || ended) ? 'done' : 'todo'
+    }));
+  }
+
+  stepPosition() {
+    const list = this.steps();
+    const i = list.findIndex((x) => x.state === 'now');
+    return { step: i < 0 ? list.filter((x) => x.state === 'done').length : i + 1, steps: list.length };
+  }
+
+  emitSteps() {
+    const a = this.active;
+    if (!a) return;
+    const list = this.steps();
+    const done = list.filter((x) => x.state === 'done').length;
+    bus.emit('steps', { scenario: a.scenario.id, steps: list, done, total: list.length, index: a.index, count: a.count });
+    // The bar in the story panel moves with each finished step, not only with
+    // each finished scenario.
+    const part = list.length ? done / list.length : 0;
+    bus.emit('progress', { done: a.index, total: a.count, fraction: (a.index + Math.min(0.95, part)) / Math.max(1, a.count) });
+  }
+
+  // A to do list is led one job at a time. Each item may say which event ticks
+  // it ({ event, match }) and where it is done ({ target }); the walkthrough
+  // then treats the first job not yet ticked as the step to lead.
+  guideList() {
+    const a = this.active;
+    if (!a || !a.checklist || a.pendingNext || this.disposed) return;
+    const stage = a.scenario.stages[a.stageId];
+    if (!stage || stage.end) return;
+    const flags = this.store.get().flags || {};
+    const items = a.checklist;
+    const open = items.findIndex((it) => !flags[it.flag]);
+    if (open < 0 || a.listItem === open) return;
+    const first = a.listItem === null;
+    a.listItem = open;
+    const it = items[open];
+    // An item can name its own pointers (points), or say which event ticks it
+    // and let the product's map find the controls.
+    const guide = this.guideFor({ target: it.target, points: it.points, on: it.event ? [{ when: { event: it.event, match: it.match }, go: '_' }] : [] });
+    const done = items.filter((x) => flags[x.flag]).length;
+    bus.emit('coach:step', {
+      scenario: a.scenario.id, index: (a.index ?? 0) + 1, count: a.count ?? 1, stage: a.stageId,
+      objective: stage.objective || '',
+      hint: it.hint || it.label,
+      why: it.why || stage.insight || '',
+      target: guide.target, targetLabel: null, decision: false, points: guide.points, events: guide.events, choices: this.goodChoices(stage),
+      step: open + 1, steps: items.length, listDone: done, item: it.label, marks: items.map((x) => !!flags[x.flag]),
+      // Not the first job: the last one was just ticked, so say so.
+      ticked: first ? null : (items.filter((x) => flags[x.flag]).pop() || {}).label || null
+    });
+  }
+
+  // A set up move has happened: lead on from there, same step.
+  reguide() {
+    const a = this.active;
+    const stage = a && a.scenario.stages[a.stageId];
+    if (!stage || stage.end || a.checklist || a.pendingNext) return;
+    const guide = this.guideFor(stage);
+    bus.emit('coach:step', {
+      scenario: a.scenario.id, index: (a.index ?? 0) + 1, count: a.count ?? 1, stage: a.stageId,
+      objective: stage.objective || '',
+      hint: (stage.hint && (stage.hint.text || stage.hint)) || '',
+      why: stage.insight || '',
+      target: guide.target, targetLabel: stage.targetLabel || null, decision: !!stage.decision,
+      points: guide.points, events: guide.events, choices: this.goodChoices(stage),
+      ...this.stepPosition()
+    });
+  }
+
+  // On a call, what to say: the reply ids the scenario scores as safe or
+  // careful (stage rules and bonuses), so the guide can ring the right line.
+  goodChoices(stage) {
+    const out = [];
+    const rules = [...(stage.on || []), ...((this.active && this.active.scenario.bonuses) || [])];
+    for (const r of rules) {
+      const ev = [].concat((r.when || {}).event || []);
+      if (!ev.some((x) => x === 'call:choice' || x === 'deskphone:choice' || x === 'video:choice')) continue;
+      const v = r.outcome && r.outcome.verdict;
+      if (v && v !== 'safe' && v !== 'careful') continue;
+      for (const c of [].concat(((r.when || {}).match || {}).choice || [])) if (typeof c === 'string') out.push(c);
+    }
+    return out;
   }
 
   // What the walkthrough needs to lead the player through a step: where on the
@@ -242,17 +381,40 @@ export class ScenarioRunner {
     const seen = new Set();
     const rooms = [];
     const devices = [];
+    const events = [];
+    // What a wanted event comes down to on screen: the product's map of
+    // controls; or, for a goal made of parts (a check that raises it once
+    // several careful moves are done), each part not yet done; or the object in
+    // the room whose card offers it as a choice.
+    const expand = (ev, ctx, depth = 0) => {
+      events.push(ev);
+      const specs = [].concat(map[ev] || []);
+      if (specs.length) return specs.map((spec) => [ev, ctx, spec]);
+      if (depth > 2) return [];
+      const parts = this.partsOf(ev);
+      if (parts.length) return parts.flatMap((x) => expand(x.event, x.match || {}, depth + 1));
+      const room = this.cardObjectFor(ev);
+      if (room) return [[ev, ctx, { room }]];
+      // A button on a web page that raises it directly.
+      return [[ev, ctx, { device: 'desktop', app: 'browser', sel: [`[data-page-btn="${ev}"]`], label: ['Press this'], soft: true }]];
+    };
     if (Array.isArray(stage.points)) {
       for (const p of stage.points) out.push(p);
     } else {
-      for (const r of stage.on || []) {
+      // A set up move (a rule that only makes something happen, such as asking
+      // the assistant, which puts its risky action up for review) is led first,
+      // until it has happened.
+      const a = this.active;
+      const all = stage.on || [];
+      const fired = (r) => !!(a && a.fired && a.fired.has(`${a.stageId}:${all.indexOf(r)}`));
+      const setUp = (r) => !r.outcome && !r.go && r.effects && !fired(r);
+      for (const r of [...all.filter(setUp), ...all.filter((r) => !setUp(r))]) {
         const o = r.outcome;
         if (o && o.verdict !== 'safe' && o.verdict !== 'careful') continue;
-        if (!o && !r.go) continue;
+        if (!o && !r.go && !setUp(r)) continue;
         const when = r.when || {};
-        for (const ev of [].concat(when.event || [])) {
-          const ctx = when.match || {};
-          for (const spec of [].concat(map[ev] || [])) {
+        for (const wanted of [].concat(when.event || [])) {
+          for (const [ev, ctx, spec] of expand(wanted, when.match || {})) {
             const key = ev + JSON.stringify(ctx) + (spec.device || '') + (spec.room || '');
             if (seen.has(key)) continue;
             seen.add(key);
@@ -269,14 +431,49 @@ export class ScenarioRunner {
             };
             const sel = []; const label = [];
             spec.sel.forEach((c, i) => { const f = fill(c); if (f) { sel.push(f); label.push((spec.label || [])[i] || (spec.label || [])[0] || ''); } });
-            if (sel.length) out.push({ device: spec.device, app: spec.app, sel, label });
+            if (sel.length) out.push({ device: spec.device, app: spec.app, sel, label, soft: !!spec.soft });
           }
         }
       }
     }
-    const firstDevice = (out[0] && (out[0].device || 'desktop')) || devices[0];
+    const lead = out.find((p) => !p.soft);
+    const firstDevice = (lead && !lead.room && (lead.device || 'desktop')) || devices[0];
     const target = stage.target || (stage.hint && stage.hint.glow) || rooms[0] || (firstDevice ? DEVICE_OBJECT[firstDevice] : null) || null;
-    return { points: out, target };
+    return { points: out, target, events: [...new Set(events)] };
+  }
+
+  // The parts of a goal: bonuses whose effects raise the event through a check
+  // of several flags, and which have not been earned yet.
+  partsOf(ev) {
+    const a = this.active;
+    if (!a) return [];
+    const raises = (fx) => [].concat(fx || []).some((x) => x && x.do === 'check' && x.emit === ev);
+    const out = [];
+    for (const b of a.scenario.bonuses || []) {
+      if (a.awarded.has(b.id)) continue;
+      if (!raises(b.effects) && !raises(b.outcome && b.outcome.effects)) continue;
+      for (const e of [].concat((b.when || {}).event || [])) out.push({ event: e, match: (b.when || {}).match });
+    }
+    return out;
+  }
+
+  // The room object whose card raises the event, by opening it or as one of its
+  // choices: scenario cards (object.card) first, then the product's own.
+  cardObjectFor(ev) {
+    const a = this.active;
+    if (!a) return null;
+    const has = (card) => card && (card.event === ev || (card.choices || []).some((c) => c.emit === ev));
+    let found = null;
+    const walk = (v) => {
+      if (found || !v || typeof v !== 'object') return;
+      if (Array.isArray(v)) { v.forEach(walk); return; }
+      if (v.do === 'object.card' && has(v.card)) { found = v.id; return; }
+      Object.values(v).forEach(walk);
+    };
+    walk([a.scenario.setup, a.scenario.stages, a.scenario.bonuses]);
+    if (found) return found;
+    for (const [id, card] of Object.entries(this.product.objectCards || {})) if (has(card)) return id;
+    return null;
   }
 
   onEvent(type, payload) {
@@ -293,6 +490,7 @@ export class ScenarioRunner {
       a.awarded.add(b.id);
       this.record(b, type, 'careful');
       if (b.outcome && b.outcome.effects) runActions(b.outcome.effects, this.actionCtx);
+      setTimeout(() => this.reguide(), 0);
     }
     for (const g of [...(s.guards || []), ...(this.product.globalGuards || [])]) {
       if ((!g.repeat && a.awarded.has(g.id)) || !ruleFires(g, type, payload, flags)) continue;
@@ -311,7 +509,7 @@ export class ScenarioRunner {
     if (!rule.outcome && !rule.go && rule.effects) {
       if (!a.fired) a.fired = new Set();
       const key = `${a.stageId}:${(stage.on || []).indexOf(rule)}`;
-      if (!a.fired.has(key)) { a.fired.add(key); runActions(rule.effects, this.actionCtx); }
+      if (!a.fired.has(key)) { a.fired.add(key); runActions(rule.effects, this.actionCtx); this.reguide(); }
       return;
     }
     clearTimeout(a.hintTimer);
@@ -367,13 +565,13 @@ export class ScenarioRunner {
       // deliberate moment and it is obvious how to move on.
       const hadCard = !!(outcome && outcome.card);
       if (hadCard || rule.instant) this.enter(rule.go);
-      else this.queueNext(rule.go);
+      else this.queueNext(rule.go, outcome);
     }
   }
 
   // The step is complete but silent. Put the Next button up and wait, unless
   // automation asked to run straight through (shouldAutoAdvance).
-  queueNext(go) {
+  queueNext(go, outcome) {
     const a = this.active;
     if (!a) return;
     a.pendingNext = go;
@@ -381,7 +579,17 @@ export class ScenarioRunner {
     clearTimeout(a.hotspotTimer);
     if (this.actionCtx.hotspots) this.actionCtx.hotspots.clear();
     const next = a.scenario.stages[go] || {};
-    bus.emit('stage:complete', { scenario: a.scenario.id, stage: a.stageId, next: go, last: !!next.end, nextObjective: next.end ? '' : (next.objective || ((next.auto || []).find((x) => x.do === 'objective') || {}).text || '') });
+    const stage = a.scenario.stages[a.stageId] || {};
+    this.emitSteps();
+    const pos = this.stepPosition();
+    bus.emit('stage:complete', {
+      scenario: a.scenario.id, stage: a.stageId, next: go, last: !!next.end,
+      nextObjective: next.end ? '' : (next.objective || ((next.auto || []).find((x) => x.do === 'objective') || {}).text || ''),
+      // What the player just did and why it matters: the lesson of the step.
+      did: (outcome && outcome.label) || this.stepLabel(stage),
+      learned: (outcome && outcome.what) || stage.insight || '',
+      step: pos.step, steps: pos.steps
+    });
     if (this.shouldAutoAdvance()) this.next();
   }
 
@@ -394,19 +602,47 @@ export class ScenarioRunner {
     this.enter(go);
   }
 
+  lessonList(items) {
+    const ul = document.createElement('ul');
+    ul.className = 'ov-lessons';
+    for (const t of items) {
+      const li = document.createElement('li');
+      li.textContent = t.charAt(0).toUpperCase() + t.slice(1);
+      ul.append(li);
+    }
+    return ul;
+  }
+
   // Tests drive many scenarios end to end; the flag lets them run straight
   // through the Next button. It is never set for a real player.
   shouldAutoAdvance() {
     return globalThis.__simAutoNext === true;
   }
 
-  finish(reason) {
+  async finish(reason) {
     const a = this.active;
     if (!a || a.finished) return;
     a.finished = true;
     clearTimeout(a.hintTimer);
     clearTimeout(a.hotspotTimer);
     if (this.actionCtx.hotspots) this.actionCtx.hotspots.clear();
+    a.stageId = null;
+    this.emitSteps();
+    // The point of the game is the lesson, so each scenario closes on what it
+    // taught, with a clear Next. Not in the unguided modes, and not when
+    // automation runs straight through.
+    const teaches = a.scenario.teaches || [];
+    if (teaches.length && !(this.product.lessonModes && !this.product.lessonModes.includes(this.difficulty)) && !this.shouldAutoAdvance()) {
+      const more = a.index + 1 < a.count;
+      bus.emit('lesson', { scenario: a.scenario.id, title: a.scenario.title, teaches });
+      await this.overlay.showCard({
+        kicker: `Lesson ${a.index + 1} of ${a.count} complete`, verdict: 'safe',
+        title: a.scenario.lessonTitle || `What “${a.scenario.title}” taught you`,
+        body: [a.scenario.insight, this.lessonList(teaches)].filter(Boolean),
+        continueLabel: more ? 'Next lesson' : 'See how it went'
+      });
+      if (this.disposed) return;
+    }
     const stars = this.score.stars(a.scenario.id);
     const seconds = Math.round((performance.now() - a.startedAt) / 1000);
     this.log.add({ scenario: a.scenario.id, minutes: now(), kind: 'scenario-end', label: `${a.scenario.title} finished`, verdict: 'neutral' });

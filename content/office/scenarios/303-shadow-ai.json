@@ -76,6 +76,7 @@
   "start": "decide",
   "stages": {
     "decide": {
+      "points": [{"device": "desktop", "app": "browser", "soft": true, "sel": ["[data-page-btn=\"extension:declined\"]", "[data-page-btn=\"/replywren/permissions\"]"], "label": ["Press Cancel", "Press it to see what it asks for (it will not install)"]}, {"device": "desktop", "app": "mail", "sel": [".ml-button", ".ml-row[data-mail=\"sh-mail\"]"], "label": ["Open the store page", "Open the ReplyWren email"]}],
       "objective": "Decide whether to add the ReplyWren extension.",
       "target": "computer",
       "decision": true,

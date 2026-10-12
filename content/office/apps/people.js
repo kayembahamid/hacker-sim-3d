@@ -107,11 +107,11 @@ export function makeVideoApp() {
           ])
         ]),
         el('div', { class: 'vc-captions', 'aria-live': 'polite' }, said.slice(-3).map((l) => el('p', {}, [el('b', { text: l.who === 'me' ? 'You: ' : `${m.host}: ` }), l.text]))),
-        joined && step && step.choices ? el('div', { class: 'vc-choices' }, step.choices.map((c) => el('button', { class: 'call-choice', type: 'button', onclick: () => choose(ctx, m, c) }, [c.label]))) : '',
+        joined && step && step.choices ? el('div', { class: 'vc-choices' }, step.choices.map((c) => el('button', { class: 'call-choice', type: 'button', dataset: { choice: c.id || '' }, onclick: () => choose(ctx, m, c) }, [c.label]))) : '',
         el('div', { class: 'ox-actions vc-controls' }, joined ? [
-          btn('Leave', () => leave(ctx, m), { warn: true, ic: 'phoneOff' }),
-          btn('Report this meeting', () => { bus.emit('video:reported', { id: m.id, genuine: !!m.genuine }); leave(ctx, m); }, { ic: 'flag' })
-        ] : [btn('Join with camera off', () => join(ctx, m), { primary: true, ic: 'video' })])
+          btn('Leave', () => leave(ctx, m), { warn: true, ic: 'phoneOff', cls: 'vc-leave' }),
+          btn('Report this meeting', () => { bus.emit('video:reported', { id: m.id, genuine: !!m.genuine }); leave(ctx, m); }, { ic: 'flag', cls: 'vc-report' })
+        ] : [btn('Join with camera off', () => join(ctx, m), { primary: true, ic: 'video', cls: 'vc-join' })])
       );
     }
   };

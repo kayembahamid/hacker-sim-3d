@@ -72,7 +72,7 @@ export class Overlay {
       for (const c of card.choices) {
         buttons.append(el('button', {
           class: `btn ${c.primary ? 'btn-primary' : 'btn-ghost'}`, type: 'button',
-          dataset: { choice: c.id },
+          dataset: { choice: c.id, emit: c.emit || '' },
           onclick: () => this.pick(c.id)
         }, [c.icon ? icon(c.icon) : null, c.label]));
       }

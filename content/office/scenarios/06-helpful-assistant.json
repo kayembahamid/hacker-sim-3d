@@ -8,6 +8,7 @@
   "startsAt": 1100,
   "brief": "18:20. A vendor sends a contract PDF. You ask Veltrix Assist to summarise it. It offers to act on it.",
   "insight": "The document has text in it you cannot see, written not for you but for the assistant.",
+  "teaches": ["documents can carry hidden instructions for AI tools", "an assistant asks before it acts, and you can say no", "never let an assistant send money or data on a document’s say so"],
   "vars": {
     "forward": {
       "pick": [
@@ -210,6 +211,7 @@
   "start": "decide",
   "stages": {
     "decide": {
+      "step": "Decide what the assistant may do",
       "objective": "Summarise the contract, and decide what the assistant should be allowed to do.",
       "target": "computer",
       "decision": true,
@@ -300,6 +302,7 @@
       ]
     },
     "wrap": {
+      "step": "Report the poisoned document",
       "auto": [
         {
           "do": "objective",

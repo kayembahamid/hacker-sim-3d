@@ -100,7 +100,8 @@ export class DesktopOS {
         // A finger has no double click (iPad Safari does not send one for a double
         // tap), so a tap opens the app. The mouse keeps its double click.
         onpointerup: (ev) => { if (ev.pointerType === 'touch') { ev.preventDefault(); this.open(app.id); } },
-        onclick: (ev) => { if (this.compact) this.open(app.id); },
+        // The guide ringing an icon says "Open it": one click is enough then.
+        onclick: (ev) => { if (this.compact || ev.currentTarget.classList.contains('coach-mark')) this.open(app.id); },
         onkeydown: (ev) => { if (ev.key === 'Enter') this.open(app.id); }
       }, [
         el('span', { class: 'dk-icon-glyph', style: { background: app.colour || '#3b4660' } }, [icon(app.icon)]),

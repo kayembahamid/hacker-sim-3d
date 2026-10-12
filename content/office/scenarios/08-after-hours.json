@@ -8,6 +8,7 @@
   "startsAt": 1130,
   "brief": "18:50. The door intercom buzzes. A courier wants to be let in. And there is that USB stick from the car park.",
   "insight": "Reception closed at six. Anyone at the door after that is your decision, and your risk.",
+  "teaches": ["after hours, nobody is let in without a check", "security deals with visitors, not you alone", "an unknown USB stick is handed in, never plugged in"],
   "setup": [
     {
       "do": "object.card",
@@ -152,6 +153,7 @@
   "start": "door",
   "stages": {
     "door": {
+      "step": "Deal with the courier at the door",
       "objective": "Deal with the courier at the door.",
       "target": "intercom",
       "decision": true,
@@ -198,6 +200,7 @@
       ]
     },
     "usb": {
+      "step": "Decide what to do with the USB stick",
       "objective": "Decide what to do with the USB stick.",
       "target": "usb",
       "decision": true,

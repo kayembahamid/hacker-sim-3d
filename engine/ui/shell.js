@@ -41,7 +41,7 @@ export class Shell {
     bus.on('stage:complete', (d) => this.showNext(d));
     bus.on('stage:entered', () => this.hideNext());
     bus.on('camera:flightEnd', ({ pose }) => { this.coachArrived = pose !== 'overview'; this.renderCoach(); });
-    bus.on('device:live', ({ id }) => this.setDeviceOpen(!!id));
+    bus.on('device:live', ({ id }) => this.setDeviceOpen(!!id, id));
     bus.on('scenario:start', (s) => this.setScenario(s));
     bus.on('intro:shown', (i) => { if (i && i.title) { this.stepTitle.textContent = i.title; this.stepBrief.textContent = i.lede || ''; } });
     bus.on('insight', ({ text, title }) => this.setInsight(text, title));
@@ -52,7 +52,27 @@ export class Shell {
     bus.on('audio:muted', ({ muted }) => this.renderSound(muted));
     bus.on('checklist', ({ items }) => { this.checkItems = items || null; this.renderChecklist(); });
     bus.on('world:changed', ({ state }) => { if (this.checkItems) this.renderChecklist(state); });
-    bus.on('scenario:start', () => { this.checkItems = null; this.renderChecklist(); clear(this.banner); });
+    bus.on('scenario:start', () => { this.checkItems = null; this.renderChecklist(); clear(this.banner); this.renderSteps(null); });
+    bus.on('steps', (d) => this.renderSteps(d));
+    bus.on('coach:autoride', ({ ms }) => this.countdown(ms));
+  }
+
+  // The steps of the scenario, ticked off as they are done, with the one to do
+  // now blinking. A scenario with its own to do list shows that instead.
+  renderSteps(d) {
+    this.stepsData = d;
+    const list = d && d.steps;
+    const show = !!(list && list.length && !this.checkItems);
+    this.stepsWrap.hidden = !show;
+    if (!show) return;
+    this.stepsCount.textContent = `${d.done} of ${d.total} done`;
+    clear(this.stepList);
+    list.forEach((st, i) => {
+      this.stepList.append(el('li', { class: `is-${st.state}` }, [
+        el('span', { class: 'sl-dot' }, [st.state === 'done' ? icon('check') : el('b', { text: String(i + 1) })]),
+        el('span', { class: 'sl-text', text: st.label })
+      ]));
+    });
   }
 
   // A to do list for scenarios with several jobs in any order. Each item is
@@ -64,10 +84,12 @@ export class Shell {
     const flags = (state || this.lastState || {}).flags || {};
     if (state) this.lastState = state;
     clear(this.checklist);
-    for (const it of items) {
+    const now = items.findIndex((it) => !flags[it.flag]);
+    items.forEach((it, i) => {
       const done = !!flags[it.flag];
-      this.checklist.append(el('li', { class: done ? 'is-done' : '' }, [icon(done ? 'check' : 'target'), el('span', { text: it.label })]));
-    }
+      this.checklist.append(el('li', { class: done ? 'is-done' : i === now ? 'is-now' : '' }, [icon(done ? 'check' : 'target'), el('span', { text: it.label })]));
+    });
+    if (this.stepsWrap) this.stepsWrap.hidden = true;
   }
 
   // ---------------------------------------------------------------- side
@@ -88,6 +110,11 @@ export class Shell {
     ]);
     this.feed = el('ol', { class: 'feed-list' });
     this.checklist = el('ul', { class: 'ss-checklist', hidden: true, 'aria-label': 'Things to do' });
+    this.stepsCount = el('span', { class: 'ssl-count' });
+    this.stepList = el('ol', { class: 'ss-steps' });
+    this.stepsWrap = el('div', { class: 'ss-stepwrap', hidden: true, 'aria-label': 'Steps in this lesson' }, [
+      el('div', { class: 'ssl-head' }, [el('span', { text: 'Your steps' }), this.stepsCount]), this.stepList
+    ]);
 
     this.objText = el('p', { class: 'so-text', text: 'Press start when you are ready.' });
     this.hintText = el('p', { class: 'so-hinttext', hidden: true });
@@ -123,7 +150,7 @@ export class Shell {
       el('div', { class: 'side-body' }, [
         el('section', { class: 'side-step', 'aria-live': 'polite' }, [
           el('div', { class: 'ss-kicker' }, [this.stepNum, this.stepKind]),
-          this.stepTitle, this.stepBrief, this.checklist, this.insight
+          this.stepTitle, this.stepBrief, this.stepsWrap, this.checklist, this.insight
         ]),
         el('section', { class: 'side-feed' }, [el('h3', { text: p.feedTitle || 'Tonight so far' }), this.feed])
       ]),
@@ -277,22 +304,29 @@ export class Shell {
     this.nextKicker = el('small', { class: 'ns-kicker', text: 'Step complete' });
     // What the next step is, so pressing it is never a leap in the dark.
     this.nextAbout = el('small', { class: 'ns-about', hidden: true });
+    // What the player just did, and the lesson in it: the game is for learning.
+    this.nextDid = el('b', { class: 'ns-did', hidden: true });
+    this.nextLearn = el('span', { class: 'ns-learn', hidden: true });
     this.nextBtn = el('button', {
       class: 'next-step', type: 'button', hidden: true, onclick: () => this.goNext()
     }, [
       el('span', { class: 'ns-check' }, [icon('check')]),
-      el('span', { class: 'ns-text' }, [this.nextKicker, this.nextLabel, this.nextAbout]),
-      icon('forward', 'ns-arrow')
+      el('span', { class: 'ns-text' }, [this.nextKicker, this.nextDid, this.nextLearn, el('span', { class: 'ns-go' }, [this.nextLabel, icon('forward', 'ns-arrow')]), this.nextAbout])
     ]);
   }
 
-  showNext({ last, nextObjective } = {}) {
+  showNext({ last, nextObjective, did, learned, step, steps } = {}) {
     this.pendingNext = true;
     this.nextAbout.hidden = !nextObjective;
     this.nextAbout.textContent = nextObjective ? `Next: ${nextObjective}` : '';
-    this.nextKicker.textContent = last ? 'All done' : 'Step complete';
-    this.nextLabel.textContent = last ? 'See how it went' : 'Next step';
+    this.nextKicker.textContent = step && steps ? `Step ${step} of ${steps} done` : last ? 'All done' : 'Step complete';
+    this.nextDid.hidden = !did;
+    this.nextDid.textContent = did ? `Nice: ${did.replace(/\.$/, '')}.` : '';
+    this.nextLearn.hidden = !learned;
+    this.nextLearn.textContent = learned ? `Why it matters: ${learned}` : '';
+    this.nextLabel.textContent = last ? 'Finish this lesson' : 'Next step';
     this.nextBtn.hidden = false;
+    this.root.classList.add('has-next');
     this.renderCoach();   // the finished step's card steps aside for the button
     this.nextBtn.focus({ preventScroll: true });
   }
@@ -300,6 +334,7 @@ export class Shell {
   hideNext() {
     this.pendingNext = false;
     this.nextBtn.hidden = true;
+    this.root.classList.remove('has-next');
   }
 
   goNext() {
@@ -315,6 +350,10 @@ export class Shell {
   buildCoach() {
     this.coachObj = el('p', { class: 'coach-obj', hidden: true });
     this.coachText = el('p', { class: 'coach-text' });
+    this.coachWhy = el('p', { class: 'coach-why', hidden: true });
+    this.coachTick = el('p', { class: 'coach-tick', hidden: true });
+    this.coachBar = el('ol', { class: 'coach-bar', 'aria-hidden': 'true' });
+    this.coachKicker = el('span', { class: 'coach-kicker', text: 'Next step' });
     this.coachGo = el('button', { class: 'coach-go', type: 'button', onclick: () => this.coachGoto() }, [
       icon('places'), el('span', { class: 'cg-label', text: 'Take me there' })
     ]);
@@ -322,15 +361,16 @@ export class Shell {
     this.coach = el('div', { class: 'coach', role: 'status', 'aria-live': 'polite', hidden: true }, [
       el('div', { class: 'coach-head' }, [
         el('span', { class: 'coach-badge' }, [icon('compass')]),
-        el('span', { class: 'coach-kicker', text: 'Next step' }),
+        this.coachKicker,
         el('button', { class: 'coach-x', type: 'button', 'aria-label': 'Tuck this away', onclick: () => this.dismissCoach() }, [icon('close')])
       ]),
-      this.coachObj, this.coachText, this.coachActions
+      this.coachBar, this.coachTick, this.coachObj, this.coachText, this.coachWhy, this.coachActions
     ]);
+    this.peekText = el('span', { text: 'What now?' });
     this.coachPeek = el('button', {
       class: 'coach-peek', type: 'button', hidden: true, 'aria-label': 'Show me what to do',
       onclick: () => this.expandCoach()
-    }, [icon('compass'), el('span', { text: 'What now?' })]);
+    }, [icon('compass'), this.peekText]);
   }
 
   showCoach(d) {
@@ -344,8 +384,9 @@ export class Shell {
   // While a phone or computer is open on a small screen its controls sit where
   // the coach card would, so the coach steps aside to its small tab; the player
   // can still tap it open.
-  setDeviceOpen(open) {
+  setDeviceOpen(open, id = null) {
     this.deviceOpen = open;
+    this.deviceId = open ? id : null;
     if (!open) this.coachForceOpen = false;
     this.renderCoach();
   }
@@ -354,25 +395,56 @@ export class Shell {
     const d = this.coachData;
     const active = !!(this.guide && d && !this.pendingNext);
     if (!active) { this.coach.hidden = true; this.coachPeek.hidden = true; return; }
-    const collapsed = this.coachDismissed || (this.deviceOpen && !this.coachForceOpen);
+    // On a wide screen the phone leaves room beside it, so the card stays up,
+    // docked to the right, and the player can read the step while doing it.
+    const docked = this.deviceId === 'phone' && window.matchMedia('(min-width: 1280px) and (min-height: 560px)').matches;
+    const collapsed = this.coachDismissed || (this.deviceOpen && !this.coachForceOpen && !docked);
     this.coachPeek.hidden = !collapsed;
     this.coach.hidden = collapsed;
     if (collapsed) return;
 
-    const obj = (d.objective || '').trim();
+    // Step 2 of 4, with a bar that fills as steps are done and blinks on this one.
+    const n = d.step || 0;
+    const total = d.steps || 0;
+    this.coachKicker.textContent = n && total ? `Step ${n} of ${total}` : 'Next step';
+    this.peekText.textContent = n && total ? `What now? ${n}/${total}` : 'What now?';
+    clear(this.coachBar);
+    this.coachBar.hidden = !(total > 1);
+    for (let i = 1; i <= total; i++) {
+      const done = d.marks ? !!d.marks[i - 1] : i < n;
+      this.coachBar.append(el('li', { class: done ? 'is-done' : i === n ? 'is-now' : '' }));
+    }
+    this.coachTick.hidden = !d.ticked;
+    this.coachTick.replaceChildren(...(d.ticked ? [icon('check'), el('span', { text: `Done: ${d.ticked}` })] : []));
+
+    const obj = (d.item || d.objective || '').trim();
     const hint = (d.hint || '').trim();
     const main = hint || obj || 'Take a look around the room and follow what feels off.';
     const showObj = obj && hint && obj !== hint;
     this.coachObj.hidden = !showObj;
     this.coachObj.textContent = showObj ? obj : '';
     this.coachText.textContent = main;
+    const why = (d.why || '').trim();
+    this.coachWhy.hidden = !why;
+    this.coachWhy.replaceChildren(...(why ? [icon('bulb'), el('span', { text: why })] : []));
     // Offer the ride only while we are still standing back in the room, and only
     // for something the player can actually reach; once the camera is in close
     // there is nothing left to fly to.
-    const canGo = !!d.target && !this.coachArrived && (!this.canReach || this.canReach(d.target));
+    const canGo = !!d.target && !this.coachArrived && !this.deviceOpen && (!this.canReach || this.canReach(d.target));
     this.coachGo.hidden = !canGo;
     this.coachActions.hidden = !canGo;
     if (canGo) this.coachGo.querySelector('.cg-label').textContent = d.targetLabel ? `Go to ${d.targetLabel}` : 'Take me there';
+  }
+
+  // The guide is about to drive: the button fills up while it counts down, so
+  // the player sees the ride coming (and can take over by doing anything).
+  countdown(ms) {
+    const go = this.coachGo;
+    go.classList.remove('is-counting');
+    if (!ms) return;
+    go.style.setProperty('--ride', `${ms}ms`);
+    void go.offsetWidth;
+    go.classList.add('is-counting');
   }
 
   coachGoto() {

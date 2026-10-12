@@ -66,7 +66,7 @@ function recents(ctx) {
 
 function contacts(ctx) {
   const list = ctx.world.phone.contacts || [];
-  return el('ul', { class: 'cl-list' }, list.map((c) => el('li', { class: 'cl-row' }, [
+  return el('ul', { class: 'cl-list' }, list.map((c) => el('li', { class: 'cl-row', dataset: { contact: c.id } }, [
     el('span', { class: 'cl-avatar', text: c.name[0] }),
     el('span', { class: 'cl-main' }, [el('b', { text: c.name }), el('small', { class: 'mono', text: c.number }), c.note ? el('small', { text: c.note }) : null]),
     el('button', { class: 'icon-btn call', type: 'button', 'aria-label': `Call ${c.name}`, onclick: () => placeCall(ctx, { number: c.number, name: c.name, contactId: c.id }) }, [icon('phone')])

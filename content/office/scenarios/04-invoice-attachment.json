@@ -8,6 +8,7 @@
   "startsAt": 1055,
   "brief": "17:35. An invoice lands from a supplier you do not recognise, with a file attached.",
   "insight": "The file is not really an invoice. Its name is built to look like one.",
+  "teaches": ["a file is what its last extension says it is", "unknown senders with attachments are checked first", "report it, do not just delete it"],
   "vars": {
     "attach": {
       "pick": [
@@ -187,6 +188,7 @@
   "start": "decide",
   "stages": {
     "decide": {
+      "step": "Check the attachment before opening it",
       "objective": "Decide what to do with the attachment.",
       "target": "computer",
       "decision": true,
@@ -242,6 +244,7 @@
       ]
     },
     "reported": {
+      "step": "Report the email",
       "auto": [
         {
           "do": "objective",
@@ -267,6 +270,7 @@
       }
     },
     "wrap": {
+      "step": "Report it to IT straight away",
       "auto": [
         {
           "do": "objective",

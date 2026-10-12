@@ -70,8 +70,9 @@
       ]
     },
     "leave": {
+      "points": [{"device": "desktop", "skipIfFlag": "desktop.locked", "sel": [".dk-lockbtn"], "label": ["Lock the computer first"]}, {"room": "badge"}],
       "objective": "Head up to Dan's office.",
-      "target": "badge",
+      "target": "computer",
       "decision": true,
       "insight": "Five minutes is plenty. The contractor and the temp are probably honest. You do not have to find out.",
       "hint": { "text": "Lock the computer first: the padlock on the taskbar, or Start and Lock (Windows key and L on a real keyboard). Then pick up your badge and head upstairs." },

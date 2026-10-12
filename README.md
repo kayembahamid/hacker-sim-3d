@@ -174,6 +174,28 @@ You only need this to change the room itself.
   and auth logs and the matching DNS, whois and certificate records that `dig`,
   `whois`, `curl` and `openssl` answer from.
 
+### The walkthrough (how the guide leads a drill)
+
+The drills are for learning, so on Guided training (the default mode) the
+guide drives: it flies the camera to each step, rings the exact control to
+press, and says why the step matters. Assessment and Expert stay unguided. A
+scenario feeds the guide with a few optional fields:
+
+- `step` on a stage: the short name in the story panel's step list. Without
+  it, the objective's first sentence.
+- `insight` on a stage: "Why it matters" on the coach card and the Next
+  button. A finishing rule's `outcome.what` is the lesson on its Next.
+- `points` on a stage, or `content/office/coachPoints.js` for an event: which
+  controls to ring, first one on screen wins. The guide follows the first safe
+  or careful rule in `on`, so put the learning route first.
+- `teaches` on the scenario: the lesson card that ends the drill.
+- A `checklist` item can carry `event`, `match`, `hint`, `why` and `points`;
+  the guide then leads the list one job at a time.
+
+Check a drill by following only the guide: `node dev/look.mjs <outdir> <id>`
+(with `npm run dev`; set `BASE` for another server) presses nothing but what
+the guide points at and should reach the debrief.
+
 ## Tests
 
 ```sh

@@ -25,7 +25,7 @@ export function btn(label, onclick, { primary = false, warn = false, ic = null, 
 // Tabs whose choice lives in the desktop's per app view state.
 export function tabs(ctx, key, list, current) {
   return el('nav', { class: 'ox-tabs', role: 'tablist' }, list.map(([id, label, ic]) => el('button', {
-    class: `ox-tab ${current === id ? 'is-on' : ''}`, type: 'button', role: 'tab', 'aria-selected': String(current === id),
+    class: `ox-tab ${current === id ? 'is-on' : ''}`, type: 'button', role: 'tab', 'aria-selected': String(current === id), dataset: { tab: id },
     onclick: () => ctx.setExtra(key, { tab: id })
   }, [ic ? icon(ic) : null, el('span', { text: label })].filter(Boolean))));
 }

@@ -8,6 +8,7 @@
   "startsAt": 1080,
   "brief": "18:00. Endpoint security flags that a colleague clicked a bad link yesterday. You need to find out what it touched.",
   "insight": "Tom clicked a phishing link yesterday afternoon. The question is what the attacker did with the hour they had.",
+  "teaches": ["attackers hide with mail rules that forward or delete mail", "check what an account did after a bad click", "report every incident, even one you fixed"],
   "vars": {
     "fake": {
       "fake": "vlx-sso",
@@ -195,6 +196,7 @@
   "start": "investigate",
   "stages": {
     "investigate": {
+      "step": "Find what the attacker changed, and undo it",
       "objective": "Find what the attacker did, and undo it.",
       "target": "computer",
       "decision": true,
@@ -231,6 +233,7 @@
       ]
     },
     "wrap": {
+      "step": "Report the incident to IT",
       "auto": [
         {
           "do": "objective",

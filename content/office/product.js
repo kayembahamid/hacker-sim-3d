@@ -76,9 +76,14 @@ export const product = {
   clock: { start: 16 * 60 + 30, end: 19 * 60 },
 
   modeLabel: 'Mode',
+  // Guided training is the default: the drills are for learning, so the guide
+  // drives. It takes the player to every step, rings what to press, and says
+  // why it matters; each drill ends on what it taught.
   defaultMode: 'training',
+  modeKey: 'mode.v2',
+  lessonModes: ['training'],
   modes: [
-    { id: 'training', label: 'Training', desc: 'Markers, hints and rewinds. Learn the moves.' },
+    { id: 'training', label: 'Guided training', desc: 'Best to start. The guide takes you to every step, shows what to press and explains why.' },
     { id: 'assessment', label: 'Assessment', desc: 'No hints, no rewinds. One score at the end.', singleScore: true },
     { id: 'expert', label: 'Expert', desc: 'No hints, more genuine traffic, tighter deadlines.' }
   ],
