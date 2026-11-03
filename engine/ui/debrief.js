@@ -76,6 +76,16 @@ export function buildDebrief({ product, log, score, seed, mode, links = {}, onRe
     ])))
   ]));
 
+  if (product.workplaceActions || product.workplaceFallback) {
+    root.append(el('section', { class: 'db-workplace', 'aria-labelledby': 'db-workplace-title' }, [
+      el('h2', { id: 'db-workplace-title', class: 'db-section', text: 'What to do at work' }),
+      ...list.map((scenario) => el('div', { class: 'db-card', dataset: { workplaceScenario: scenario.id } }, [
+        el('h3', { text: scenario.title }),
+        el('p', { text: product.workplaceActions?.[scenario.id] || product.workplaceFallback })
+      ]))
+    ]));
+  }
+
   root.append(el('div', { class: 'db-buttons' }, [
     el('button', { class: 'btn btn-primary', type: 'button', onclick: () => onReplay && onReplay() }, [icon('refresh'), 'Replay this seed']),
     el('button', { class: 'btn', type: 'button', onclick: () => onNewRun && onNewRun() }, [icon('play'), product.newRunLabel || 'New run']),

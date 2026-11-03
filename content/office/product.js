@@ -6,6 +6,8 @@
 // addresses in the ranges reserved for documentation.
 import { pickLookalike } from './sites/lookalikes.js';
 import { coachPoints } from './coachPoints.js';
+import { exportResult } from './exportResult.js';
+import { workplaceActions, workplaceFallback } from './workplaceActions.js';
 const art = (f) => `assets/art/${f}`;
 const NOTES = 'https://hamcodes.gitbook.io/hackersnotes';
 
@@ -56,7 +58,9 @@ export const product = {
     'git-security': 'Git and Repository Security',
     'cloud-security': 'Cloud Security'
   },
-  exportResult: true,
+  exportResult,
+  workplaceActions,
+  workplaceFallback,
 
   // The office picks a lookalike address for one of its brands with a
   // { fake: '<brand id>' } var; scenario text reads {{name.host}} etc.
